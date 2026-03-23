@@ -1,0 +1,27 @@
+name: Stock Auto Scan
+
+on:
+  schedule:
+    # 設定為台股開盤時間 (週一至週五，台灣時間 09:00 - 14:00)
+    # 這裡使用 UTC 時間，台灣時間減 8 小時
+    - cron: '0 1-6 * * 1-5' 
+  workflow_dispatch: # 允許你手動在 GitHub 按下執行按鍵
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 檢出程式碼
+        uses: actions/checkout@v3
+
+      - name: 設定 Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: 安裝套件
+        run: |
+          pip install yfinance pandas requests
+
+      - name: 執行黑馬掃描
+        run: python auto_scan.py
