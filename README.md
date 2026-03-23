@@ -28,3 +28,4 @@ python auto_scan.py
 pause
 
 ```
+網址:https://jimjimwu-stock.streamlit.app/
