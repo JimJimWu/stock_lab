@@ -3,39 +3,26 @@ import pandas as pd
 import yfinance as yf
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import datetime
+import json
+import os
 
 # --- 1. 基本設定 ---
-st.set_page_config(layout="wide", page_title="秉諺的黑馬雷達 V8.0")
+st.set_page_config(layout="wide", page_title="秉諺的黑馬雷達 V8.1")
 
 WATCH_LIST = ["3595", "3037", "2330", "2317", "2454", "3363", "6451", "3163", "4979", "3450", "3081", "2455", "6442"]
 
-# --- 2. 產業百科全書資料庫 (含 4 大維度分析) ---
-INDUSTRY_DB = {
-    "半導體代工/IC設計": {
-        "stocks": ["2330", "2454"],
-        "overview": "📍 **市場規模**：2026 年全球半導體產值預估突破 7,000 億美元。AI 晶片年成長率 > 30%。",
-        "value_chain": "🔗 **價值鏈**：IP設計(Arm/聯發科) -> 晶圓代工(台積電) -> 封裝測試(日月光)。",
-        "competitors": "⚔️ **競爭格局**：台積電(市佔 60%↑, 先進製程 90%↑)、三星、Intel。",
-        "drivers": "📈 **驅動因子**：邊緣 AI 運算需求、2奈米製程量產、HPC 高效能運算。"
-    },
-    "載板/PCB/散熱": {
-        "stocks": ["3037", "3163", "3363", "3595"],
-        "overview": "📍 **市場規模**：ABF 載板 2026 年供需缺口預計再次擴大，產值年增 10-15%。",
-        "value_chain": "🔗 **價值鏈**：上游(CCL/銅箔) -> 中游(ABF載板/散熱模組) -> 下游(伺服器組裝)。",
-        "competitors": "⚔️ **競爭格局**：欣興、Ibiden、南電；散熱則為雙鴻、尼得科超眾。",
-        "drivers": "📈 **驅動因子**：AI 伺服器功耗飆升至 1000W↑，帶動液冷與高層數板需求。"
-    },
-    "矽光子/光通訊": {
-        "stocks": ["6442", "3081", "3450", "4979", "6451", "2455", "6442"],
-        "overview": "📍 **市場規模**：2030 年產值上看 78 億美元，CPO 封裝滲透率將大幅提升。",
-        "value_chain": "🔗 **價值鏈**：上游(磊晶/元件) -> 中游(光模組/CPO封裝) -> 下游(大型資料中心)。",
-        "competitors": "⚔️ **競爭格局**：聯亞(磊晶)、光聖(傳輸)、博通(交換器)、Intel。",
-        "drivers": "📈 **驅動因子**：800G/1.6T 高速傳輸需求、解決 AI 算力中心能源損耗瓶頸。"
-    }
-}
+# --- 2. 讀取產業百科資料庫 ---
+@st.cache_data(ttl=600)
+def load_industry_db():
+    file_path = "industry_db.json"
+    if os.path.exists(file_path):
+        with open(file_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
 
-# --- 3. 核心功能 (Cache 保護) ---
+INDUSTRY_DB = load_industry_db()
+
+# --- 3. 核心抓取功能 ---
 @st.cache_data(ttl=3600)
 def get_stock_info(sid_with_suffix):
     try:
@@ -63,7 +50,7 @@ def get_stock_df(sid):
     return pd.DataFrame(), None
 
 # --- 4. UI 介面 ---
-st.title("📊 秉諺的產業百科黑馬雷達 V8.0")
+st.title("📊 秉諺的產業百科黑馬雷達 V8.1")
 target_sid = st.sidebar.selectbox("切換監控標的", WATCH_LIST)
 
 df, full_symbol = get_stock_df(target_sid)
@@ -73,46 +60,35 @@ info, news_list = get_stock_info(full_symbol) if full_symbol else ({}, [])
 current_ind_name = "通用電子"
 ind_data = {}
 for name, data in INDUSTRY_DB.items():
-    if target_sid in data["stocks"]:
+    if target_sid in data.get("stocks", []):
         current_ind_name = name
         ind_data = data
         break
 
 col_info, col_main = st.columns([1, 3])
 
-# --- A. 左側資訊欄 ---
 with col_info:
     if not df.empty:
-        # 1. 均線診斷
         st.subheader("🛡️ 技術防線")
         last = df.iloc[-1]
         st.write(f"**5日線：** `{round(last['MA5'], 2)}` {'🔼' if last['Close'] > last['MA5'] else '🔽'}")
         st.write(f"**10日線：** `{round(last['MA10'], 2)}` {'🔼' if last['Close'] > last['MA10'] else '🔽'}")
         st.write(f"**20日線：** `{round(last['MA20'], 2)}` {'🔼' if last['Close'] > last['MA20'] else '🔽'}")
 
-        # 2. 產業百科全書 (折疊選單)
         st.divider()
         st.subheader(f"🏢 {current_ind_name} 百科")
         if ind_data:
-            with st.expander("1. 市場規模與成長預測", expanded=False):
-                st.info(ind_data["overview"])
-            with st.expander("2. 價值鏈分析 (上中下游)", expanded=False):
-                st.info(ind_data["value_chain"])
-            with st.expander("3. 競爭格局與市佔率", expanded=False):
-                st.info(ind_data["competitors"])
-            with st.expander("4. 成長驅動因子與挑戰", expanded=False):
-                st.info(ind_data["drivers"])
+            with st.expander("1. 市場規模與成長預測"): st.info(ind_data["overview"])
+            with st.expander("2. 價值鏈分析 (上中下游)"): st.info(ind_data["value_chain"])
+            with st.expander("3. 競爭格局與市佔率"): st.info(ind_data["competitors"])
+            with st.expander("4. 成長驅動因子與挑戰"): st.info(ind_data["drivers"])
         
-        # 3. 即時新聞
         if news_list:
             st.divider()
             st.write("**📰 相關新聞：**")
             for item in news_list[:2]:
                 st.markdown(f"🔗 [{item['title']}]({item['link']})")
-        else:
-            st.caption("ℹ️ Yahoo 新聞暫時受限，請參考產業百科。")
 
-# --- B. 右側圖表欄 ---
 with col_main:
     if not df.empty:
         rsi = df['RSI'].iloc[-1]
