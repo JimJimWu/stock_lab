@@ -6,8 +6,8 @@ from plotly.subplots import make_subplots
 import json
 import os
 
-# --- 1. 基本設定 (V15.9 終極修正版) ---
-st.set_page_config(layout="wide", page_title="秉諺的黑馬雷達 V15.9")
+# --- 1. 基本設定 ---
+st.set_page_config(layout="wide", page_title="秉諺的黑馬雷達 V16.0")
 
 STOCK_DICT = {
     "3595": "3595 (山太士)", "3450": "3450 (聯鈞)", "3037": "3037 (欣興)", 
@@ -43,7 +43,7 @@ def get_stock_df(sid):
             df = yf.Ticker(full_symbol).history(period="2y", auto_adjust=True)
             if not df.empty and len(df) > 10:
                 if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
-                # 均線 (含 MA10)
+                # 均線計算 (含 MA10)
                 df['MA5'] = df['Close'].rolling(5).mean()
                 df['MA10'] = df['Close'].rolling(10).mean()
                 df['MA20'] = df['Close'].rolling(20).mean()
@@ -64,7 +64,7 @@ def get_stock_df(sid):
         except: continue
     return pd.DataFrame(), None
 
-# --- 3. Sidebar (維持百科與連結) ---
+# --- 3. Sidebar (百科與外部連結) ---
 if os.path.exists("industry_db.json"):
     with open("industry_db.json", "r", encoding="utf-8") as f: INDUSTRY_DB = json.load(f)
 else: INDUSTRY_DB = {}
@@ -72,7 +72,7 @@ else: INDUSTRY_DB = {}
 with st.sidebar:
     st.markdown(f"""<div style="background: linear-gradient(135deg, #1e3a8a, #000000); padding: 15px; border-radius: 12px; border: 1px solid #3b82f6;">
         <h1 style="color: #60a5fa; font-size: 18px; margin: 0; text-align: center;">🚀 戰情操控中心</h1>
-        <p style="color: #94a3b8; font-size: 11px; text-align: center; margin-top:5px;">吳秉諺 專屬系統 V15.9</p>
+        <p style="color: #94a3b8; font-size: 11px; text-align: center; margin-top:5px;">吳秉諺 專屬系統 V16.0</p>
     </div>""", unsafe_allow_html=True)
     
     selected_label = st.selectbox("🎯 選擇標的 (Target)", list(STOCK_DICT.values()))
@@ -110,10 +110,8 @@ with col_info:
         
         st.divider()
         st.subheader("📈 指標診斷")
-        st.write(f"**MACD：** {'🟢 金叉' if last['DIF'] > last['DEA'] else '🔴 死叉'}")
-        st.write(f"└ DIF: `{round(last['DIF'],2)}` / DEA: `{round(last['DEA'],2)}`")
-        st.write(f"**KD 狀態：** {'🟢 金叉' if last['K'] > last['D'] else '🔴 死叉'}")
-        st.write(f"└ K值: `{round(last['K'],1)}` / D值: `{round(last['D'],1)}`")
+        st.write(f"**MACD：** {'🔴 死叉' if last['DIF'] < last['DEA'] else '🟢 金叉'}")
+        st.write(f"**KD 狀態：** {'🔴 死叉' if last['K'] < last['D'] else '🟢 金叉'}")
 
         if a_data:
             st.divider()
@@ -121,10 +119,10 @@ with col_info:
             rev_light = "🔴" if (isinstance(a_data['營收成長率'], (int, float)) and a_data['營收成長率'] < 0) else "✅"
             debt_light = "🔴" if (isinstance(a_data['負債比'], (int, float)) and a_data['負債比'] > 60) else "✅"
             st.write(f"**EPS：** :green[{a_data['EPS']}]")
-            st.write(f"**營收成長：** `{round(a_data['營收成長率']*100,2) if a_data['營營收成長率']!='N/A' else 'N/A'}%` {rev_light}")
-            st.write(f"**負債比率：** `{round(a_data['負債比'],2)}%` {debt_light}")
-            st.write(f"**ROE 獲利：** `{a_data['ROE']}`")
-            st.write(f"**本益比 P/E：** `{a_data['本益比']}`")
+            st.write(f"**ROE 獲利：** :blue[{a_data['ROE']}]")
+            st.write(f"**本益比：** `{a_data['本益比']}`")
+            st.write(f"**營收成長：** `{round(a_data['營收成長率']*100,2) if a_data['營收成長率']!='N/A' else 'N/A'}%` {rev_light}")
+            st.write(f"**負債比率：** `{round(a_data['負債比'],1)}%` {debt_light}")
             st.write(f"**法人持股：** `{round(a_data['法人持股'], 1)}%`")
 
 with col_main:
@@ -147,11 +145,11 @@ with col_main:
                            row_heights=[0.4, 0.1, 0.2, 0.2],
                            subplot_titles=("價格走勢", "成交量", "MACD 趨勢", "KD 震盪"))
         
-        # K線圖 (紅跌綠漲)
+        # --- 核心修改：紅漲綠跌 ---
         fig.add_trace(go.Candlestick(
             x=plot_df.index, open=plot_df['Open'], high=plot_df['High'], low=plot_df['Low'], close=plot_df['Close'], name="K線",
-            decreasing=dict(fillcolor='red', line=dict(color='red')), 
-            increasing=dict(fillcolor='green', line=dict(color='green'))
+            decreasing=dict(fillcolor='green', line=dict(color='green')), # 下跌變綠
+            increasing=dict(fillcolor='red', line=dict(color='red'))      # 上漲變紅
         ), row=1, col=1)
         
         # 均線 (5, 10, 20)
@@ -159,7 +157,7 @@ with col_main:
         fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA10'], name="10MA", line=dict(color='#60a5fa', width=1.5)), row=1, col=1)
         fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA20'], name="20MA", line=dict(color='violet', width=1.5)), row=1, col=1)
         
-        # 指標
+        # 下方指標
         fig.add_trace(go.Bar(x=plot_df.index, y=plot_df['Volume'], name="成交量", marker_color='#334155'), row=2, col=1)
         fig.add_trace(go.Bar(x=plot_df.index, y=plot_df['MACD_Hist'], name="MACD柱"), row=3, col=1)
         fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['DIF'], name="DIF", line=dict(color='cyan')), row=3, col=1)
@@ -169,5 +167,3 @@ with col_main:
         
         fig.update_layout(height=1000, template="plotly_dark", xaxis_rangeslider_visible=False)
         st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.error("⚠️ 無法獲取數據，請確認 GitHub 部署環境。")
