@@ -5,7 +5,7 @@
 2. 日常啟動指令
 請先確認 CMD 路徑已切換至資料夾： `cd Desktop\stock_lab`
 
-• 啟動網頁儀表板 (看 K 線、法說資訊)： `streamlit run app.py`
+• 啟動網頁儀表板 (看 K 線、法說資訊)： `python -m streamlit run app.py`
 
 • 執行自動掃描器 (發送 Discord 通知)： `python auto_scan.py`
 
