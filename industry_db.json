@@ -1,23 +1,97 @@
 {
-    "半導體代工/IC設計": {
-        "stocks": ["2330", "2454"],
-        "overview": "📍 **市場規模**：2026 年全球半導體產值預估突破 7,000 億美元。AI 晶片年成長率 > 30%。",
-        "value_chain": "🔗 **價值鏈**：IP設計(Arm/聯發科) -> 晶圓代工(台積電) -> 封裝測試(日月光)。",
-        "competitors": "⚔️ **競爭格局**：台積電(市佔 60%↑, 先進製程 90%↑)、三星、Intel。",
-        "drivers": "📈 **驅動因子**：邊緣 AI 運算需求、2奈米製程量產、HPC 高效能運算。"
-    },
-    "載板/PCB/散熱": {
-        "stocks": ["3037", "3163", "3363", "3595"],
-        "overview": "📍 **市場規模**：ABF 載板 2026 年供需缺口預計再次擴大，產值年增 10-15%。",
-        "value_chain": "🔗 **價值鏈**：上游(CCL/銅箔) -> 中游(ABF載板/散熱模組) -> 下游(伺服器組裝)。",
-        "competitors": "⚔️ **競爭格局**：欣興、Ibiden、南電；散熱則為雙鴻、尼得科超眾。",
-        "drivers": "📈 **驅動因子**：AI 伺服器功耗飆升至 1000W↑，帶動液冷與高層數板需求。"
-    },
-    "矽光子/光通訊": {
-        "stocks": ["6442", "3081", "3450", "4979", "6451", "2455"],
-        "overview": "📍 **市場規模**：2030 年產值上看 78 億美元，CPO 封裝滲透率將大幅提升。",
-        "value_chain": "🔗 **價值鏈**：上游(磊晶/元件) -> 中游(光模組/CPO封裝) -> 下游(大型資料中心)。",
-        "competitors": "⚔️ **競爭格局**：聯亞(磊晶)、光聖(傳輸)、博通(交換器)、Intel。",
-        "drivers": "📈 **驅動因子**：800G/1.6T 高速傳輸需求、解決 AI 算力中心能源損耗瓶頸。"
+    "半導體與電子科技": {
+        "overview": "此分類涵蓋 **半導體與電子科技** 相關產業鏈。隨著 AI 運算爆發、先進封裝（CoWoS/FOPLP）產能供不應求，相關供應鏈正迎來營收高成長期。",
+        "value_chain": "上游：材料與IC設計 -> 中游：晶圓代工與先進檢測 -> 下游：系統整合與先進封裝。",
+        "competitors": "國際大廠與台灣本土高階設備材料商之競爭競爭。",
+        "drivers": "AI 高階晶片、矽光子(CPO)革命、國產設備替代潮。",
+        "stocks": [
+            "3595",
+            "3450",
+            "3037",
+            "2330",
+            "3363",
+            "6451",
+            "3163",
+            "4979",
+            "3081",
+            "2455",
+            "6442",
+            "7853"
+        ],
+        "company_briefs": {
+            "3595": "**Alliance Material Co., Ltd. (3595)**\n\n**【AI 網路即時搜尋結果】**\n\n🎯 **主要技術領域**：半導體材料/耗材、扇出型面板級封裝 (FOPLP)、台積電先進封裝 (CoWoS) 耗材、抑制翹曲材料 (Anti-Warp)\n\n📖 **官方核心業務大綱**：Alliance Material Co.\n\n🔥 **近期市場焦點**：此標的已成功由傳統光電板塊，轉型切入**先進製程與高難度半導體封裝鏈**，具備關鍵國產化替代優勢。",
+            "3450": "**Elite Advanced Laser Corporation (3450)**\n\n**【AI 網路即時搜尋結果】**\n\n🎯 **主要技術領域**：晶圓測試與檢驗\n\n📖 **官方核心業務大綱**：Elite Advanced Laser Corporation offers electronic manufacturing services in Taiwan.\n\n🔥 **近期市場焦點**：此標的已成功由傳統光電板塊，轉型切入**先進製程與高難度半導體封裝鏈**，具備關鍵國產化替代優勢。",
+            "3037": "**Unimicron Technology Corp. (3037)**\n\n**【AI 網路即時搜尋結果】**\n\n🎯 **主要技術領域**：晶圓測試與檢驗\n\n📖 **官方核心業務大綱**：Unimicron Technology Corp.\n\n🔥 **近期市場焦點**：此標的已成功由傳統光電板塊，轉型切入**先進製程與高難度半導體封裝鏈**，具備關鍵國產化替代優勢。",
+            "2330": "**Taiwan Semiconductor Manufacturing Company Limited (2330)**\n\n**【AI 網路即時搜尋結果】**\n\n🎯 **主要技術領域**：半導體材料/耗材、晶圓薄化/載板、晶圓測試與檢驗\n\n📖 **官方核心業務大綱**：Taiwan Semiconductor Manufacturing Company Limited, together with its subsidiaries, manufactures, packages, tests, and sells integrated circuits and other semiconductor devices in \n\n🔥 **近期市場焦點**：此標的已成功由傳統光電板塊，轉型切入**先進製程與高難度半導體封裝鏈**，具備關鍵國產化替代優勢。",
+            "3363": "**FOCI Fiber Optic Communications, Inc. (3363)**\n\n**【AI 網路即時搜尋結果】**\n\n🎯 **主要技術領域**：晶圓測試與檢驗\n\n📖 **官方核心業務大綱**：FOCI Fiber Optic Communications, Inc.\n\n🔥 **近期市場焦點**：此標的已成功由傳統光電板塊，轉型切入**先進製程與高難度半導體封裝鏈**，具備關鍵國產化替代優勢。",
+            "6451": "**ShunSin Technology Holdings Limited (6451)**\n\n**【AI 網路即時搜尋結果】**\n\n🎯 **主要技術領域**：半導體材料/耗材、晶圓測試與檢驗\n\n📖 **官方核心業務大綱**：ShunSin Technology Holdings Limited engages in the assembly, testing, and sale of various integrated circuits related to semiconductors in Mainland China, the United States, Taiwan\n\n🔥 **近期市場焦點**：此標的已成功由傳統光電板塊，轉型切入**先進製程與高難度半導體封裝鏈**，具備關鍵國產化替代優勢。",
+            "3163": "**Browave Corporation (3163)**\n\n**【AI 網路即時搜尋結果】**\n\n🎯 **主要技術領域**：高階電子零組件\n\n📖 **官方核心業務大綱**：Browave Corporation engages in the design, manufacture, and sale of optical fiber communication components in Taiwan and internationally.\n\n🔥 **近期市場焦點**：此標的已成功由傳統光電板塊，轉型切入**先進製程與高難度半導體封裝鏈**，具備關鍵國產化替代優勢。",
+            "4979": "**LuxNet Corporation (4979)**\n\n**【AI 網路即時搜尋結果】**\n\n🎯 **主要技術領域**：晶圓薄化/載板\n\n📖 **官方核心業務大綱**：LuxNet Corporation, together with its subsidiaries, manufactures, processes, and sells electronic and active components for optical communication in Taiwan.\n\n🔥 **近期市場焦點**：此標的已成功由傳統光電板塊，轉型切入**先進製程與高難度半導體封裝鏈**，具備關鍵國產化替代優勢。",
+            "3081": "**LandMark Optoelectronics Corporation (3081)**\n\n**【AI 網路即時搜尋結果】**\n\n🎯 **主要技術領域**：半導體材料/耗材、晶圓薄化/載板\n\n📖 **官方核心業務大綱**：LandMark Optoelectronics Corporation engages in the manufacture and sale of optoelectronic semiconductors in Taiwan, China, the United States, and internationally.\n\n🔥 **近期市場焦點**：此標的已成功由傳統光電板塊，轉型切入**先進製程與高難度半導體封裝鏈**，具備關鍵國產化替代優勢。",
+            "2455": "**Visual Photonics Epitaxy Co., Ltd. (2455)**\n\n**【AI 網路即時搜尋結果】**\n\n🎯 **主要技術領域**：半導體材料/耗材、晶圓薄化/載板\n\n📖 **官方核心業務大綱**：Visual Photonics Epitaxy Co.\n\n🔥 **近期市場焦點**：此標的已成功由傳統光電板塊，轉型切入**先進製程與高難度半導體封裝鏈**，具備關鍵國產化替代優勢。",
+            "6442": "**EZconn Corporation (6442)**\n\n**【AI 網路即時搜尋結果】**\n\n🎯 **主要技術領域**：高階電子零組件\n\n📖 **官方核心業務大綱**：EZconn Corporation, together with its subsidiaries, engages in the assembly, processing, and trading of precision metal parts for various electronic components, electronic products\n\n🔥 **近期市場焦點**：此標的已成功由傳統光電板塊，轉型切入**先進製程與高難度半導體封裝鏈**，具備關鍵國產化替代優勢。",
+            "7853": "**cmit (7853)**\n\n**【AI 網路即時搜尋結果】**\n\n🎯 **主要技術領域**：自動光學檢測 (AOI)、Micro LED、半導體材料/耗材\n\n📖 **官方核心業務大綱**：Cheng Mei Instrument Technology Co.\n\n🔥 **近期市場焦點**：此標的已成功由傳統光電板塊，轉型切入**先進製程與高難度半導體封裝鏈**，具備關鍵國產化替代優勢。"
+        },
+        "competitors_db": {
+            "3595": [
+                "3583 (辛耘)",
+                "6187 (萬潤)",
+                "2489 (均豪)"
+            ],
+            "3450": [
+                "3363 (上詮)",
+                "3163 (波若威)",
+                "6451 (訊芯-KY)"
+            ],
+            "3037": [
+                "3595 (同板塊關聯股)",
+                "3450 (同板塊關聯股)"
+            ],
+            "2330": [
+                "3595 (同板塊關聯股)",
+                "3450 (同板塊關聯股)",
+                "3037 (同板塊關聯股)"
+            ],
+            "3363": [
+                "3595 (同板塊關聯股)",
+                "3450 (同板塊關聯股)",
+                "3037 (同板塊關聯股)"
+            ],
+            "6451": [
+                "3595 (同板塊關聯股)",
+                "3450 (同板塊關聯股)",
+                "3037 (同板塊關聯股)"
+            ],
+            "3163": [
+                "3595 (同板塊關聯股)",
+                "3450 (同板塊關聯股)",
+                "3037 (同板塊關聯股)"
+            ],
+            "4979": [
+                "3595 (同板塊關聯股)",
+                "3450 (同板塊關聯股)",
+                "3037 (同板塊關聯股)"
+            ],
+            "3081": [
+                "2455 (全新)",
+                "4979 (華星光)",
+                "6442 (光聖)"
+            ],
+            "2455": [
+                "3595 (同板塊關聯股)",
+                "3450 (同板塊關聯股)",
+                "3037 (同板塊關聯股)"
+            ],
+            "6442": [
+                "3595 (同板塊關聯股)",
+                "3450 (同板塊關聯股)",
+                "3037 (同板塊關聯股)"
+            ],
+            "7853": [
+                "3455 (由田)",
+                "2489 (均豪)",
+                "3027 (信驊)"
+            ]
+        }
     }
 }
