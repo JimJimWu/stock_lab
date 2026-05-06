@@ -2,10 +2,10 @@ name: Stock Auto Scan
 
 on:
   schedule:
-    # 設定為台股開盤時間 (週一至週五，台灣時間 09:00 - 14:00)
-    # 這裡使用 UTC 時間，台灣時間 09:00 = UTC 01:00
-    - cron: '0 1-6 * * 1-5' 
-  workflow_dispatch: # 允許你手動在 GitHub 網頁按下 Run workflow 執行
+    # 設定為台股開盤時間：週一至週五，台灣時間 09:00 - 15:00 (含興櫃完整交易時段)
+    # 台灣時間 09:00 = UTC 01:00，台灣時間 15:00 = UTC 07:00
+    - cron: '*/30 1-7 * * 1-5' # 每 30 分鐘定時啟動
+  workflow_dispatch: # 允許手動隨時在網頁按下 Run workflow 測試
 
 jobs:
   build:
@@ -14,17 +14,18 @@ jobs:
       - name: 檢出程式碼
         uses: actions/checkout@v4
 
-      - name: 設定 Python
+      - name: 設定 Python 環境
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: 安裝必要套件
+      - name: 安裝安全連線與必要套件
         run: |
-          pip install yfinance pandas requests
+          pip install --upgrade pip
+          pip install yfinance pandas requests curl_cffi lxml
 
-      - name: 執行黑馬掃描 (V15.6 安全版)
+      - name: 執行黑馬掃描 (V19.3 雲端安全鎖版)
         env:
-          # 這裡會讀取你在 GitHub Secrets 設定的保險箱內容
+          # 從 GitHub Secrets 保險箱中自動讀取 Webhook URL 並注入程式中，網路完全看不見！
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: python auto_scan.py
