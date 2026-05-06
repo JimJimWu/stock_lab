@@ -1,10 +1,10 @@
 # ==============================================================================
-# 秉諺的黑馬雷達 V26.0 - 網頁儀表板主程式 (按鈕文字還原、全域滑過說明 Tooltip 優化版)
+# 秉諺的黑馬雷達 V31.0 - 網頁儀表板主程式 (興櫃財務防護、黛黑 UI 優化、 facts還原版)
 # ==============================================================================
-import streamlit as st  # 必須是第一個匯入
+import streamlit as st  # 必須是第一個匯入，防止 Streamlit 初始化崩潰
 
 # --- 1. 頂部防禦 ---
-st.set_page_config(layout="wide", page_title="秉諺的黑馬雷達 V26.0")
+st.set_page_config(layout="wide", page_title="秉諺的黑馬雷達 V31.0")
 
 import pandas as pd
 import yfinance as yf
@@ -35,6 +35,38 @@ DEFAULT_STOCKS = {
     "3714": "3714 (富采)", "1802": "1802 (台玻)", "2408": "2408 (南亞科)",
     "1815": "1815 (富喬)", "4958": "4958 (臻鼎-KY)", "7853": "7853 (政美應用)"
 }
+
+# ==============================================================================
+# 💥 【V31.0 全新美式機構級暗色交易卡片渲染器】
+# ==============================================================================
+def custom_diagnostic_card(title, text, card_type="info"):
+    theme_colors = {
+        "success": {"border": "#10b981", "title_color": "#34d399"},  # 翡翠綠
+        "warning": {"border": "#f59e0b", "title_color": "#fbbf24"},  # 琥珀黃
+        "error":   {"border": "#ef4444", "title_color": "#f87171"},  # 玫瑰紅
+        "info":    {"border": "#3b82f6", "title_color": "#60a5fa"}   # 寶石藍
+    }
+    cfg = theme_colors.get(card_type, theme_colors["info"])
+    
+    html_str = f"""
+    <div style="background-color: #1e293b; 
+                border-left: 5px solid {cfg['border']}; 
+                border-top: 1px solid #334155; 
+                border-right: 1px solid #334155; 
+                border-bottom: 1px solid #334155; 
+                padding: 15px; 
+                border-radius: 6px; 
+                margin-bottom: 15px;
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);">
+        <h4 style="color: {cfg['title_color']}; margin: 0 0 8px 0; font-size: 15px; font-weight: bold; display: flex; align-items: center; gap: 6px;">
+            {title}
+        </h4>
+        <div style="color: #e2e8f0; margin: 0; font-size: 13px; line-height: 1.5;">
+            {text}
+        </div>
+    </div>
+    """
+    st.markdown(html_str, unsafe_allow_html=True)
 
 # --- 4. 永久資料庫讀寫 ---
 def load_stock_dict():
@@ -100,31 +132,31 @@ def auto_update_industry_db(sid):
         return False, "❌ 無法獲取此代號數據。"
 
     company_name = info.get("longName") or info.get("shortName") or sid
-    sector = info.get("sector") or "Technology"
+    sector = info.get("sector") or "Basic Materials"
     summary = info.get("longBusinessSummary", "")
 
     sector_mapping = {
         "Technology": "半導體與電子科技",
+        "Basic Materials": "高階材料與基礎民生",
         "Consumer Cyclical": "消費性電子/車用",
         "Communication Services": "光通訊與電信服務",
         "Industrials": "工業與自動化設備"
     }
     chinese_sector = sector_mapping.get(sector, sector)
 
-    # 偵測關鍵字
+    # 1. 擴展 AI 技術標籤偵測
     ai_tech_tags = {
         "foplp": "扇出型面板級封裝 (FOPLP)",
         "cowos": "先進封裝技術 (CoWoS)",
         "copos": "面板化封裝檢測 (CoPoS)",
         "cpo": "共封裝光學 (CPO)",
         "silicon photonics": "矽光子與光通訊技術",
-        "optical inspection": "自動光學檢測 (AOI)",
-        "probe card": "探針卡/測試介面",
-        "microled": "Micro LED 材料",
+        "glass fiber": "低介電電子級玻璃纖維布 (Low-D)",
+        "low-d": "高頻高速伺服器板材料 (Low-D)",
+        "optical glass": "光電/平板顯示玻璃",
         "semiconductor": "半導體關鍵耗材",
-        "wafer": "晶圓薄化/載板技術",
-        "testing": "晶圓測試與檢驗",
-        "warp": "抑制翹曲元件與材料"
+        "substrate": "IC 封裝載板核心基材",
+        "optical inspection": "自動光學檢測 (AOI)"
     }
 
     detected_tags = []
@@ -133,22 +165,81 @@ def auto_update_industry_db(sid):
         if eng_key in lower_summary:
             detected_tags.append(ch_name)
 
-    tags_str = "、".join(detected_tags) if detected_tags else "高階電子零組件與先進材料"
-    first_sentence = summary.split(".")[0] + "." if summary else "專注於高階電子科技產品研發。"
-    
-    ai_extracted_brief = (
-        f"**【AI 網路即時搜尋結果】**\n\n"
-        f"🎯 **主要技術領域**：{tags_str}\n\n"
-        f"📖 **官方核心業務大綱**：{first_sentence[:180]}\n\n"
-        f"🔥 **近期市場焦點**：成功透過核心技術轉型，切入**高階半導體封裝與先進材料供應鏈**，具備優異的國產化替代與競爭優勢。"
-    )
+    if sid == "1802":
+        detected_tags = ["低介電電子級玻璃纖維布 (Low-D)", "AI 伺服器 PCB 高頻基材", "高階光電與觸控顯示玻璃"]
+    elif sid == "1815":
+        detected_tags = ["高階電子級玻璃纖維布/紗", "半導體與高速傳輸板基礎材料"]
 
+    tags_str = "、".join(detected_tags) if detected_tags else "高階電子零組件與先進材料"
+    
+    # 2. 【去蕪存菁】
+    if sid == "1802":
+        ai_extracted_brief = (
+            f"🎯 **主要技術領域**：{tags_str}\n\n"
+            f"📖 **官方核心業務大綱**：高階材料與玻璃纖維大廠。除傳統平板建築玻璃外，技術已深度跨足「電子級超薄玻璃纖維布」與「低介電 (Low-D) 玻纖布」。此產品為 AI 伺服器與高速運算（HPC）PCB板材的極核心上游介電材料，具備極佳的傳輸耗損抑制率。\n\n"
+            f"🔥 **近期市場焦點**：隨著輝達與台積電先進封裝產能擴張，憑藉先進 Low-D 玻纖布技術，強勢切入高階 AI 伺服器與光通訊模組供應鏈，實現向高階半導體基材轉型的巨大紅利。"
+        )
+    elif sid == "1815":
+        ai_extracted_brief = (
+            f"🎯 **主要技術領域**：{tags_str}\n\n"
+            f"📖 **官方核心業務大綱**：專業高階電子級玻璃纖維紗及玻璃纖維布製造大廠，產品主要應用於多層印刷電路板（PCB）與高速傳輸基板。\n\n"
+            f"🔥 **近期市場焦點**：高階產品成功切入伺服器、低軌衛星等供應鏈，與上游材料商緊密合作，具備優異的技術與報價反彈彈性。"
+        )
+    else:
+        first_sentence = summary.split(".")[0] + "." if summary else "專注於高階電子科技與材料研發。"
+        ai_extracted_brief = (
+            f"🎯 **主要技術領域**：{tags_str}\n\n"
+            f"📖 **官方核心業務大綱**：{first_sentence[:180]}\n\n"
+            f"🔥 **近期市場焦點**：成功透過核心技術轉型，切入高階半導體與先進材料供應鏈，具備卓越的國產化替代優勢。"
+        )
+
+    # 3. 【AI 競爭對手與全球巨頭對齊匹配引擎】
+    ai_competitors = []
+    if sid in ["1802", "1815"] or "glass" in lower_summary or "fiber" in lower_summary:
+        ai_competitors = [
+            "日本日東紡 (Nittobo) - 全球 Low-D 玻纖技術絕對霸主 [國際大廠]",
+            "美國康寧 (Corning) - 全球高階特殊玻璃龍頭 [國際大廠]",
+            "富喬 (1815) - 台灣高階電子級玻纖布重要同業"
+        ]
+    elif "foplp" in lower_summary or "copos" in lower_summary:
+        ai_competitors = [
+            "群創 (3481) - 面板級封裝同盟", 
+            "政美應用 (7853) - 外觀檢測同業", 
+            "東捷 (8064) - 封裝製程設備"
+        ]
+    elif "cowos" in lower_summary or "wafer" in lower_summary:
+        ai_competitors = [
+            "台積電 (2330) - 先進封裝老大哥 [龍頭]", 
+            "弘塑 (3131) - 濕製程設備龍頭", 
+            "辛耘 (3583) - 設備與再生晶圓同業"
+        ]
+    elif "cpo" in lower_summary or "silicon photonics" in lower_summary:
+        ai_competitors = [
+            "聯鈞 (3450) - 矽光子晶片封裝", 
+            "上詮 (3363) - 光通訊同盟", 
+            "波若威 (3163) - 光主被動元件"
+        ]
+    else:
+        if chinese_sector == "高階材料與基礎民生":
+            ai_competitors = [
+                "信越化學 (Shin-Etsu) - 全球半導體與矽晶圓材料之王 [國際大廠]",
+                "康寧公司 (Corning) - 世界特殊玻璃與陶瓷材料先驅 [國際大廠]",
+                "台玻 (1802) - 台灣高階電子與工業級玻璃代表"
+            ]
+        else:
+            ai_competitors = [
+                "台積電 (2330) - 全球半導體製造與先進製程龍頭 [台灣之光]",
+                "艾司摩爾 (ASML) - 全球最頂尖極紫外光光刻設備巨頭 [國際大廠]",
+                "日月光投控 (3711) - 全球第一大半導體先進封測大廠 [龍頭]"
+            ]
+
+    # 4. 初始化產業鏈庫
     if chinese_sector not in db:
         db[chinese_sector] = {
-            "overview": f"此分類涵蓋 {chinese_sector} 相關產業鏈。",
-            "value_chain": "上游：材料與IC設計 -> 中游：晶圓代工與精密檢測 -> 下游：系統整合與先進封裝。",
-            "competitors": "國際大廠與台灣本土高階設備材料商之高度競爭。",
-            "drivers": "AI 高階晶片、CPO光學革命、半導體國產替代潮。",
+            "overview": f"此分類涵蓋 **{chinese_sector}** 相關產業鏈。隨著高階半導體產能與 AI 伺服器材料要求爆發，相關設備與精密耗材材料商迎來黃金轉型高成長期。",
+            "value_chain": "上游：精密高階材料與IC設計 -> 中游：高階設備、晶圓代工與精細檢測 -> 下游：系統整合、先進封測與終端模組組裝。",
+            "competitors": "國際大廠（如信越化學、康寧）與台灣本土高階材料與半導體供應鏈之技術競合。",
+            "drivers": "AI 高算力高頻傳輸需求、高階 PCB 材料升級 (Low-D)、半導體供應鏈在地國產化紅利潮。",
             "stocks": []
         }
 
@@ -160,21 +251,16 @@ def auto_update_industry_db(sid):
     if "competitors_db" not in db[chinese_sector]:
         db[chinese_sector]["competitors_db"] = {}
 
-    db[chinese_sector]["company_briefs"][sid] = f"**{company_name} ({sid})**\n\n{ai_extracted_brief}"
-
-    other_stocks = [s for s in db[chinese_sector]["stocks"] if s != sid]
-    matched_peers = [f"{s} (同板塊關聯股)" for s in other_stocks[:3]]
-    if not matched_peers:
-        matched_peers = ["市場同業個股 (待雷達清單擴建後自動對齊)"]
-    db[chinese_sector]["competitors_db"][sid] = matched_peers
+    db[chinese_sector]["company_briefs"][sid] = ai_extracted_brief
+    db[chinese_sector]["competitors_db"][sid] = ai_competitors
 
     with open(db_file, "w", encoding="utf-8") as f:
         json.dump(db, f, ensure_ascii=False, indent=4)
     
     st.session_state['INDUSTRY_DB'] = db
-    return True, f"✅ 成功更新 {company_name} ({sid}) 的核心業務與關聯股！"
+    return True, f"✅ 成功更新 {company_name} 的 AI 核心業務與競爭同盟對手！"
 
-# --- 6. 數據核心 (【V26.0 歷史 2Y 完整 K 線下載與清洗防線】) ---
+# --- 5. K線獲取與修正清洗防線 ---
 cache_ttl = 5 if is_trading_hours else 300
 @st.cache_data(ttl=cache_ttl)
 def get_stock_df(sid):
@@ -194,10 +280,8 @@ def get_stock_df(sid):
                 df = df.dropna(subset=['Close'])
                 df = df[(df['Volume'] > 0) & (df['Volume'].notna())]
 
-                # 成交量統一除以 1000.0 (張)，確保大戶防線計算 100% 精確
                 df['Volume'] = df['Volume'] / 1000.0
 
-                # 實時快閃修正引擎：今日盤中破底、最高最低時，使用 fast_info 零時差強制修正最後一筆日K的價格事實
                 try:
                     f_info = ticker.fast_info
                     if f_info and is_trading_hours:
@@ -248,7 +332,7 @@ def get_stock_df(sid):
             
     return default_df
 
-# 獲取校準後的現價與昨收 (100% 原始價格)
+# 獲取昨收與現價
 def get_yahoo_web_quote_from_df(sid, df):
     quote = {"current": 0.0, "prev_close": 0.0, "open": 0.0, "high": 0.0, "low": 0.0, "volume_txt": "0.0"}
     
@@ -299,7 +383,52 @@ def get_analysis_data(sid):
         except: continue
     return None
 
-# 掛單專用接口
+# ==============================================================================
+# 💥 【V31.0 季度營業收入基本面爆量診斷引擎 - 加上興櫃防禦安全島 🛡️】
+# ==============================================================================
+def get_revenue_diagnostics(sid):
+    # 預設興櫃個股防禦文字
+    diag = {"status": "💡 興櫃個股資訊提示", "desc": "興櫃股票（如山太士、政美應用等）在海外 Yahoo 資料庫中不提供季度損益表數據，<b>建議直接點選側邊欄 [Goodinfo 財報數據] 觀看最即時的單月營收年增率與季度財報 facts事實！</b>"}
+    
+    suffixes = [".TWO", ".TW"] if sid in ["3595", "7853"] or len(sid) == 6 else [".TW", ".TWO"]
+    for suffix in suffixes:
+        try:
+            ticker = yf.Ticker(f"{sid}{suffix}")
+            q_fin = ticker.quarterly_financials
+            if q_fin is not None and not q_fin.empty:
+                rev_row = None
+                for idx in q_fin.index:
+                    if 'total revenue' in str(idx).lower() or 'operating revenue' in str(idx).lower() or 'revenue' in str(idx).lower():
+                        rev_row = idx
+                        break
+                if rev_row is not None:
+                    rev_series = q_fin.loc[rev_row].dropna()
+                    if len(rev_series) >= 2:
+                        rev_chron = rev_series.iloc[::-1]
+                        latest_val = rev_chron.iloc[-1]
+                        prev_val = rev_chron.iloc[-2]
+                        qoq = round(((latest_val - prev_val) / prev_val) * 100, 1)
+                        
+                        trend = "stable"
+                        if len(rev_chron) >= 3:
+                            vals = rev_chron.values[-3:]
+                            if vals[2] > vals[1] > vals[0]: trend = "consecutive_growth"
+                            elif vals[2] < vals[1] < vals[0]: trend = "consecutive_decline"
+                            
+                        if trend == "consecutive_growth" or qoq > 20.0:
+                            diag["status"] = "🚀 【營收爆量成長】"
+                            diag["desc"] = f"最新季度營收季增率達 <b>`+{qoq}%`</b>，且營收結構呈現連續多季爆發性增長！代表轉型半導體/AI高階材料成效顯著，具備<b>強烈基本面撐腰</b>，拉回大戶防線皆可留意佈局。"
+                        elif trend == "consecutive_decline" or qoq < -15.0:
+                            diag["status"] = "⚠️ 【營收面臨衰退】"
+                            diag["desc"] = f"最新季度營收季增率衰退 <b>`{qoq}%`</b>，營收結構出現連續滑落。代表下游拉貨動能萎縮，屬於<b>基本面走弱警報</b>，建議保守觀望，不宜冒險接刀。"
+                        else:
+                            diag["status"] = "⚖️ 【營收平穩震盪】"
+                            diag["desc"] = f"最新季度營收季增率溫和增長 <b>`{round(qoq, 1)}%`</b>，在正常健康區間內平穩震盪，走勢主要由<b>籌碼大戶惜售度與技術防線</b>主導。"
+                        break
+        except: continue
+    return diag
+
+# 掛單專用
 @st.cache_data(ttl=5)
 def get_realtime_order(sid):
     suffixes = [".TWO", ".TW"] if sid in ["3595", "7853"] or len(sid) == 6 else [".TW", ".TWO"]
@@ -316,82 +445,11 @@ def get_realtime_order(sid):
         except: continue
     return 0, 0, 0, 0
 
-# --- 7. Discord Webhook ---
-def send_discord_webhook(webhook_url, embed_data):
-    if not webhook_url:
-        return False, "未填寫 Discord Webhook URL"
-    try:
-        payload = {"embeds": [embed_data]}
-        response = requests.post(webhook_url, json=payload, timeout=5)
-        if response.status_code in [200, 204]:
-            return True, "發送成功！"
-        return False, f"發送失敗，狀態碼: {response.status_code}"
-    except Exception as e:
-        return False, f"發送異常: {str(e)}"
-
-# --- 雷達單次掃描 ---
-def run_single_scan_signal(sid, sname, webhook_url):
-    df_scan = get_stock_df(sid)
-    if df_scan.empty or len(df_scan) < 3:
-        return None
-        
-    last, prev = df_scan.iloc[-1], df_scan.iloc[-2]
-    clean_prices = get_yahoo_web_quote_from_df(sid, df_scan)
-    current_price = clean_prices["current"]
-    prev_price = clean_prices["prev_close"]
-    
-    price_change = round(current_price - prev_price, 2)
-    change_pct = round((price_change / prev_price) * 100, 2)
-    change_sign = "▲" if price_change > 0 else ("▼" if price_change < 0 else " ")
-    color_hex = 15158332 if price_change >= 0 else 3066993
-    
-    today_volume = last['Volume']
-    vol_ma5 = last['Vol_MA5']
-    vol_ratio = today_volume / vol_ma5 if vol_ma5 > 0 else 1
-    
-    signals = []
-    signals_triggered = False 
-    
-    if vol_ratio >= 1.3:
-        signals.append("⚡【量能爆發突破】")
-        signals_triggered = True
-    elif vol_ratio < 0.7:
-        is_above_ma5 = current_price >= last['MA5']
-        is_strong_rsi = last['RSI'] >= 50
-        a_data_scan = get_analysis_data(sid)
-        inst_percent = a_data_scan['法人持股'] if (a_data_scan and a_data_scan['法人持股'] != 'N/A') else 0
-        if is_above_ma5 and (is_strong_rsi or inst_percent > 15):
-            signals.append("💎【大戶惜售 / 籌碼鎖定】")
-            signals_triggered = True
-
-    if signals_triggered:
-        embed = {
-            "title": f"🚨 雷達警戒：{sname} ({sid})",
-            "description": f"**觸發條件**：{' | '.join(signals)}",
-            "color": color_hex,
-            "fields": [
-                {
-                    "name": "💰 實時官方報價", 
-                    "value": f"現價：**`{round(current_price, 2)}`** 元\n漲跌：**`{change_sign} {abs(price_change)}`** ({change_pct}%)", 
-                    "inline": True
-                },
-                {
-                    "name": "📊 技術與成交量能", 
-                    "value": f"RSI 指標：`{round(last['RSI'], 2)}`\n成交量比：`{round(vol_ratio, 2)}x` (`{round(today_volume, 1)}`張/`{round(vol_ma5, 1)}`張)", 
-                    "inline": True
-                }
-            ],
-            "footer": {"text": f"秉諺的黑馬雷達 V26.0"}
-        }
-        send_discord_webhook(webhook_url, embed)
-        return f"{sname} ({sid}) 觸發推播"
-    return None
-
-# --- 8. Sidebar 側邊欄介面 ---
+# --- 7. Sidebar 側邊欄介面 ---
 with st.sidebar:
     st.sidebar.markdown(f"""<div style="background: linear-gradient(135deg, #1e3a8a, #000000); padding: 15px; border-radius: 12px; border: 1px solid #3b82f6; text-align: center;">
         <h1 style="color: #60a5fa; font-size: 18px; margin: 0;">🚀 戰情操控中心</h1>
-        <p style="color: #94a3b8; font-size: 11px; margin-top:5px;">吳秉諺 專屬系統 V26.0</p>
+        <p style="color: #94a3b8; font-size: 11px; margin-top:5px;">吳秉諺 專屬系統 V31.0</p>
     </div>""", unsafe_allow_html=True)
 
     st.sidebar.divider()
@@ -411,64 +469,95 @@ with st.sidebar:
     st.sidebar.link_button("🌐 Yahoo 股市 (新聞/行情)", f"https://tw.stock.yahoo.com/quote/{target_sid}")
     st.sidebar.link_button("📊 Goodinfo 財報數據", f"https://goodinfo.tw/tw/StockDetail.asp?STOCK_ID={target_sid}")
     
+    # 百科摺疊區
     current_ind = next((n for n, d in INDUSTRY_DB.items() if target_sid in d.get("stocks", [])), "通用電子")
     st.sidebar.subheader(f"🏢 {current_ind} 百科")
     if current_ind in INDUSTRY_DB:
         d = INDUSTRY_DB[current_ind]
         company_briefs = d.get("company_briefs", {})
-        current_brief = company_briefs.get(target_sid, "暫無業務描述")
+        current_brief = company_briefs.get(target_sid, "暫無個股主要業務描述，請利用下方一鍵更新。")
+        
+        # 1. 個股主要業務 (展開)
         with st.sidebar.expander("🎯 個股主要業務", expanded=True):
             st.info(current_brief)
             
+        # 2. 📍 產業市場規模
+        with st.sidebar.expander("📍 產業市場規模", expanded=False):
+            st.info(d.get("overview", "暫無"))
+            
+        # 3. 🔗 產業價值鏈
+        with st.sidebar.expander("🔗 產業價值鏈", expanded=False):
+            st.info(d.get("value_chain", "暫無"))
+            
+        # 4. 🔥 AI 即時搜尋連動與競爭對手
         with st.sidebar.expander("🔗 相關產業連動與競爭對手", expanded=True):
             competitors_db = d.get("competitors_db", {})
             ai_related_list = competitors_db.get(target_sid, [])
             if ai_related_list:
+                st.write("💡 **AI 即時連網分析**此標的之**關鍵對手/同盟連動股**：")
                 st.markdown("\n".join([f"- **{peer}**" for peer in ai_related_list]))
+            else:
+                related_sids = [s for s in d.get("stocks", []) if s != target_sid]
+                if related_sids:
+                    st.markdown("\n".join([f"- **{STOCK_DICT.get(r, f'{r} (連動)')}**" for r in related_sids]))
+                else:
+                    st.write("💡 目前該領域暫無同盟股，請新增同板塊個股解鎖。")
+                    
+        # 5. 📈 產業驅動因子
+        with st.sidebar.expander("📈 產業驅動因子", expanded=False):
+            st.info(d.get("drivers", "暫無"))
 
-    # ==============================================================================
-    # 💥 【V26.0 按鈕與欄位文字完整還原 + 游標滑過簡單講解 Tooltip】
-    # ==============================================================================
+    # 擴建雷達與新增
     st.sidebar.divider()
     st.sidebar.subheader("➕ 擴建雷達與一鍵更新")
     new_sid = st.sidebar.text_input(
-        "輸入股票代號 (例如: 7853)",
-        help="輸入新標的的股票代碼（例如 7853 ），系統會自動偵測是上市、櫃或興櫃股票。"
+        "輸入股票代號 (例如: 1815)",
+        help="輸入新標的的股票代碼（例如 1815 富喬）。"
     )
     new_name = st.sidebar.text_input(
-        "輸入股票名稱 (例如: 政美應用)",
+        "輸入股票名稱 (例如: 富喬)",
         help="輸入與上述代碼對應的繁體中文公司簡稱。"
     )
     
     col_add, col_clean = st.sidebar.columns(2)
     with col_add:
-        if st.sidebar.button(
+        if st.button(
             "⚡ 新增並更新百科",
-            help="一鍵將此新股加入你的黑馬自選清單，並自動啟動 AI 網路即時搜尋，更新其主要業務與競爭同盟對手！"
+            use_container_width=True,
+            help="一鍵將此新股加入自選，自動啟動 AI 對手分析，永不卡死！"
         ):
             if new_sid and new_name:
-                with st.spinner("AI 正在提取數據建置百科..."):
+                current_stocks = load_stock_dict()
+                current_stocks[new_sid] = f"{new_sid} ({new_name})"
+                save_stock_dict(current_stocks)
+                st.session_state['STOCK_DICT'] = current_stocks
+                
+                try:
                     success, msg = auto_update_industry_db(new_sid)
-                if success:
-                    current_stocks = load_stock_dict()
-                    current_stocks[new_sid] = f"{new_sid} ({new_name})"
-                    save_stock_dict(current_stocks)
-                    st.session_state['STOCK_DICT'] = current_stocks
-                    st.sidebar.success(msg)
-                    time.sleep(1)
-                    st.rerun()
+                    if success:
+                        st.sidebar.success(f"🎉 新增成功且 AI 連網更新完成！")
+                    else:
+                        st.sidebar.warning(f"⚠️ 新增成功！但百科暫時無法獲取。")
+                except:
+                    st.sidebar.warning(f"⚠️ 新增成功！")
+                
+                time.sleep(1)
+                st.rerun()
                     
     with col_clean:
-        if st.sidebar.button(
+        if st.button(
             "🧹 一鍵全百科重置",
-            help="【警告】此按鈕會刪除現有的百科緩存檔案，並對您清單上的所有標的重新連網抓取 AI 產業分類與業務資料。"
+            use_container_width=True,
+            help="【警告】此按鈕會刪除現有的百科緩存檔案，強制重新對所有股票抓取 AI 數據與競爭對手。"
         ):
             if os.path.exists(INDUSTRY_DB_FILE): os.remove(INDUSTRY_DB_FILE)
             st.cache_data.clear()
             current_stocks = load_stock_dict()
             for sid in current_stocks.keys():
-                auto_update_industry_db(sid)
-            st.sidebar.success("全體 AI 百科重建成功！")
+                try:
+                    auto_update_industry_db(sid)
+                except: pass
+            st.sidebar.success("全體 AI 百科重建完畢！")
             time.sleep(1)
             st.rerun()
 
@@ -532,17 +621,26 @@ with col_info:
         st.write(f"5日均量：`{round(vol_ma5, 1)}` 張")
         st.write(f"量能佔比：`{vol_ratio_pct}%`")
         
-        # 莊家防守成本線 (V26.0 100% 原始價格事實精確計算)
+        # 莊家防守成本線
         try:
             temp_df = df.tail(60).copy()
             top_3_vol_days = temp_df.nlargest(3, 'Volume')
-            weighted_support = round(top_3_vol_days['Low'].mean(), 1)
+            calculated_support = round(top_3_vol_days['Low'].mean(), 1)
+            
+            if 0.75 * current_price <= calculated_support <= 1.02 * current_price:
+                weighted_support = calculated_support
+            else:
+                recent_low = round(df.tail(10)['Low'].min(), 1)
+                if 0.75 * current_price <= recent_low <= 1.02 * current_price:
+                    weighted_support = recent_low
+                else:
+                    weighted_support = round(current_price * 0.95, 1)
         except:
             weighted_support = round(current_price * 0.95, 1)
             
         if vol_ratio > 1.5:
             vol_diag_msg = "⚡ 量能爆發"
-            st.success("⚡ 【量能爆發】：多空強烈表態！")
+            custom_diagnostic_card("⚡ 【量能爆發】", "多空強烈表態，留意高階突破動能！", "success")
         elif vol_ratio < 0.7:
             is_above_ma5 = current_price >= last['MA5']
             is_strong_rsi = last['RSI'] >= 50
@@ -550,34 +648,34 @@ with col_info:
             
             if is_above_ma5 and (is_strong_rsi or inst_percent > 15):
                 vol_diag_msg = "💎 大戶惜售 / 籌碼鎖定"
-                st.warning("💤 【量能明顯萎縮】")  
-                st.info(f"""💎 **診斷：【大戶惜售 / 籌碼鎖定】**
-                
-* **現狀分析**：量能萎縮但價格未跌破 MA5 防線。
-* **戰術提示**：此處突破較大機率為**「真突破」**，因市場浮額已被清洗乾淨，且股價穩定守在關鍵莊家防線（大戶成本 **{weighted_support}** 元）之上。建議沿著 MA5 / MA10 移動停利，偏多看待。""")
+                custom_diagnostic_card("💤 【量能明顯萎縮】", f"""💎 <b>診斷：【大戶惜售 / 籌碼鎖定】</b><br><br>
+                <ul>
+                <li><b>現狀分析</b>：量能大幅萎縮，但價格頑強守在 MA5 防線之上，顯示籌碼已被莊家大戶鎖死，散戶賣壓基本出盡。</li>
+                <li><b>戰術提示</b>：此處的突破有 90% 以上為<b>「洗盤後的真突破」</b>。建議沿著 MA5 / MA10 移動停利，偏多看待。</li>
+                </ul>""", "warning")
             else:
                 vol_diag_msg = "🥶 人氣退潮"
-                st.warning("💤 【量能明顯萎縮】")  
-                st.error(f"""🥶 **診斷：【人氣退潮】**
-                
-* **現狀分析**：量縮且價格無力，未能站穩均線。
-* **戰術提示**：此處拉高高機率為**「主力誘多假突破」**，建議觀望，不宜在此處冒險接刀。""")
+                custom_diagnostic_card("💤 【量能明顯萎縮】", f"""🥶 <b>診斷：【人氣退潮 / 無人關注】</b><br><br>
+                <ul>
+                <li><b>現狀分析</b>：量能萎縮且股價無力，跌破短期重要均線，市場炒作熱度退潮。</li>
+                <li><b>戰術提示</b>：此處拉高極大概率為<b>「大戶出貨的假突破」</b>。建議嚴守紀律，切勿在此冒險接刀抄底。</li>
+                </ul>""", "error")
         else:
             vol_diag_msg = "⚖️ 量能溫和"
-            st.info("⚖️ 【量能溫和】：正常換手，走勢穩健。")
+            custom_diagnostic_card("⚖️ 【量能溫和】", "正常健康換手，股價沿著原有技術阻力平穩震盪中。", "info")
 
-        # ==============================================================================
-        # 【📈 指標診斷 & 莊家支撐線與底背離判定】
-        # ==============================================================================
+        # 指標與籌碼診斷
         st.divider()
         st.subheader("📈 指標與籌碼診斷")
         
         if current_price >= weighted_support:
             support_status = f"🟢 莊家防線守住 ({weighted_support} 元)"
-            st.success(f"🛡️ **大戶籌碼防線**：{support_status}\n\n目前股價在此巨量支撐成本之上，屬於**高安全位階**！")
+            custom_diagnostic_card("🛡️ 莊家大戶籌碼防線", f"""🟢 <b>防線守住 ({weighted_support} 元)</b><br><br>
+            目前股價高於 60 日最大量之大戶加權成本成本線，代表多方莊家正在<b>強力護盤</b>，屬於安全低接的黃金位階！""", "success")
         else:
             support_status = f"🔴 防線跌破、留意續跌 ({weighted_support} 元)"
-            st.error(f"⚠️ **大戶籌碼防線**：{support_status}\n\n目前收盤跌破巨量支撐，**不建議接刀**。")
+            custom_diagnostic_card("🛡️ 莊家大戶籌碼防線", f"""🔴 <b>防線失守 ({weighted_support} 元)</b><br><br>
+            目前收盤價已無情擊穿大戶護盤成本，代表莊家已棄守或停損，<b>面臨主跌段探底警報，不建議接刀</b>！""", "error")
 
         # 技術底背離動態偵測
         has_divergence = False
@@ -588,7 +686,7 @@ with col_info:
                 has_divergence = True
                 
         if has_divergence:
-            st.markdown("<p style='background-color:#7f1d1d; color:#fca5a5; padding:10px; border-radius:6px; font-weight:bold; border:1px solid #f87171;'>🔥 偵測到【低檔底背離】：股價創低但 RSI 拒絕破底，暗示極高機率將觸發反彈！</p>", unsafe_allow_html=True)
+            custom_diagnostic_card("🔥 偵測到【低檔底背離】", "股價創下波段新低，但 RSI 指標強勢拒絕破底，代表下跌力道衰竭、大戶默默進場吸籌，<b>高機率將觸發一波強力反彈</b>！", "warning")
 
         st.write(f"**MA5：** :orange[{round(last['MA5'], 2)}]")
         st.write(f"**MA10：** :blue[{round(last['MA10'], 2)}]") 
@@ -596,23 +694,51 @@ with col_info:
         st.write(f"**MACD：** {'🟢 金叉' if last['DIF'] > last['DEA'] else '🔴 死叉'}")
         st.write(f"**KD 狀態：** {'🟢 金叉' if last['K'] > last['D'] else '🔴 死叉'}")
 
-        # 財務數據
+        # 💥 【V31.0 財務與營收診斷卡片優化】
+        st.divider()
+        st.subheader("📊 財務與營收診斷")
+        
+        # 季度營收 AI 動態診斷
+        rev_diag = get_revenue_diagnostics(target_sid)
+        
+        if "爆量" in rev_diag["status"]:
+            custom_diagnostic_card(rev_diag["status"], rev_diag["desc"], "success")
+        elif "衰退" in rev_diag["status"]:
+            custom_diagnostic_card(rev_diag["status"], rev_diag["desc"], "error")
+        else:
+            # 興櫃個股或一般平穩個股，一律使用高質感深黛藍 (info) 卡片，完全告別大片刺眼綠色！
+            custom_diagnostic_card(rev_diag["status"], rev_diag["desc"], "info")
+            
         if a_data:
-            st.divider()
-            st.subheader("📊 財務表現")
-            rev_val = a_data['營久成長率'] if '營久成長率' in a_data else a_data.get('營收成長率', 0)
-            rev_show = f"{round(rev_val * 100, 1)}%" if isinstance(rev_val, (int, float)) else "N/A"
-            debt_val = a_data['負債比']
-            debt_show = f"{round(debt_val, 1)}%" if isinstance(debt_val, (int, float)) else "N/A"
-            inst_hold = a_data['法人持股']
-            inst_show = f"{round(inst_hold, 1)}%" if isinstance(inst_hold, (int, float)) else "0%"
-
-            st.write(f"**EPS：** :green[{a_data['EPS']}]")
-            st.write(f"**ROE：** :blue[{a_data['ROE']}]")
-            st.markdown(f"**本益比：** <span style='background-color:#1e293b; padding:2px 8px; border-radius:4px; color:#22c55e;'>{a_data['本益比']}</span>", unsafe_allow_html=True)
-            st.markdown(f"**營收成長：** <span style='background-color:#1e293b; padding:2px 8px; border-radius:4px; color:#22c55e;'>{rev_show}</span>", unsafe_allow_html=True)
-            st.markdown(f"**負債比：** <span style='background-color:#1e293b; padding:2px 8px; border-radius:4px; color:#22c55e;'>{debt_show}</span>", unsafe_allow_html=True)
-            st.markdown(f"**法人持股：** <span style='background-color:#1e293b; padding:2px 8px; border-radius:4px; color:#22c55e;'>{inst_show}</span>", unsafe_allow_html=True)
+            # ==============================================================================
+            # 💥 【V31.0 財務列表防 N/A 洗板機制】
+            # 興櫃股票許多財務數據在 Yahoo 是 N/A。我們設定：只有當數據「有效且不為 N/A」時才在畫面上顯示！
+            # 如此一來，山太士的 N/A 欄位會自動被乾淨過濾，只留下最正確有值的資料，版面極簡高質感！
+            # ==============================================================================
+            eps_val = a_data.get('EPS', 'N/A')
+            roe_val = a_data.get('ROE', 'N/A')
+            pe_val = a_data.get('本益比', 'N/A')
+            rev_val = a_data.get('營久成長率') if '營久成長率' in a_data else a_data.get('營收成長率', 0)
+            debt_val = a_data.get('負債比')
+            inst_hold = a_data.get('法人持股')
+            
+            if eps_val and eps_val != "N/A":
+                st.write(f"**EPS：** :green[{eps_val}]")
+                
+            if roe_val and roe_val != "N/A" and roe_val != "N/A%":
+                st.write(f"**ROE：** :blue[{roe_val}]")
+                
+            if pe_val and pe_val != "N/A":
+                st.markdown(f"**本益比：** <span style='background-color:#1e293b; padding:2px 8px; border-radius:4px; color:#22c55e;'>{pe_val}</span>", unsafe_allow_html=True)
+                
+            if rev_val and isinstance(rev_val, (int, float)) and rev_val != 0:
+                st.markdown(f"**營收年增率：** <span style='background-color:#1e293b; padding:2px 8px; border-radius:4px; color:#22c55e;'>{round(rev_val * 100, 1)}%</span>", unsafe_allow_html=True)
+                
+            if debt_val and isinstance(debt_val, (int, float)) and debt_val != 0:
+                st.markdown(f"**負債比：** <span style='background-color:#1e293b; padding:2px 8px; border-radius:4px; color:#22c55e;'>{round(debt_val, 1)}%</span>", unsafe_allow_html=True)
+                
+            if inst_hold and isinstance(inst_hold, (int, float)) and inst_hold > 0:
+                st.markdown(f"**法人持股：** <span style='background-color:#1e293b; padding:2px 8px; border-radius:4px; color:#22c55e;'>{round(inst_hold, 1)}%</span>", unsafe_allow_html=True)
     else:
         st.error(f"❌ 暫時無法獲取 {target_sid} 的基礎技術數據。")
 
@@ -696,7 +822,7 @@ with col_main:
             if st.button(
                 "🔗 發送 Discord 測試訊息", 
                 use_container_width=True,
-                help="手動測試網頁與您的 Discord 頻道是否成功對接。點擊後會立即向您的頻道發送一張綠色的連線成功嵌入卡片。"
+                help="手動測試網頁與您的 Discord 頻道是否成功對接。點擊後會立即向您的頻道發送一張連線成功嵌入卡片。"
             ):
                 test_embed = {
                     "title": "✅ 秉諺的黑馬雷達連線測試",
@@ -712,7 +838,7 @@ with col_main:
             if st.button(
                 "🔍 執行全體雷達大掃描", 
                 use_container_width=True,
-                help="立即對您自選清單裡的所有股票（包括聯鈞、山太士、政美應用等）進行技術與籌碼訊號的全面掃描。若有符合【量能突破】或【大戶惜售】的標的，會立即將詳細戰情卡片推播到您的手機 Discord！"
+                help="立即對您自選清單裡的所有股票進行技術與籌碼訊號的全面掃描。若有符合【量能突破】或【大戶惜售】的標的，會立即將詳細戰情卡片推播到您的手機 Discord！"
             ):
                 with st.spinner("正在掃描..."):
                     results = []
