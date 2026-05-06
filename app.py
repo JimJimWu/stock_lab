@@ -27,7 +27,7 @@ DICT_FILE = "stock_dict.json"
 INDUSTRY_DB_FILE = "industry_db.json"
 
 # 【永久隱藏綁定】手動與自動掃描使用的唯一 Webhook URL (不在 UI 暴露任何輸入框)
-DEFAULT_DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1327117130457419796/JSe6r-07pEwpNU0nYwFYCn-PDEtuYpMduLUZEivXYsbi0AzHHIVOsxyFAp_x5Dd3iaJM"
+DEFAULT_DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK") or ""
 
 DEFAULT_STOCKS = {
     "3595": "3595 (山太士)", "3450": "3450 (聯鈞)", "3037": "3037 (欣興)", 
