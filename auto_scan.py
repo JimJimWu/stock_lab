@@ -15,8 +15,10 @@ DICT_FILE = "stock_dict.json"
 # 💥 【V19.3 終極資安防禦線】
 # 優先讀取 GitHub 雲端保險箱中的環境變數。如果本機跑沒有環境變數，自動退回使用你的預設 URL！
 # 這樣既能保證 100% 雲端安全，又完全不影響你本機執行測試！
+# 這是公開在 GitHub 上的「乾淨安全版」
+# 這是你本機要測試時，手動貼上替換的「測試專用版」，需參考另外的記事本
 # ==============================================================================
-DEFAULT_DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK") or "https://discord.com/api/webhooks/1327117130457419796/JSe6r-07pEwpNU0nYwFYCn-PDEtuYpMduLUZEivXYsbi0AzHHIVOsxyFAp_x5Dd3iaJM"
+DEFAULT_DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK") or ""
 
 # 載入股票名單
 def load_stock_dict():
