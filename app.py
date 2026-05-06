@@ -507,11 +507,26 @@ with col_info:
         st.write(f"5日均量：`{round(vol_ma5, 1)}` 張")
         st.write(f"量能佔比：`{vol_ratio_pct}%`")
         
-        # 莊家防守成本線 (V25.1 100% 原始價格事實精確計算)
+        # ==============================================================================
+        # 🛡️ 莊家防守成本線 - 加上防失真安全防護網 (Sanity Check)
+        # 徹底杜絕因面額變更、拆股等歷史數據斷層導致的 817 異常低價
+        # ==============================================================================
         try:
             temp_df = df.tail(60).copy()
             top_3_vol_days = temp_df.nlargest(3, 'Volume')
-            weighted_support = round(top_3_vol_days['Low'].mean(), 1)
+            calculated_support = round(top_3_vol_days['Low'].mean(), 1)
+            
+            # 安全防護：計算出的防守成本必須在當前股價的 75% 到 102% 之間才算合理
+            if 0.75 * current_price <= calculated_support <= 1.02 * current_price:
+                weighted_support = calculated_support
+            else:
+                # 備用方案一：若偏離過大，改抓最近 10 天內（已對齊新基準）的最低價
+                recent_low = round(df.tail(10)['Low'].min(), 1)
+                if 0.75 * current_price <= recent_low <= 1.02 * current_price:
+                    weighted_support = recent_low
+                else:
+                    # 備用方案二：若均不符合，直接以現價的 95% 作為基準防禦線
+                    weighted_support = round(current_price * 0.95, 1)
         except:
             weighted_support = round(current_price * 0.95, 1)
             
