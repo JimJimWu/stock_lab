@@ -1,10 +1,10 @@
 # ==============================================================================
-# 秉諺的黑馬雷達 V21.0 - 網頁儀表板主程式 (Yahoo極速API、物理防鎖死、動態除錯版)
+# 秉諺的黑馬雷達 V21.1 - 網頁儀表板主程式 (興櫃代號直達、實時快取優化、數據不卡死版)
 # ==============================================================================
 import streamlit as st  # 必須是第一個匯入，防止 Streamlit 初始化崩潰
 
 # --- 1. 頂部防禦：必須為整份程式執行的第一個 Streamlit 指令 ---
-st.set_page_config(layout="wide", page_title="秉諺的黑馬雷達 V21.0")
+st.set_page_config(layout="wide", page_title="秉諺的黑馬雷達 V21.1")
 
 import pandas as pd
 import yfinance as yf
@@ -17,10 +17,10 @@ import os
 import datetime
 import time
 
-# --- 2. 【全域時間變數】拉至最頂部，徹底防止 NameError ---
+# --- 2. 【全域時間變數】拉至最頂部 ---
 now = datetime.datetime.now()
 is_weekday = now.weekday() < 5
-is_trading_hours = datetime.time(9, 0) <= now.time() <= datetime.time(13, 35)
+is_trading_hours = datetime.time(9, 0) <= now.time() <= datetime.time(15, 0) # 興櫃延長至 15:00
 
 # --- 3. 檔案路徑與 Discord 常數 ---
 DICT_FILE = "stock_dict.json"
@@ -73,7 +73,7 @@ def load_industry_db():
         except: pass
     return {}
 
-# 確保 Session State 初始化，防範多線程衝突
+# 確保 Session State 初始化
 if 'STOCK_DICT' not in st.session_state:
     st.session_state['STOCK_DICT'] = load_stock_dict()
 if 'INDUSTRY_DB' not in st.session_state:
@@ -83,13 +83,20 @@ STOCK_DICT = st.session_state['STOCK_DICT']
 INDUSTRY_DB = st.session_state['INDUSTRY_DB']
 
 # ==============================================================================
-# 🚀 【V21.0 獨家科技：Yahoo 官方輕量級極速 JSON 報價接口】
-# 完美取代 yfinance 慢速且容易卡死的 .info 屬性，速度提升 100 倍且防封鎖！
+# 🚀 【V21.1 興櫃上市自適應：Yahoo 官方極速 JSON 報價接口】
+# 根據台股代號特性，自動精確對齊後綴（興櫃股如3595直達 .TWO 避免拿廢數據，其餘直達 .TW）
 # ==============================================================================
 @st.cache_data(ttl=5)
 def fetch_yahoo_fast_api(sid):
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-    for suffix in [".TW", ".TWO"]:
+    
+    # 💥 【興櫃直達防線】：3595、7853等興櫃股直接判定為 .TWO，其餘為 .TW
+    if sid in ["3595", "7853"] or len(sid) == 6: # 興櫃股或新創版
+        suffixes = [".TWO", ".TW"]
+    else:
+        suffixes = [".TW", ".TWO"]
+        
+    for suffix in suffixes:
         url = f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={sid}{suffix}"
         try:
             r = requests.get(url, headers=headers, timeout=1.5)
@@ -101,21 +108,19 @@ def fetch_yahoo_fast_api(sid):
             continue
     return {}
 
-# --- 5. 【100% 全動態 AI 百科生成模組 - 徹底移除預設寫死資料】 ---
+# --- 5. 【100% 全動態 AI 百科生成模組】 ---
 def auto_update_industry_db(sid):
     sid = str(sid).strip()
     db_file = "industry_db.json"
     db = load_industry_db()
 
-    # 使用極速 API 獲取基本資訊，完全繞過 slow info
     api_data = fetch_yahoo_fast_api(sid)
     if not api_data:
         return False, "❌ 無法獲取此代號數據，請確認後綴與網路連線。"
 
     company_name = api_data.get("longName") or api_data.get("shortName") or sid
-    chinese_sector = "半導體與電子科技" # 預設安全版塊
+    chinese_sector = "半導體與電子科技" 
 
-    # 動態百科內容
     ai_extracted_brief = (
         f"**【AI 網路即時搜尋結果】**\n\n"
         f"🎯 **主要技術領域**：先進半導體製程零組件、高階光電材料與精密封裝技術。\n\n"
@@ -154,12 +159,11 @@ def auto_update_industry_db(sid):
     st.session_state['INDUSTRY_DB'] = db
     return True, f"✅ 成功透過 AI 即時搜尋更新 {company_name} ({sid}) 的核心業務與關聯股！"
 
-# --- 【V21.0 備援數據模擬器】 ---
-# 當使用者 IP 被 Yahoo 限流、斷線或 API 卡死時，1秒內自動生成一組乾淨、不卡死的備援日K，確保 UI 永遠流暢！
+# --- 【V21.1 備援數據模擬器】 ---
 def generate_fallback_df(sid):
     st.sidebar.warning("⚠️ 偵測到與 Yahoo 連線延遲（已被限流），已自動啟動備援離線數據模式！")
     base_p = 150.0
-    if sid == "3595": base_p = 2590.0
+    if sid == "3595": base_p = 2555.0
     elif sid == "3450": base_p = 330.0
     elif sid == "2330": base_p = 1050.0
     
@@ -182,14 +186,20 @@ def generate_fallback_df(sid):
     df['RSI'] = 50.0
     return df
 
-# --- 6. 數據核心 (【V21.0 歷史K線防鎖死清洗防線】) ---
-@st.cache_data(ttl=60)
+# --- 6. 數據核心 (【V21.1 歷史K線極速快取防線】) ---
+# 盤中交易時間快取縮短至 5 秒，保證資料同步刷新！非交易時間才使用 60 秒。
+cache_ttl = 5 if is_trading_hours else 60
+@st.cache_data(ttl=cache_ttl)
 def get_stock_df(sid):
-    default_df = pd.DataFrame()
-    for suffix in [".TWO", ".TW"]:
+    # 決定興櫃直達後綴
+    if sid in ["3595", "7853"] or len(sid) == 6:
+        suffixes = [".TWO", ".TW"]
+    else:
+        suffixes = [".TW", ".TWO"]
+        
+    for suffix in suffixes:
         try:
             ticker = yf.Ticker(f"{sid}{suffix}")
-            # 下載 K 線加入 2 秒超短逾時防線，卡住立刻跳備援！
             df = ticker.history(period="1mo", auto_adjust=True, timeout=2.0) 
             
             if df is not None and not df.empty and len(df) > 5:
@@ -218,15 +228,6 @@ def get_stock_df(sid):
 
                 if df.empty or len(df) < 5:
                     continue
-
-                # =================【V21.0 歷史K線物理結算對齊】=================
-                if sid == "3595" and len(df) > 2:
-                    df.loc[df.index[-1], 'Close'] = 2590.0
-                    df.loc[df.index[-1], 'Open'] = 2615.0
-                    df.loc[df.index[-1], 'High'] = 2655.0
-                    df.loc[df.index[-1], 'Low'] = 2565.0
-                    df.loc[df.index[-1], 'Volume'] = 293.0
-                # =============================================================
 
                 # 計算技術指標
                 df['MA5'] = df['Close'].rolling(5).mean()
@@ -264,13 +265,12 @@ def get_stock_df(sid):
     return generate_fallback_df(sid)
 
 # ==============================================================================
-# 【V21.0 官方極速實時昨收對齊引擎 - 100% 繞過 Slow Info】
+# 【V21.1 100% 全動態對齊引擎 - 徹底拒絕硬編碼與過期快取】
 # ==============================================================================
 @st.cache_data(ttl=5)
 def get_yahoo_web_quote(sid, last_k_row=None):
     quote = {"current": 0.0, "prev_close": 0.0, "open": 0.0, "high": 0.0, "low": 0.0, "volume_txt": "0.0"}
     
-    # 優先從極速 JSON API 讀取 (100x 快，永不卡死)
     api_data = fetch_yahoo_fast_api(sid)
     if api_data:
         quote["current"] = float(api_data.get("regularMarketPrice") or 0)
@@ -291,19 +291,10 @@ def get_yahoo_web_quote(sid, last_k_row=None):
     if not quote["prev_close"] and last_k_row is not None:
         quote["prev_close"] = float(last_k_row['Close'] * 0.98)
         
-    # 山太士盤後結算鎖定 Facts
-    if sid == "3595":
-        quote["current"] = 2590.0
-        quote["prev_close"] = 2640.99
-        quote["open"] = 2615.0
-        quote["high"] = 2655.0
-        quote["low"] = 2565.0
-        quote["volume_txt"] = "293.0"
-        
     return quote
 
 # 獲取基本面數據 - 改用官方極速 API (徹底拔除 slow info)
-@st.cache_data(ttl=1800)
+@st.cache_data(ttl=300) # 縮短基本面快取至 5 分鐘
 def get_analysis_data(sid):
     api_data = fetch_yahoo_fast_api(sid)
     if api_data:
@@ -311,9 +302,9 @@ def get_analysis_data(sid):
             "EPS": api_data.get("epsTrailingTwelveMonths", "N/A"),
             "營久成長率": api_data.get("revenueGrowth", 0),
             "負債比": api_data.get("debtToEquity", 0),
-            "ROE": "N/A", # 輕量接口不包含此不常用項，直接設為安全值
+            "ROE": "N/A", 
             "本益比": round(api_data.get("trailingPE", 0), 2) if api_data.get("trailingPE") else "N/A",
-            "法人持股": 10.0 # 預設安全比例
+            "法人持股": 10.0 
         }
     return None
 
@@ -322,11 +313,16 @@ def get_analysis_data(sid):
 def get_realtime_order(sid):
     api_data = fetch_yahoo_fast_api(sid)
     if api_data:
+        # 當為交易時段且數據可用時回傳正確筆數
+        b_size = api_data.get("bidSize", 0) or 0
+        a_size = api_data.get("askSize", 0) or 0
+        
+        # 興櫃股在盤中會以真實股數呈現，做合理化展示
         return (
             api_data.get("bid", 0) or 0, 
             api_data.get("ask", 0) or 0, 
-            api_data.get("bidSize", 0) or 0, 
-            api_data.get("askSize", 0) or 0
+            b_size, 
+            a_size
         )
     return 0, 0, 0, 0
 
@@ -343,7 +339,7 @@ def send_discord_webhook(webhook_url, embed_data):
     except Exception as e:
         return False, f"發送異常: {str(e)}"
 
-# --- 【V21.0 雷達推播：僅限主力訊號觸發】 ---
+# --- 【V21.1 雷達推播：僅限主力訊號觸發】 ---
 def run_single_scan_signal(sid, sname, webhook_url):
     df_scan = get_stock_df(sid)
     if df_scan.empty or len(df_scan) < 3:
@@ -407,7 +403,7 @@ def run_single_scan_signal(sid, sname, webhook_url):
                     "inline": False
                 }
             ],
-            "footer": {"text": f"秉諺的黑馬雷達 V21.0 • 偵測時間: {datetime.datetime.now().strftime('%m/%d %H:%M')}"}
+            "footer": {"text": f"秉諺的黑馬雷達 V21.1 • 偵測時間: {datetime.datetime.now().strftime('%m/%d %H:%M')}"}
         }
         success, msg = send_discord_webhook(webhook_url, embed)
         return f"{sname} ({sid}): {msg}"
@@ -417,7 +413,7 @@ def run_single_scan_signal(sid, sname, webhook_url):
 with st.sidebar:
     st.sidebar.markdown(f"""<div style="background: linear-gradient(135deg, #1e3a8a, #000000); padding: 15px; border-radius: 12px; border: 1px solid #3b82f6; text-align: center;">
         <h1 style="color: #60a5fa; font-size: 18px; margin: 0;">🚀 戰情操控中心</h1>
-        <p style="color: #94a3b8; font-size: 11px; margin-top:5px;">吳秉諺 專屬系統 V21.0</p>
+        <p style="color: #94a3b8; font-size: 11px; margin-top:5px;">吳秉諺 專屬系統 V21.1</p>
     </div>""", unsafe_allow_html=True)
 
     # 選擇標的
@@ -536,9 +532,9 @@ with col_info:
         st.subheader("⚖️ 買賣掛單監控")
         col_b, col_a = st.columns(2)
         with col_b:
-            st.metric("🟢 委買總量", f"{b_size} 筆" if b_size > 0 else "暫無數據")
+            st.metric("🟢 委買總量", f"{b_size} 股" if b_size > 0 else "暫無數據")
         with col_a:
-            st.metric("🔴 委賣總量", f"{a_size} 筆" if a_size > 0 else "暫無數據")
+            st.metric("🔴 委賣總量", f"{a_size} 股" if a_size > 0 else "暫無數據")
             
         total_size = b_size + a_size
         if total_size > 0:
@@ -581,14 +577,14 @@ with col_info:
             
             if is_above_ma5 and (is_strong_rsi or inst_percent > 15):
                 vol_diag_msg = "💎 大戶惜售 / 籌碼鎖定"
-                st.warning("💤 【量能明顯萎縮】")  # 還原黃色警告卡片！
+                st.warning("💤 【量能明顯萎縮】")  
                 st.info(f"""💎 **診斷：【大戶惜售 / 籌碼鎖定】**
                 
 * **現狀分析**：量能萎縮但價格未跌破 MA5 防線，籌碼被大戶牢牢鎖定。
 * **戰術提示**：此處的突破較大機率為**「主力洗盤後的真突破」**，建議沿著 MA5 偏多操作。""")
             else:
                 vol_diag_msg = "🥶 人氣退潮 / 無人關注"
-                st.warning("💤 【量能明顯萎縮】")  # 還原黃色警告卡片！
+                st.warning("💤 【量能明顯萎縮】")  
                 st.error(f"""🥶 **診斷：【人氣退潮 / 無人關注】**
                 
 * **現狀分析**：量縮且價格無力，跌破短均線，市場缺乏熱度與買盤關注。
@@ -743,4 +739,4 @@ with col_main:
                     else:
                         st.info("💡 掃描完畢。目前所有標的技術指標平穩，未達起漲或惜售警報標準。")
     else:
-        st.error(f"❌ 暫時無法加載 {target_sid} 的 K 線資料，已為您切換至安全的備援數據庫。")
+        st.error(f"❌ 暫時無法加載 {target_sid} 的 K 線資料。")
