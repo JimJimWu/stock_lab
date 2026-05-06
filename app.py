@@ -1,10 +1,10 @@
 # ==============================================================================
-# 秉諺的黑馬雷達 V23.0 - 網頁儀表板主程式 (昨日收盤精確對齊、委買賣實時呈現優化版)
+# 秉諺的黑馬雷達 V24.0 - 網頁儀表板主程式 (莊家爆量防線、底背離偵測、真假突破判定版)
 # ==============================================================================
 import streamlit as st  # 必須是第一個匯入，防止 Streamlit 初始化崩潰
 
 # --- 1. 頂部防禦：必須為整份程式執行的第一個 Streamlit 指令 ---
-st.set_page_config(layout="wide", page_title="秉諺的黑馬雷達 V23.0")
+st.set_page_config(layout="wide", page_title="秉諺的黑馬雷達 V24.0")
 
 import pandas as pd
 import yfinance as yf
@@ -176,7 +176,8 @@ def auto_update_industry_db(sid):
     st.session_state['INDUSTRY_DB'] = db
     return True, f"✅ 成功透過 AI 即時搜尋更新 {company_name} ({sid}) 的核心業務與關聯股！"
 
-# --- 6. 數據核心 (【V23.0 歷史 2Y 完整 K 線下載與清洗防線】) ---
+# --- 6. 數據核心 (【V24.0 歷史 2Y 完整 K 線下載與清洗防線】) ---
+# 保留最完美的 2y 日 K 歷史事實，提供 MA20、MACD 完美且無誤差的計算源！
 cache_ttl = 10 if is_trading_hours else 300
 @st.cache_data(ttl=cache_ttl)
 def get_stock_df(sid):
@@ -238,7 +239,7 @@ def get_stock_df(sid):
     return default_df
 
 # ==============================================================================
-# 【V23.0 昨收價與現價黃金對齊模組 - 100% 物理對齊】
+# 【V24.0 昨收價與現價黃金對齊模組 - 100% 物理對齊】
 # 1. 昨收價優先直接從 Ticker.info 讀取最權威的 regularMarketPreviousClose事實！
 # 2. 開高低收與現價則從 K 線 DataFrame 中完美對齊！
 # ==============================================================================
@@ -295,8 +296,7 @@ def get_analysis_data(sid):
     return None
 
 # ==============================================================================
-# 【V23.0 台股掛單專用接口 - 解決委買委賣空值 Bug】
-# 台股與興櫃股在 YFinance 沒有穩定的 bidSize/askSize，因此我們以最關鍵的「最佳委買價」與「最佳委賣價」進行監控
+# 【V24.0 台股掛單專用接口 - 解決委買委賣空值 Bug】
 # ==============================================================================
 @st.cache_data(ttl=5)
 def get_realtime_order(sid):
@@ -327,7 +327,7 @@ def send_discord_webhook(webhook_url, embed_data):
     except Exception as e:
         return False, f"發送異常: {str(e)}"
 
-# --- 【V23.0 雷達推播：僅限主力訊號觸發】 ---
+# --- 【V24.0 雷達推播：僅限主力訊號觸發】 ---
 def run_single_scan_signal(sid, sname, webhook_url):
     df_scan = get_stock_df(sid)
     if df_scan.empty or len(df_scan) < 3:
@@ -391,7 +391,7 @@ def run_single_scan_signal(sid, sname, webhook_url):
                     "inline": False
                 }
             ],
-            "footer": {"text": f"秉諺的黑馬雷達 V23.0 • 偵測時間: {datetime.datetime.now().strftime('%m/%d %H:%M')}"}
+            "footer": {"text": f"秉諺的黑馬雷達 V24.0 • 偵測時間: {datetime.datetime.now().strftime('%m/%d %H:%M')}"}
         }
         success, msg = send_discord_webhook(webhook_url, embed)
         return f"{sname} ({sid}): {msg}"
@@ -401,7 +401,7 @@ def run_single_scan_signal(sid, sname, webhook_url):
 with st.sidebar:
     st.sidebar.markdown(f"""<div style="background: linear-gradient(135deg, #1e3a8a, #000000); padding: 15px; border-radius: 12px; border: 1px solid #3b82f6; text-align: center;">
         <h1 style="color: #60a5fa; font-size: 18px; margin: 0;">🚀 戰情操控中心</h1>
-        <p style="color: #94a3b8; font-size: 11px; margin-top:5px;">吳秉諺 專屬系統 V23.0</p>
+        <p style="color: #94a3b8; font-size: 11px; margin-top:5px;">吳秉諺 專屬系統 V24.0</p>
     </div>""", unsafe_allow_html=True)
 
     # 選擇標的
@@ -515,10 +515,7 @@ with col_info:
         with col_price_2:
             st.metric("昨日收盤", f"{round(prev_price, 2)}")
 
-        # ==============================================================================
-        # 【買賣掛單監控 - 解決台股與興櫃空值優化版】
-        # 盤中精準呈現最佳委買價與委賣價，輔以 Yfinance 如果有提供的 Size 掛單量
-        # ==============================================================================
+        # 買賣掛單監控
         st.divider()
         st.subheader("⚖️ 買賣掛單監控")
         col_b, col_a = st.columns(2)
@@ -542,7 +539,9 @@ with col_info:
             st.progress(0.5)
             st.info("💡 盤後非交易時段或 API 限制，暫無實時掛單量。")
 
-        # 量能動態診斷：股與張智慧換算
+        # ==============================================================================
+        # 【量能動態診斷：量比、假突破、莊家洗盤自適應優化版】
+        # ==============================================================================
         st.divider()
         st.subheader("📊 量能動態診斷")
         
@@ -586,9 +585,40 @@ with col_info:
             vol_diag_msg = "⚖️ 量能溫和"
             st.info("⚖️ 【量能溫和】：正常換手，走勢穩健。")
 
-        # 指標診斷
+        # ==============================================================================
+        # 【📈 指標診斷 & 莊家支撐線與底背離判定】
+        # ==============================================================================
         st.divider()
-        st.subheader("📈 指標診斷")
+        st.subheader("📈 指標與籌碼診斷")
+        
+        # 1. 莊家爆量防護成本線計算
+        # 尋找最近 60 天中，成交量最大的三天，並對齊其 K 線的低點
+        try:
+            temp_df = df.tail(60).copy()
+            top_3_vol_days = temp_df.nlargest(3, 'Volume')
+            weighted_support = round(top_3_vol_days['Low'].mean(), 1)
+        except:
+            weighted_support = round(current_price * 0.95, 1) # 備用安全值
+            
+        if current_price >= weighted_support:
+            support_status = f"🟢 莊家防線守住 ({weighted_support} 元)"
+            st.success(f"🛡️ **大戶籌碼防線**：{support_status}\n\n目前股價在此巨量支撐成本之上，代表有大戶主力在守護成本，屬於**高安全位階**！")
+        else:
+            support_status = f"🔴 防線跌破、留意續跌 ({weighted_support} 元)"
+            st.error(f"⚠️ **大戶籌碼防線**：{support_status}\n\n目前收盤跌破巨量支撐，代表先前介入的大戶已棄守或停損，**不建議接刀**。")
+
+        # 2. 技術底背離動態偵測 (比對前五天與今日的股價、RSI 趨勢)
+        has_divergence = False
+        if len(df) >= 10:
+            past_min_close = df.iloc[-10:-1]['Close'].min()
+            past_min_rsi = df.iloc[-10:-1]['RSI'].min()
+            # 股價創 10 天新低，但 RSI 拒絕破底（高於過去低點）
+            if (current_price <= past_min_close) and (last['RSI'] > past_min_rsi) and (last['RSI'] < 40):
+                has_divergence = True
+                
+        if has_divergence:
+            st.markdown("<p style='background-color:#7f1d1d; color:#fca5a5; padding:10px; border-radius:6px; font-weight:bold; border:1px solid #f87171;'>🔥 偵測到【低檔底背離】：股價創低但 RSI 強勢拒絕破底，代表下跌力道枯竭，莊家默默吃貨中，暗示極高機率將觸發強力反彈！</p>", unsafe_allow_html=True)
+
         st.write(f"**MA5：** :orange[{round(last['MA5'], 2)}]")
         st.write(f"**MA10：** :blue[{round(last['MA10'], 2)}]") # MA10 同步為與 K 線圖一致的藍色
         st.write(f"**MA20：** :violet[{round(last['MA20'], 2)}]")
