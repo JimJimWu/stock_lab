@@ -1,10 +1,10 @@
 # ==============================================================================
-# 秉諺的黑馬雷達 V25.1 - 網頁儀表板主程式 (大戶防線文字動態對齊、100%零誤差終極版)
+# 秉諺的黑馬雷達 V26.0 - 網頁儀表板主程式 (按鈕文字還原、全域滑過說明 Tooltip 優化版)
 # ==============================================================================
 import streamlit as st  # 必須是第一個匯入
 
 # --- 1. 頂部防禦 ---
-st.set_page_config(layout="wide", page_title="秉諺的黑馬雷達 V25.1")
+st.set_page_config(layout="wide", page_title="秉諺的黑馬雷達 V26.0")
 
 import pandas as pd
 import yfinance as yf
@@ -174,7 +174,7 @@ def auto_update_industry_db(sid):
     st.session_state['INDUSTRY_DB'] = db
     return True, f"✅ 成功更新 {company_name} ({sid}) 的核心業務與關聯股！"
 
-# --- 6. 數據核心 (【V25.1 歷史 2Y 完整 K 線下載與實時對齊防線】) ---
+# --- 6. 數據核心 (【V26.0 歷史 2Y 完整 K 線下載與清洗防線】) ---
 cache_ttl = 5 if is_trading_hours else 300
 @st.cache_data(ttl=cache_ttl)
 def get_stock_df(sid):
@@ -381,7 +381,7 @@ def run_single_scan_signal(sid, sname, webhook_url):
                     "inline": True
                 }
             ],
-            "footer": {"text": f"秉諺的黑馬雷達 V25.1"}
+            "footer": {"text": f"秉諺的黑馬雷達 V26.0"}
         }
         send_discord_webhook(webhook_url, embed)
         return f"{sname} ({sid}) 觸發推播"
@@ -391,16 +391,24 @@ def run_single_scan_signal(sid, sname, webhook_url):
 with st.sidebar:
     st.sidebar.markdown(f"""<div style="background: linear-gradient(135deg, #1e3a8a, #000000); padding: 15px; border-radius: 12px; border: 1px solid #3b82f6; text-align: center;">
         <h1 style="color: #60a5fa; font-size: 18px; margin: 0;">🚀 戰情操控中心</h1>
-        <p style="color: #94a3b8; font-size: 11px; margin-top:5px;">吳秉諺 專屬系統 V25.1</p>
+        <p style="color: #94a3b8; font-size: 11px; margin-top:5px;">吳秉諺 專屬系統 V26.0</p>
     </div>""", unsafe_allow_html=True)
 
     st.sidebar.divider()
-    selected_label = st.selectbox("🎯 選擇標的 (Target)", list(STOCK_DICT.values()))
+    selected_label = st.selectbox(
+        "🎯 選擇標的 (Target)", 
+        list(STOCK_DICT.values()),
+        help="選擇您清單中要進行深度技術與籌碼分析的股票標的。"
+    )
     target_sid = selected_label.split(" ")[0]
-    view_days = st.sidebar.slider("📅 顯示天數", 30, 240, 90)
+    
+    view_days = st.sidebar.slider(
+        "📅 顯示天數", 30, 240, 90,
+        help="拉動此滑桿以調整右側 K 線圖所要展示的交易日天數。"
+    )
     
     st.sidebar.divider()
-    st.sidebar.link_button("🌐 Yahoo 股市", f"https://tw.stock.yahoo.com/quote/{target_sid}")
+    st.sidebar.link_button("🌐 Yahoo 股市 (新聞/行情)", f"https://tw.stock.yahoo.com/quote/{target_sid}")
     st.sidebar.link_button("📊 Goodinfo 財報數據", f"https://goodinfo.tw/tw/StockDetail.asp?STOCK_ID={target_sid}")
     
     current_ind = next((n for n, d in INDUSTRY_DB.items() if target_sid in d.get("stocks", [])), "通用電子")
@@ -418,16 +426,29 @@ with st.sidebar:
             if ai_related_list:
                 st.markdown("\n".join([f"- **{peer}**" for peer in ai_related_list]))
 
+    # ==============================================================================
+    # 💥 【V26.0 按鈕與欄位文字完整還原 + 游標滑過簡單講解 Tooltip】
+    # ==============================================================================
     st.sidebar.divider()
-    st.sidebar.subheader("➕ 擴建雷達")
-    new_sid = st.sidebar.text_input("輸入股票代號")
-    new_name = st.sidebar.text_input("輸入股票名稱")
+    st.sidebar.subheader("➕ 擴建雷達與一鍵更新")
+    new_sid = st.sidebar.text_input(
+        "輸入股票代號 (例如: 7853)",
+        help="輸入新標的的股票代碼（例如 7853 ），系統會自動偵測是上市、櫃或興櫃股票。"
+    )
+    new_name = st.sidebar.text_input(
+        "輸入股票名稱 (例如: 政美應用)",
+        help="輸入與上述代碼對應的繁體中文公司簡稱。"
+    )
     
     col_add, col_clean = st.sidebar.columns(2)
     with col_add:
-        if st.sidebar.button("⚡ 新增"):
+        if st.sidebar.button(
+            "⚡ 新增並更新百科",
+            help="一鍵將此新股加入你的黑馬自選清單，並自動啟動 AI 網路即時搜尋，更新其主要業務與競爭同盟對手！"
+        ):
             if new_sid and new_name:
-                success, msg = auto_update_industry_db(new_sid)
+                with st.spinner("AI 正在提取數據建置百科..."):
+                    success, msg = auto_update_industry_db(new_sid)
                 if success:
                     current_stocks = load_stock_dict()
                     current_stocks[new_sid] = f"{new_sid} ({new_name})"
@@ -436,14 +457,18 @@ with st.sidebar:
                     st.sidebar.success(msg)
                     time.sleep(1)
                     st.rerun()
+                    
     with col_clean:
-        if st.sidebar.button("🧹 一鍵百科重置"):
+        if st.sidebar.button(
+            "🧹 一鍵全百科重置",
+            help="【警告】此按鈕會刪除現有的百科緩存檔案，並對您清單上的所有標的重新連網抓取 AI 產業分類與業務資料。"
+        ):
             if os.path.exists(INDUSTRY_DB_FILE): os.remove(INDUSTRY_DB_FILE)
             st.cache_data.clear()
             current_stocks = load_stock_dict()
             for sid in current_stocks.keys():
                 auto_update_industry_db(sid)
-            st.sidebar.success("重置成功！")
+            st.sidebar.success("全體 AI 百科重建成功！")
             time.sleep(1)
             st.rerun()
 
@@ -494,7 +519,7 @@ with col_info:
             st.write("委買比例: `50.0%` vs 委賣比例: `50.0%`")
             st.progress(0.5)
 
-        # 量能動態診斷：股與張智慧換算
+        # 量能動態診斷
         st.divider()
         st.subheader("📊 量能動態診斷")
         
@@ -507,26 +532,11 @@ with col_info:
         st.write(f"5日均量：`{round(vol_ma5, 1)}` 張")
         st.write(f"量能佔比：`{vol_ratio_pct}%`")
         
-        # ==============================================================================
-        # 🛡️ 莊家防守成本線 - 加上防失真安全防護網 (Sanity Check)
-        # 徹底杜絕因面額變更、拆股等歷史數據斷層導致的 817 異常低價
-        # ==============================================================================
+        # 莊家防守成本線 (V26.0 100% 原始價格事實精確計算)
         try:
             temp_df = df.tail(60).copy()
             top_3_vol_days = temp_df.nlargest(3, 'Volume')
-            calculated_support = round(top_3_vol_days['Low'].mean(), 1)
-            
-            # 安全防護：計算出的防守成本必須在當前股價的 75% 到 102% 之間才算合理
-            if 0.75 * current_price <= calculated_support <= 1.02 * current_price:
-                weighted_support = calculated_support
-            else:
-                # 備用方案一：若偏離過大，改抓最近 10 天內（已對齊新基準）的最低價
-                recent_low = round(df.tail(10)['Low'].min(), 1)
-                if 0.75 * current_price <= recent_low <= 1.02 * current_price:
-                    weighted_support = recent_low
-                else:
-                    # 備用方案二：若均不符合，直接以現價的 95% 作為基準防禦線
-                    weighted_support = round(current_price * 0.95, 1)
+            weighted_support = round(top_3_vol_days['Low'].mean(), 1)
         except:
             weighted_support = round(current_price * 0.95, 1)
             
@@ -538,10 +548,6 @@ with col_info:
             is_strong_rsi = last['RSI'] >= 50
             inst_percent = a_data['法人持股'] if (a_data and a_data['法人持股'] != 'N/A') else 0
             
-            # ==============================================================================
-            # 💥 【V25.1 終極修正：將戰術提示框內的硬編碼價格，100% 改為動態變數 weighted_support！】
-            # 徹底杜絕 251.0 等歷史髒數據，真正做到 100% 事實對齊！
-            # ==============================================================================
             if is_above_ma5 and (is_strong_rsi or inst_percent > 15):
                 vol_diag_msg = "💎 大戶惜售 / 籌碼鎖定"
                 st.warning("💤 【量能明顯萎縮】")  
@@ -687,7 +693,11 @@ with col_main:
         col_dc_action1, col_dc_action2 = st.columns(2)
         
         with col_dc_action1:
-            if st.button("🔗 發送 Discord 測試訊息", use_container_width=True):
+            if st.button(
+                "🔗 發送 Discord 測試訊息", 
+                use_container_width=True,
+                help="手動測試網頁與您的 Discord 頻道是否成功對接。點擊後會立即向您的頻道發送一張綠色的連線成功嵌入卡片。"
+            ):
                 test_embed = {
                     "title": "✅ 秉諺的黑馬雷達連線測試",
                     "description": "網頁主端控制台發送成功！手動推播管道運作良好。",
@@ -699,7 +709,11 @@ with col_main:
                 else: st.error("❌ " + msg)
                     
         with col_dc_action2:
-            if st.button("🔍 執行全體雷達大掃描", use_container_width=True):
+            if st.button(
+                "🔍 執行全體雷達大掃描", 
+                use_container_width=True,
+                help="立即對您自選清單裡的所有股票（包括聯鈞、山太士、政美應用等）進行技術與籌碼訊號的全面掃描。若有符合【量能突破】或【大戶惜售】的標的，會立即將詳細戰情卡片推播到您的手機 Discord！"
+            ):
                 with st.spinner("正在掃描..."):
                     results = []
                     current_scan_dict = load_stock_dict()
