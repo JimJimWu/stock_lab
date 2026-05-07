@@ -22,7 +22,7 @@ def generate_ai_insights(company_name, summary):
     """透過 AI 一次性產出五大百科獨立分析 (具備強制擷取與錯誤穿透功能)"""
     try:
         # 💥 替換此行：明確指定使用 1.5 flash 版本，享受每日 1500 次高額度
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-2.5-flash')
         prompt = f"""
         你是一位資深台股產業分析師。請針對「{company_name}」生成以下 5 項核心分析資訊。
         請務必以嚴格的 JSON 格式回傳，絕不允許包含任何 Markdown 標記 (如 ```json) 或其他口語文字：
@@ -569,6 +569,20 @@ with st.sidebar:
 
     st.sidebar.divider()
     st.sidebar.subheader("🩺 AI 引擎連線體檢")
+# --- 將這段貼在「AI 引擎連線體檢」的區塊內 ---
+    if st.sidebar.button("🔍 測試當前模型真實版本"):
+        with st.sidebar.status("正在呼叫 API 進行自我測試..."):
+            try:
+                # 這裡使用您要測試的最新別名
+                test_model = genai.GenerativeModel('gemini-2.5-flash')
+                # 直接發送測試問句
+                response = test_model.generate_content("請用一句話回答：你目前底層運行的模型精確版本代號是什麼？(例如 1.5-flash 或 3.0-flash)")
+                
+                st.success("測試成功！AI 的真實身份是：")
+                # 直接把 AI 的回答印在側邊欄上
+                st.info(response.text)
+            except Exception as e:
+                st.error(f"測試失敗，錯誤訊息：{e}")
     if st.sidebar.button("檢查可用模型清單 (List Models)"):
         with st.sidebar.status("正在向 Google 伺服器請求權限清單..."):
             try:
@@ -581,7 +595,7 @@ with st.sidebar:
                 if available_models:
                     st.success("連線成功！您的金鑰支援以下模型：")
                     st.write(available_models)
-                    # 如果清單中有 models/gemini-1.5-flash，請記下它的精確名稱
+                    # 如果清單中有 models/gemini-flash-latest請記下它的精確名稱
                 else:
                     st.error("金鑰有效，但該專案下沒有任何可用的生成式模型。請檢查 Google Cloud API 啟用狀態。")
             except Exception as e:
