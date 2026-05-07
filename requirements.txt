@@ -1,5 +1,7 @@
 streamlit
-yfinance
 pandas
+yfinance
 plotly
 streamlit-autorefresh
+requests
+google-generativeai
