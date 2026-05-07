@@ -4,7 +4,7 @@
 import streamlit as st  # 必須是第一個匯入，防止 Streamlit 初始化崩潰
 import google.generativeai as genai
 import os
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyCh7pQyjjxP8S6wXdAhoHHgxh4BJXwXmRo")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyAf2_d6vRVFZwboGFFcWJSN4AQ26idfsWc")
 genai.configure(api_key=GEMINI_API_KEY)
 
 def generate_ai_insights(company_name, summary):
