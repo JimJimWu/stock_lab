@@ -1,0 +1,171 @@
+{
+    "3595": {
+        "name": "3595 (山太士)",
+        "company_brief": "⚠️ 系統真實錯誤原因: 429 You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\nPlease retry in 24.781315832s. [links {\n  description: \"Learn more about Gemini API quotas\"\n  url: \"https://ai.google.dev/gemini-api/docs/rate-limits\"\n}\n, violations {\n  quota_metric: \"generativelanguage.googleapis.com/generate_content_free_tier_requests\"\n  quota_id: \"GenerateRequestsPerDayPerProjectPerModel-FreeTier\"\n  quota_dimensions {\n    key: \"model\"\n    value: \"gemini-2.5-flash\"\n  }\n  quota_dimensions {\n    key: \"location\"\n    value: \"global\"\n  }\n  quota_value: 20\n}\n, retry_delay {\n  seconds: 24\n}\n]",
+        "overview": "生成失敗，請查看上方主要業務欄位的錯誤訊息。",
+        "value_chain": "生成失敗，請查看上方主要業務欄位的錯誤訊息。",
+        "competitors": [],
+        "drivers": "生成失敗，請查看上方主要業務欄位的錯誤訊息。",
+        "last_updated": "2026-05-07"
+    },
+    "3450": {
+        "name": "3450 (聯鈞)",
+        "company_brief": "聯鈞主要從事光通訊元件及模組的設計、製造與銷售，核心業務為雷射二極體與光偵測二極體之封裝。近期受惠於AI數據中心對高速光模組的需求激增。",
+        "overview": "聯鈞是台灣光通訊產業中，在雷射及光偵測二極體封裝領域具備關鍵技術與領導地位的重要供應商。",
+        "value_chain": "上游為光通訊晶粒（如LD/PD晶粒）與光學材料供應商，聯鈞位於產業中游，專注於光通訊主動元件的精密封裝與測試，下游主要供應光通訊模組廠、數據中心、電信設備商及感測器應用。",
+        "competitors": [
+            "3234 (光聖)",
+            "4979 (華星光)",
+            "Lumentum (美國)"
+        ],
+        "drivers": "AI數據中心對800G/1.6T等高速光模組需求激增，全球5G/6G網路基礎建設持續推動，以及車用光達（LiDAR）與其他光感測器等新興應用市場的成長。",
+        "last_updated": "2026-05-07"
+    },
+    "3037": {
+        "name": "3037 (欣興)",
+        "company_brief": "⚠️ 系統真實錯誤原因: 429 You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\nPlease retry in 54.184223928s. [links {\n  description: \"Learn more about Gemini API quotas\"\n  url: \"https://ai.google.dev/gemini-api/docs/rate-limits\"\n}\n, violations {\n  quota_metric: \"generativelanguage.googleapis.com/generate_content_free_tier_requests\"\n  quota_id: \"GenerateRequestsPerDayPerProjectPerModel-FreeTier\"\n  quota_dimensions {\n    key: \"model\"\n    value: \"gemini-2.5-flash\"\n  }\n  quota_dimensions {\n    key: \"location\"\n    value: \"global\"\n  }\n  quota_value: 20\n}\n, retry_delay {\n  seconds: 54\n}\n]",
+        "overview": "生成失敗，請查看上方主要業務欄位的錯誤訊息。",
+        "value_chain": "生成失敗，請查看上方主要業務欄位的錯誤訊息。",
+        "competitors": [],
+        "drivers": "生成失敗，請查看上方主要業務欄位的錯誤訊息。",
+        "last_updated": "2026-05-07"
+    },
+    "2330": {
+        "name": "2330 (台積電)",
+        "company_brief": "⚠️ 系統真實錯誤原因: 429 You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\nPlease retry in 38.874050554s. [links {\n  description: \"Learn more about Gemini API quotas\"\n  url: \"https://ai.google.dev/gemini-api/docs/rate-limits\"\n}\n, violations {\n  quota_metric: \"generativelanguage.googleapis.com/generate_content_free_tier_requests\"\n  quota_id: \"GenerateRequestsPerDayPerProjectPerModel-FreeTier\"\n  quota_dimensions {\n    key: \"model\"\n    value: \"gemini-2.5-flash\"\n  }\n  quota_dimensions {\n    key: \"location\"\n    value: \"global\"\n  }\n  quota_value: 20\n}\n, retry_delay {\n  seconds: 38\n}\n]",
+        "overview": "生成失敗，請查看上方主要業務欄位的錯誤訊息。",
+        "value_chain": "生成失敗，請查看上方主要業務欄位的錯誤訊息。",
+        "competitors": [],
+        "drivers": "生成失敗，請查看上方主要業務欄位的錯誤訊息。",
+        "last_updated": "2026-05-07"
+    },
+    "3363": {
+        "name": "3363 (上詮)",
+        "company_brief": "上詮光纖通信是專業的光纖通訊元件與模組供應商，核心業務涵蓋光收發模組、光被動元件及主動光纜。近期焦點著重於因應AI資料中心龐大運算需求的高速光通訊產品，特別是800G/1.6T光收發模組及共同封裝光學(CPO)技術的開發。",
+        "overview": "上詮在台灣光通訊產業中，是中小型但具備關鍵技術實力的專業元件及模組供應商，尤其在高速資料中心傳輸領域具有一定的市場能見度。",
+        "value_chain": "上詮位於光通訊產業鏈的中游，主要負責光纖通訊元件與模組的設計、製造與封測，產品供應給下游的網路設備商、電信營運商及資料中心系統整合商。其上游為光纖材料、光電晶片與相關零組件供應商。",
+        "competitors": [
+            "3450 聯鈞",
+            "Lumentum",
+            "Coherent"
+        ],
+        "drivers": "未來成長動能主要來自AI資料中心對高速光模組（如800G/1.6T）及共同封裝光學(CPO)技術的強勁需求，全球5G/6G網路建設與光纖到府(FTTx)等寬頻基礎設施升級所帶動的光通訊設備需求增長，以及其在車用光通訊領域的布局潛力。",
+        "last_updated": "2026-05-07"
+    },
+    "6451": {
+        "name": "6451 (訊芯-KY)",
+        "company_brief": "訊芯-KY主要業務為半導體模組封裝與光通訊模組製造，擅長SiP(系統級封裝)技術。近期焦點鎖定於AI伺服器對高速光通訊模組(如400G/800G)及Co-packaged Optics(CPO)技術的強勁需求，積極布局相關高階封裝與模組產品。",
+        "overview": "訊芯-KY在高速光通訊模組及SiP封裝領域具備利基型技術優勢，在全球AI資料中心建置浪潮下，作為光通訊模組關鍵供應商之一，市場重要性日益提升，是鴻海集團在光電與半導體封裝領域的重要佈局。",
+        "value_chain": "訊芯-KY位於產業鏈中游，向上游採購光學元件(如雷射、檢測器)、IC晶片、PCB基板等材料；透過其SiP封裝及模組整合能力，將這些元件組裝成光收發模組或高功能性模組，向下游供應給資料中心、網通設備商、電信業者及消費性電子製造商。",
+        "competitors": [
+            "3234 (光環)",
+            "4979 (華星光)",
+            "Lumentum (美國)"
+        ],
+        "drivers": "AI伺服器與資料中心大規模擴建對高速光通訊模組(400G/800G/1.6T)的爆發性需求；Co-packaged Optics (CPO)技術的發展與商業化進程；高階SiP封裝在物聯網、車用電子及消費性產品的滲透率提升；以及鴻海集團內部資源整合與訂單挹注的潛力。",
+        "last_updated": "2026-05-07"
+    },
+    "3163": {
+        "name": "3163 (波若威)",
+        "company_brief": "波若威是光通訊被動元件及模組的專業製造商，產品廣泛應用於資料中心、5G、FTTx及企業網路。近期焦點為積極切入高速光收發模組（如400G/800G）和共同封裝光學(CPO)等高階技術，以滿足人工智慧(AI)與高效能運算(HPC)對傳輸頻寬的龐大需求。",
+        "overview": "波若威是全球光通訊產業中被動元件及模組領域的領先供應商之一，以其在光纖元件和模組整合方面的技術實力，在全球市場佔有重要的專業地位。",
+        "value_chain": "波若威位於光通訊產業鏈的中游，向上游採購光纖、光學晶片、連接器等關鍵材料，自行研發並生產光耦合器、分波多工器(WDM)、光開關及各類光通訊模組。其產品主要供應給下游的電信設備商、資料中心營運商及網路系統整合商。",
+        "competitors": [
+            "4979 (華星光)",
+            "3363 (上詮)",
+            "Lumentum (美國)"
+        ],
+        "drivers": "AI伺服器與資料中心高速網路升級帶動400G/800G/1.6T光模組的需求爆發，共同封裝光學(CPO)技術的發展與商業化應用，以及全球雲端運算服務的擴張與相關資料中心基礎設施的持續建置。",
+        "last_updated": "2026-05-07"
+    },
+    "4979": {
+        "name": "4979 (華星光)",
+        "company_brief": "華星光主要業務為光通訊主動元件與光收發模組的研發、製造與銷售，產品應用於資料中心、電信網路、光纖到府及5G通訊。近期市場焦點為受惠於AI伺服器需求帶動的高速光收發模組訂單，特別是800G產品。",
+        "overview": "華星光在全球光通訊零組件及模組市場中，扮演利基型供應商角色，以客製化與快速反應能力見長，尤其在高速光通訊模組領域具備一定的技術與市場競爭力。",
+        "value_chain": "華星光位於光通訊產業鏈中游偏下游，向上游採購光晶粒（LD/PD）、積體電路及被動元件等，透過自行研發光機電整合技術進行封裝與模組製造，向下游提供高速光收發模組給電信設備商、資料中心業者與網通設備製造商。",
+        "competitors": [
+            "3234 光環",
+            "Lumentum"
+        ],
+        "drivers": "AI伺服器與資料中心對高速、高頻寬光通訊模組（如800G、1.6T）需求的持續爆炸性成長；全球5G通訊網路基礎建設的升級與擴容需求；以及新世代資料中心架構轉變對低延遲、高效率光模組的拉動。",
+        "last_updated": "2026-05-07"
+    },
+    "3081": {
+        "name": "3081 (聯亞)",
+        "company_brief": "聯亞光電是專業的化合物半導體磊晶片代工服務商，主要提供砷化鎵(GaAs)及磷化銦(InP)基板上的磊晶服務，其產品應用於光纖通訊（如VCSEL、DFB雷射）、3D感測及光達等光電元件，近期受惠於高速資料中心與AI運算需求帶動光通訊元件升級。",
+        "overview": "聯亞光電在全球化合物半導體磊晶片代工領域中佔有領先地位，是少數能提供多樣化、高品質光電應用磊晶片的純代工廠之一。",
+        "value_chain": "聯亞光電位於光電元件產業鏈的**中游**，負責關鍵的磊晶製程。其上游為磊晶基板（如砷化鎵、磷化銦晶圓）供應商，下游客戶為光通訊元件、3D感測模組及光達模組等製造商，最終應用於數據中心、消費性電子、車用等終端市場。",
+        "competitors": [
+            "Lumentum",
+            "Coherent (原II-VI)",
+            "2345 智邦"
+        ],
+        "drivers": "未來成長動能主要來自於AI與雲端運算帶動的高速光纖通訊需求（400G/800G/1.6T光模組升級），車用光達(LiDAR)在自駕車領域的長期成長潛力，以及智慧型手機與AR/VR裝置對3D感測元件的持續需求。",
+        "last_updated": "2026-05-07"
+    },
+    "2455": {
+        "name": "2455 (全新)",
+        "company_brief": "全新光電為全球領先的III-V族化合物半導體磊晶片製造商，主要提供砷化鎵(GaAs)磊晶片，廣泛應用於5G通訊、WiFi、光通訊及3D感測等高頻元件。",
+        "overview": "全新是全球砷化鎵(GaAs)磊晶片製造領域的龍頭業者，尤其在手機功率放大器(PA)磊晶片供應鏈中佔據主導地位。",
+        "value_chain": "全新位於化合物半導體產業鏈中游，向上承接材料供應商，向下則為功率放大器(PA)設計公司、射頻前端模組廠、光通訊元件廠及VCSEL製造商提供磊晶片。",
+        "competitors": [
+            "3105 (穩懋)",
+            "IQE",
+            "Sumitomo Electric"
+        ],
+        "drivers": "5G/WiFi 6/6E/7升級帶動RF前端元件需求、資料中心及AI伺服器推動高速光通訊市場成長、以及VCSEL於3D感測和車用LiDAR應用的擴展。",
+        "last_updated": "2026-05-07"
+    },
+    "6442": {
+        "name": "6442 (光聖)",
+        "company_brief": "光聖主要從事光纖被動元件、光纖連接器、光纖跳線及光通訊網路產品的研發、生產與銷售。近期焦點為受惠於AI伺服器高速運算與資料中心擴建對光通訊元件的強勁需求，以及全球FTTx光纖網路布建。",
+        "overview": "光聖是全球光通訊被動元件及連接解決方案的供應商之一，在光纖到戶 (FTTx) 市場擁有穩固地位，並積極拓展資料中心及AI伺服器高速傳輸應用。",
+        "value_chain": "光聖位於光通訊產業鏈中游，向上游採購光纖、塑膠、金屬等原物料，經設計與製造後，將光纖連接器、跳線、分光器等光被動元件，向下游供應給電信營運商、網通設備商及資料中心等客戶。",
+        "competitors": [
+            "3163 (波若威)",
+            "4979 (華星光)",
+            "3081 (聯亞)"
+        ],
+        "drivers": "AI伺服器及資料中心對800G/1.6T高速光通訊模組及光纖連接產品的需求激增；全球5G/6G基礎設施持續光纖化布建；各國政府及電信業者推動FTTx光纖到戶計畫；整體網通設備傳輸速率升級與擴容。",
+        "last_updated": "2026-05-07"
+    },
+    "7853": {
+        "name": "7853 (政美應用)",
+        "company_brief": "政美應用主要從事工業自動化領域的高精度控制系統、運動控制模組、機器視覺及相關軟硬體解決方案的研發、生產與銷售，致力於提升製造業的生產效率與智能化水平。近期焦點可能著重於智慧製造升級與特定高科技產業應用。",
+        "overview": "在台灣工業自動化及智能製造解決方案市場中，政美應用屬於利基型供應商，專注於提供特定高性能的自動化零組件或整合方案，而非全面性的大型自動化設備製造商。",
+        "value_chain": "政美應用位於工業自動化產業鏈的中游。其上游為電子零組件、感測器、光學元件、精密機械零件及工業電腦板材等供應商。政美應用整合這些關鍵零組件，設計、製造與組裝高精度運動控制系統、機器視覺模組及自動化控制器等產品。下游客戶則涵蓋半導體、面板、電子組裝、精密機械、汽車零組件、紡織、食品等多個製造業，作為其生產線自動化升級的方案提供者。",
+        "competitors": [
+            "2395 研華",
+            "2049 上銀",
+            "8050 廣積"
+        ],
+        "drivers": "全球製造業朝向智慧化、自動化與無人化生產的趨勢，帶動對高精度工業控制系統的需求；勞動力成本上升與缺工問題，促使各產業加速導入自動化設備；新興科技如AI、機器學習、物聯網(IoT)與邊緣運算在工業應用上的整合，提升自動化系統的性能與智能化程度；半導體、電動車、綠能等高科技產業對精密製造與檢測自動化的需求持續增長。",
+        "last_updated": "2026-05-07"
+    },
+    "1802": {
+        "name": "1802 (台玻)",
+        "company_brief": "台玻是台灣主要的玻璃製造商，核心業務涵蓋平板玻璃、容器玻璃、加工玻璃、玻璃纖維及其化學製品。近年來積極朝向高附加價值、節能環保玻璃產品發展，並持續深耕中國大陸市場。",
+        "overview": "台玻在台灣是歷史最悠久、規模最大的綜合性玻璃製造商，在大中華區玻璃產業鏈中亦佔有重要地位。",
+        "value_chain": "台玻主要位於產業鏈的中游，從上游採購矽砂、純鹼等原物料，經熔融製程生產各類平板玻璃、容器玻璃及玻璃纖維，再供應給下游的建築、汽車、食品飲料包裝、電子與工業應用等產業。",
+        "competitors": [
+            "信義玻璃 (00868.HK)",
+            "AGC Inc. (旭硝子)",
+            "CSG Holding (南玻A)"
+        ],
+        "drivers": "全球建築及汽車產業復甦帶動玻璃需求、高附加價值之節能玻璃(Low-E玻璃)滲透率提升、新興應用領域(如太陽能、智慧建築)的玻璃材料需求增加，以及集團在中國大陸市場的產能擴張與效率優化。",
+        "last_updated": "2026-05-07"
+    },
+    "1815": {
+        "name": "1815 ( 富喬)",
+        "company_brief": "富喬主要生產及銷售電子級玻璃纖維紗與玻璃纖維布，是印刷電路板(PCB)及銅箔基板(CCL)產業的關鍵上游材料供應商。近期營運受PCB產業景氣波動影響，並積極開發高頻高速等特殊應用玻纖產品。",
+        "overview": "富喬在台灣及全球玻璃纖維紗與玻璃纖維布市場中，屬於重要的供應商之一，其產品廣泛應用於電子產業，市場地位為中上游關鍵零組件製造商。",
+        "value_chain": "富喬位於電子產業鏈的中上游。上游主要為玻璃纖維原料(如矽砂、鋁土等)，富喬負責將這些原料製成玻璃纖維紗，並進一步織造成玻璃纖維布。其產品主要供應給中游的銅箔基板(CCL)製造商，再由CCL廠提供給下游的印刷電路板(PCB)製造商，最終應用於各類電子產品中。",
+        "competitors": [
+            "1802 台玻",
+            "5340 建榮",
+            "5475 德宏"
+        ],
+        "drivers": "富喬未來的成長動能主要來自全球PCB產業景氣復甦，特別是AI、5G、高效能運算(HPC)以及車用電子等新興應用對高階、高頻高速玻纖材料的需求增加。此外，公司在高階玻纖產品的研發與量產能力，以及生產成本的有效控制，也將是關鍵的成長引擎。",
+        "last_updated": "2026-05-07"
+    }
+}
