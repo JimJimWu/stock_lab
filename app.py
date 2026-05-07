@@ -229,15 +229,43 @@ INDUSTRY_DB = st.session_state['INDUSTRY_DB']
 def auto_update_industry_db(sid):
     sid = str(sid).strip()
     db_file = "industry_db.json"
-    db = load_industry_db()
-    target_sid_str = str(target_sid).strip() # 確保是字串且無空格
-    stock_info = db.get(target_sid_str) # 使用強制轉型後的 Key 來讀取
-	if stock_info:
-        # 成功讀取後的顯示邏輯...
-        st.sidebar.success(f"✅ 已載入 {target_sid_str} 離線百科")
-    else:
-        # 沒讀取到，才會跑 9623 天的邏輯...
-        st.sidebar.warning(f"❌ 找不到 {target_sid_str} 的資料")
+    # --- 請從這行開始整塊覆蓋 ---
+db = load_industry_db()
+target_sid_str = str(target_sid).strip()
+stock_info = db.get(target_sid_str)
+
+if stock_info:
+    # 成功讀取後顯示百科卡片
+    with st.sidebar.expander("🎯 個股主要業務", expanded=True):
+        st.info(stock_info.get("company_brief", "暫無專屬資料。"))
+        
+    with st.sidebar.expander("📍 產業市場規模", expanded=False):
+        st.info(stock_info.get("overview", "暫無專屬資料。"))
+        
+    with st.sidebar.expander("🔗 產業價值鏈", expanded=False):
+        st.info(stock_info.get("value_chain", "暫無專屬資料。"))
+        
+    with st.sidebar.expander("🔗 相關產業連動與競爭對手", expanded=False):
+        competitors = stock_info.get("competitors", [])
+        if competitors:
+            st.markdown("\n".join([f"- **{peer}**" for peer in competitors]))
+        else:
+            st.info("暫無連動資料。")
+            
+    with st.sidebar.expander("📈 產業驅動因子", expanded=False):
+        st.info(stock_info.get("drivers", "暫無專屬資料。"))
+
+    # 顯示更新時間
+    last_up = stock_info.get("last_updated", "2000-01-01")
+    st.sidebar.caption(f"✨ 百科更新時間：{last_up}")
+else:
+    # 沒讀取到資料的保險開關
+    st.sidebar.warning(f"⚠️ 找不到 {target_sid_str} 的離線百科資料")
+    if st.sidebar.button(f"🎯 消耗額度更新 {target_sid_str}", key=f"force_up_{target_sid_str}"):
+        with st.sidebar.status("🔄 AI 連網更新中..."):
+            success, msg = auto_update_industry_db(target_sid_str)
+            if success:
+                st.rerun()
 
     # 💥 【升級點1】：直接取得股票名稱 (如 "3595 (山太士)")，不再依賴 yfinance
     company_name = stock_dict.get(sid, f"台股代號 {sid}")
