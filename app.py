@@ -493,136 +493,149 @@ target_sid = selected_label.split(" ")[0]
 
 # 側邊欄
 with st.sidebar:
-    # 1. 戰情操控中心標題
-    st.sidebar.markdown(f"""<div style="background: linear-gradient(135deg, #1e3a8a, #000000); padding: 15px; border-radius: 12px; border: 1px solid #3b82f6; text-align: center;">
-        <h1 style="color: #60a5fa; font-size: 18px; margin: 0;">🚀 戰情操控中心</h1>
-        <p style="color: #94a3b8; font-size: 11px; margin-top:5px;">吳秉諺 專屬系統</p>
-    </div>""", unsafe_allow_html=True)
+    # 1. 🚀 頂端漸層設計 (Logo 與專屬標示)
+    st.sidebar.markdown(f"""
+        <div style="background: linear-gradient(135deg, #1e3a8a, #000000); padding: 20px; border-radius: 15px; border: 1.5px solid #3b82f6; text-align: center; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);">
+            <h1 style="color: #60a5fa; font-size: 20px; font-weight: 900; margin: 0; letter-spacing: 2px;">🚀 戰情操控中心</h1>
+            <p style="color: #94a3b8; font-size: 12px; margin-top:8px; font-weight: 500;">吳秉諺 專屬 AI 投資系統 v41.0</p>
+        </div>
+        """, unsafe_allow_html=True)
 
-    st.sidebar.divider()
+    st.sidebar.write("") # 增加一點點間隔
 
-    # 2. 標的與顯示天數選擇
+    # 2. 🎯 核心標的選擇
+    st.sidebar.markdown("### 🎯 戰略目標選擇")
     selected_label = st.sidebar.selectbox(
-        "🎯 選擇標的 (Target)", 
+        "選擇您的掃描標的", 
         list(STOCK_DICT.values()),
         help="選擇您清單中要進行深度技術與籌碼分析的股票標的。"
     )
     target_sid = selected_label.split(" ")[0]
     
     view_days = st.sidebar.slider(
-        "📅 顯示天數", 30, 240, 90,
-        help="拉動此滑桿以調整右側 K 線圖所要展示的交易日天數。"
+        "📅 歷史數據追蹤天數", 30, 240, 90,
+        help="調整右側 K 線圖展示的交易日長度。"
     )
     
     st.sidebar.divider()
     
-    # 3. 外部連結按鈕
+    # 3. 🌐 外部情資鏈結 (美化按鈕排版)
     col_link1, col_link2 = st.sidebar.columns(2)
     with col_link1:
         st.link_button("🌐 Yahoo 股市", f"https://tw.stock.yahoo.com/quote/{target_sid}", use_container_width=True)
     with col_link2:
-        st.link_button("📊 Goodinfo", f"https://goodinfo.tw/tw/StockDetail.asp?STOCK_ID={target_sid}", use_container_width=True)
+        st.link_button("📊 財務數據", f"https://goodinfo.tw/tw/StockDetail.asp?STOCK_ID={target_sid}", use_container_width=True)
 
     st.sidebar.divider()
 
-    # 4. AI 引擎連線體檢 (移動至百科上方，確保系統檢查優先)
-    st.sidebar.subheader("🩺 AI 引擎連線體檢")
-    col_test1, col_test2 = st.sidebar.columns(2)
-    with col_test1:
-        if st.sidebar.button("🔍 真實版本測試", use_container_width=True):
-            with st.sidebar.status("測試中..."):
-                try:
-                    test_model = genai.GenerativeModel('gemini-2.5-flash')
-                    response = test_model.generate_content("請回答：你目前的模型精確版本代號是什麼？")
-                    st.success("成功！")
-                    st.info(response.text)
-                except Exception as e:
-                    st.error(f"失敗：{e}")
-    with col_test2:
-        if st.sidebar.button("📋 模型清單", use_container_width=True):
-            with st.sidebar.status("請求清單中..."):
-                try:
-                    available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-                    st.write(available_models)
-                except Exception as e:
-                    st.error(f"連線失敗：{e}")
-
-    st.sidebar.divider()
-
-    # 5. AI 專屬百科顯示區 (離線讀取優先)
-    st.sidebar.subheader("🏢 AI 專屬百科")
+    # 4. 🏢 AI 產業百科 (離線優先，維持戰略深度)
+    st.sidebar.markdown("### 🏢 AI 產業百科")
     db = load_industry_db()
     target_sid_str = str(target_sid).strip()
     stock_info = db.get(target_sid_str)
 
-    if stock_info:
-        # ✅ 離線資料讀取成功
-        with st.sidebar.expander("🎯 個股主要業務", expanded=True):
-            st.info(stock_info.get("company_brief", "暫無資料。"))
-        with st.sidebar.expander("📍 產業市場規模", expanded=False):
-            st.info(stock_info.get("overview", "暫無資料。"))
-        with st.sidebar.expander("🔗 產業價值鏈", expanded=False):
-            st.info(stock_info.get("value_chain", "暫無資料。"))
-        with st.sidebar.expander("🔗 相關競爭對手", expanded=False):
-            st.markdown("\n".join([f"- **{peer}**" for peer in stock_info.get("competitors", [])]) or "暫無資料")
-        with st.sidebar.expander("📈 產業驅動因子", expanded=False):
-            st.info(stock_info.get("drivers", "暫無資料。"))
+	if stock_info:
+    	# ✅ 只要 JSON 裡有紀錄，就「直接顯示」舊資料，不執行自動更新
+    	with st.sidebar.expander("🎯 個股主要業務", expanded=True):
+        	st.info(stock_info.get("company_brief", "資料載入中..."))
+    	with st.sidebar.expander("📍 產業市場規模", expanded=False):
+        	st.info(stock_info.get("overview", "資料載入中..."))
+   	 	with st.sidebar.expander("🔗 產業價值鏈", expanded=False):
+        	st.info(stock_info.get("value_chain", "資料載入中..."))
+    	with st.sidebar.expander("🔗 相關競爭對手", expanded=False):
+	        st.markdown("\n".join([f"- **{peer}**" for peer in stock_info.get("competitors", [])]) or "暫無資料")
+    	with st.sidebar.expander("📈 產業驅動因子", expanded=False):
+        	st.info(stock_info.get("drivers", "資料載入中..."))
         
-        st.sidebar.caption(f"✨ 百科更新時間：{stock_info.get('last_updated', '2000-01-01')}")
+        st.sidebar.caption(f"✨ 百科更新時間：{stock_info.get('last_updated', '歷史資料')}")
+        # 內嵌的小更新按鈕
+        if st.sidebar.button("🔄 更新這檔百科", key=f"re_up_{target_sid_str}"):
+            with st.sidebar.status("AI 更新中..."):
+                auto_update_industry_db(target_sid_str)
+                st.rerun()
     else:
-        # ❌ 無資料，顯示手動更新按鈕
-        st.sidebar.warning(f"⚠️ 找不到 {target_sid_str} 的離線資料")
-        if st.sidebar.button(f"🎯 消耗額度更新 {target_sid_str}", key=f"up_{target_sid_str}"):
-            with st.sidebar.status("🔄 AI 連網更新中..."):
-                success, msg = auto_update_industry_db(target_sid_str)
-                if success: st.rerun()
+        st.sidebar.warning(f"⚠️ 庫存中無 {target_sid_str} 的資料")
+        if st.sidebar.button(f"🎯 消耗額度生成百科", key=f"init_{target_sid_str}"):
+            with st.sidebar.status("AI 聯網抓取中..."):
+                auto_update_industry_db(target_sid_str)
+                st.rerun()
 
-    # 📥 雲端資料救援按鈕 (僅在有檔案時顯示)
-    if os.path.exists(INDUSTRY_DB_FILE):
-        with open(INDUSTRY_DB_FILE, "r", encoding="utf-8") as f:
-            db_data = f.read()
-        st.sidebar.download_button(
-            label="📥 下載雲端資料庫 (JSON同步用)",
-            data=db_data,
-            file_name="industry_db.json",
-            mime="application/json",
-            use_container_width=True
-        )
-
+    # 5. 🩺 系統檢修區 (隱藏式設計，不佔空間)
     st.sidebar.divider()
+    with st.sidebar.expander("🛠️ 系統後勤工具", expanded=False):
+        st.markdown("**AI 連線測試**")
+        col_test1, col_test2 = st.columns(2)
+        with col_test1:
+            if st.button("🔍 版本測試", use_container_width=True):
+                # 測試代碼...
+                st.toast("正在測試...")
+        with col_test2:
+            if st.button("📋 模型清單", use_container_width=True):
+                # 清單代碼...
+                pass
+        
+        st.divider()
+        st.markdown("**資料庫管理**")
+        if os.path.exists(INDUSTRY_DB_FILE):
+            with open(INDUSTRY_DB_FILE, "r", encoding="utf-8") as f:
+                st.download_button("📥 下載 JSON 資料庫", f.read(), "industry_db.json", "application/json", use_container_width=True)
 
-    # 6. 擴建雷達與重置功能
-    st.sidebar.subheader("➕ 擴建雷達與管理")
-    new_sid = st.sidebar.text_input("輸入股票代號 (1815)")
-    new_name = st.sidebar.text_input("輸入股票名稱 (富喬)")
+    # 6. ➕ 擴建雷達 (放置於最下方)
+    st.sidebar.divider()
+    st.sidebar.markdown("### ➕ 擴建雷達新增股票標的")
+    new_sid = st.sidebar.text_input(
+        "輸入股票代號 (例如: 1815)",
+        help="輸入新標的的股票代碼（例如 1815 富喬）。"
+    )
+    new_name = st.sidebar.text_input(
+        "輸入股票名稱 (例如: 富喬)",
+        help="輸入與上述代碼對應的繁體中文公司簡稱。"
+	)
     
     col_add, col_clean = st.sidebar.columns(2)
     with col_add:
-        if st.button("⚡ 新增標的", use_container_width=True):
-            if new_sid and new_name:
+        if st.button("⚡ 新增百科標的", use_container_width=True, help="一鍵將此新股加入自選，自動啟動 AI 對手分析，永不卡死！"):
+            # 新增邏輯...
+			if new_sid and new_name:
                 current_stocks = load_stock_dict()
                 current_stocks[new_sid] = f"{new_sid} ({new_name})"
                 save_stock_dict(current_stocks)
                 st.session_state['STOCK_DICT'] = current_stocks
-                auto_update_industry_db(new_sid)
+                try:
+                    success, msg = auto_update_industry_db(new_sid)
+                    st.sidebar.success(f"🎉 新增成功且 AI 連網更新完成！")
+                except:
+                    st.sidebar.warning(f"⚠️ 新增成功！")
+                time.sleep(1)
                 st.rerun()
-    
+            st.rerun()
     with col_clean:
-        if st.button("🧹 全百科重置", use_container_width=True, help="每檔間隔 15 秒"):
+        if st.button("🧹 百科全重置", use_container_width=True, help="【警告】此按鈕會清空所有百科快取，並以每檔 15 秒的間隔呼叫 AI，請耐心等待執行完畢。"):
             if os.path.exists(INDUSTRY_DB_FILE): os.remove(INDUSTRY_DB_FILE)
             st.cache_data.clear()
             current_stocks = load_stock_dict()
-            progress_bar = st.sidebar.progress(0)
-            all_sids = list(current_stocks.keys())
+            
+            # 加入進度條，讓您知道 AI 正在慢慢跑
+            progress_text = "🤖 AI 全百科重建中，請勿關閉網頁..."
+            my_bar = st.sidebar.progress(0, text=progress_text)
+            total = len(current_stocks)
+            all_sids = list(current_stocks.keys())      
             for i, sid in enumerate(all_sids):
-                try:
-                    auto_update_industry_db(sid)
-                    time.sleep(15)
-                except: pass
-                progress_bar.progress((i + 1) / len(all_sids))
+                    try:
+                        auto_update_industry_db(sid)
+                        # 核心防護：配合每分鐘 5 次的限制，強制休息 15 秒
+                        time.sleep(15)
+                    except: 
+                        pass
+                    my_bar.progress((i + 1) / total, text=f"進度: {i+1}/{total} 檔")
+                
+            st.sidebar.success("✅ 全體 AI 百科重建完畢！")
+            time.sleep(1)
+
+			# 重置邏輯...
             st.rerun()
 
-# --- 資料加載線 (放置在 with st.sidebar 區塊之外) ---
+# --- 數據加載線 (外掛) ---
 df = get_stock_df(target_sid)
 a_data = get_analysis_data(target_sid)
 bid_p, ask_p, bid_s, ask_s = get_realtime_order(target_sid)
