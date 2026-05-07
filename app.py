@@ -522,7 +522,7 @@ with st.sidebar:
     # 3. 🌐 外部情資鏈結 (美化按鈕排版)
     col_link1, col_link2 = st.sidebar.columns(2)
     with col_link1:
-        st.link_button("🌐 Yahoo 股市", f"https://tw.stock.yahoo.com/quote/{target_sid}", use_container_width=True)
+        st.link_button("🌐 Yahoo股市", f"https://tw.stock.yahoo.com/quote/{target_sid}", use_container_width=True)
     with col_link2:
         st.link_button("📊 財務數據", f"https://goodinfo.tw/tw/StockDetail.asp?STOCK_ID={target_sid}", use_container_width=True)
 
@@ -584,9 +584,9 @@ with st.sidebar:
 
     # 6. ➕ 擴建雷達
     st.sidebar.divider()
-    st.sidebar.markdown("### ➕ 擴建雷達")
-    new_sid = st.sidebar.text_input("輸入股票代號 (1815)", help="例如 1815")
-    new_name = st.sidebar.text_input("輸入股票名稱 (富喬)", help="例如 富喬")
+    st.sidebar.markdown("### ➕ 擴建雷達-新增股票")
+    new_sid = st.sidebar.text_input("輸入股票代號", help="例如 1815")
+    new_name = st.sidebar.text_input("輸入股票名稱", help="例如 富喬")
     
     col_add, col_clean = st.sidebar.columns(2)
     with col_add:
