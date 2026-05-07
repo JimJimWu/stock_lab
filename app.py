@@ -4,13 +4,18 @@
 import streamlit as st  # 必須是第一個匯入，防止 Streamlit 初始化崩潰
 import google.generativeai as genai
 import os
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyAf2_d6vRVFZwboGFFcWJSN4AQ26idfsWc")
-genai.configure(api_key=GEMINI_API_KEY)
+# 安全讀取邏輯：優先讀取 Secrets，若無則報錯，不再放任何預設金鑰字串
+GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
 
+if not GEMINI_API_KEY:
+    st.error("❌ 偵測不到 API 金鑰！請至 Streamlit Cloud Secrets 設定 'GEMINI_API_KEY'")
+    st.stop()
+else:
+    genai.configure(api_key=GEMINI_API_KEY)
 def generate_ai_insights(company_name, summary):
     """透過 AI 一次性產出五大百科獨立分析 (具備強制擷取與錯誤穿透功能)"""
     try:
-        model = genai.GenerativeModel('gemini-pro')
+        model = genai.GenerativeModel('gemini-1.5-flash-latest')
         prompt = f"""
         你是一位資深台股產業分析師。請針對「{company_name}」生成以下 5 項核心分析資訊。
         請務必以嚴格的 JSON 格式回傳，絕不允許包含任何 Markdown 標記 (如 ```json) 或其他口語文字：
