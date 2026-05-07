@@ -1,9 +1,13 @@
 # ==============================================================================
 # 秉諺的黑馬雷達 V41.0 - 網頁儀表板主程式 
 # ==============================================================================
-import streamlit as st  # 必須是第一個匯入，防止 Streamlit 初始化崩潰
+import streamlit as st
 import google.generativeai as genai
 import os
+import re  # 💥 新增這一行：匯入正則表達式模組
+import json
+import pandas as pd
+
 # 安全讀取邏輯：優先讀取 Secrets，若無則報錯，不再放任何預設金鑰字串
 GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
 
@@ -12,6 +16,7 @@ if not GEMINI_API_KEY:
     st.stop()
 else:
     genai.configure(api_key=GEMINI_API_KEY)
+
 def generate_ai_insights(company_name, summary):
     """透過 AI 一次性產出五大百科獨立分析 (具備強制擷取與錯誤穿透功能)"""
     try:
