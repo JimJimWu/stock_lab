@@ -533,7 +533,6 @@ with st.sidebar:
     db = load_industry_db()
     target_sid_str = str(target_sid).strip()
     stock_info = db.get(target_sid_str)
-
 	if stock_info:
     	# ✅ 只要 JSON 裡有紀錄，就「直接顯示」舊資料，不執行自動更新
     	with st.sidebar.expander("🎯 個股主要業務", expanded=True):
