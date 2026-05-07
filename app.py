@@ -8,29 +8,42 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyCh7pQyjjxP8S6wXdAhoHHgx
 genai.configure(api_key=GEMINI_API_KEY)
 
 def generate_ai_insights(company_name, summary):
-    """透過 AI 一次性產出五大百科獨立分析"""
+    """透過 AI 一次性產出五大百科獨立分析 (具備強制擷取與錯誤穿透功能)"""
     try:
         model = genai.GenerativeModel('gemini-1.5-flash')
         prompt = f"""
-        你是一位資深台股產業分析師。請根據以下公司簡介，針對「{company_name}」生成以下 5 項核心分析資訊。
-        請務必以嚴格的 JSON 格式回傳，不要包含任何 Markdown 語法或多餘文字：
+        你是一位資深台股產業分析師。請針對「{company_name}」生成以下 5 項核心分析資訊。
+        請務必以嚴格的 JSON 格式回傳，絕不允許包含任何 Markdown 標記 (如 ```json) 或其他口語文字：
         {{
             "company_brief": "用一小段話精準描述這家公司的主要核心業務與近期焦點",
             "overview": "用一句話描述這家公司在所屬產業市場中的規模與地位",
             "value_chain": "描述這家公司在產業鏈中的位置（上中下游關聯）",
-            "competitors": ["列出 1~3 檔最具代表性的台股連動標的或國際競爭對手", "對手2", "對手3"],
+            "competitors": ["列出 1~3 檔最具代表性的台股連動標的或國際對手", "對手2"],
             "drivers": "這家公司未來的關鍵成長動能或題材"
         }}
-        公司簡介：{summary}
+        背景參考：{summary}
         """
         response = model.generate_content(prompt)
-        # 清洗 LLM 回傳的字串，確保可解析為 JSON
-        text = response.text.replace('```json', '').replace('```', '').strip()
-        return json.loads(text)
+        
+        # 💥 升級 1：使用正則表達式強行抓取大括號 {} 內的所有內容，過濾掉 AI 亂加的廢話
+        match = re.search(r'\{.*\}', response.text, re.DOTALL)
+        if match:
+            clean_json = match.group(0)
+            return json.loads(clean_json)
+        else:
+            raise ValueError("無法從 AI 回應中提取有效的 JSON 格式")
+            
     except Exception as e:
-        print(f"AI 生成失敗: {e}")
-        return None
-
+        # 💥 升級 2：錯誤穿透機制，將真實的 Python/API 錯誤原因直接印在網頁畫面上
+        error_msg = str(e)
+        return {
+            "company_brief": f"⚠️ 系統真實錯誤原因: {error_msg}",
+            "overview": "生成失敗，請查看上方主要業務欄位的錯誤訊息。",
+            "value_chain": "生成失敗，請查看上方主要業務欄位的錯誤訊息。",
+            "competitors": [],
+            "drivers": "生成失敗，請查看上方主要業務欄位的錯誤訊息。"
+        }
+# ----------------------------------------------
 
 # --- 1. 頂部防禦 ---
 st.set_page_config(layout="wide", page_title="秉諺的黑馬雷達 V41.0")
