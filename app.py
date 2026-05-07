@@ -643,23 +643,26 @@ with st.sidebar:
             st.cache_data.clear()
             current_stocks = load_stock_dict()
             
-            # 加入進度條，讓您知道 AI 正在慢慢跑
-            progress_text = "🤖 AI 全百科重建中，請勿關閉網頁..."
-            my_bar = st.sidebar.progress(0, text=progress_text)
-            total = len(current_stocks)
-            
-            for i, sid in enumerate(current_stocks.keys()):
-                try:
-                    auto_update_industry_db(sid)
-                    # 💥 【升級點3】：強制休息 4 秒，保護免費 API 額度不被封鎖
-                    time.sleep(4) 
-                except: 
-                    pass
-                my_bar.progress((i + 1) / total, text=f"進度: {i+1}/{total} 檔")
-                
-            st.sidebar.success("✅ 全體 AI 百科重建完畢！")
-            time.sleep(1)
-            st.rerun()
+        # 加入進度條，讓您知道 AI 正在慢慢跑
+        progress_text = "🤖 AI 全百科重建中，請勿關閉網頁..."
+        my_bar = st.sidebar.progress(0, text=progress_text)
+        
+        # 💥 校正：確保進度條總數與迴圈目標的數量完全一致
+        total = len(target_sids)
+
+        # 💥 校正：將 for 迴圈往左退，與上面的 total 完美對齊
+        for i, sid in enumerate(target_sids):
+            try:
+                auto_update_industry_db(sid)
+                # 核心防護：配合每分鐘 5 次的限制，強制休息 15 秒
+                time.sleep(15)
+            except:
+                pass
+            my_bar.progress((i + 1) / total, text=f"進度: {i+1}/{total} 檔")
+
+        st.sidebar.success("✅ 全體 AI 百科重建完畢！")
+        time.sleep(1)
+        st.rerun()
 
 # 數據加載與實時計量
 df = get_stock_df(target_sid)
