@@ -21,7 +21,8 @@ else:
 def generate_ai_insights(company_name, summary):
     """透過 AI 一次性產出五大百科獨立分析 (具備強制擷取與錯誤穿透功能)"""
     try:
-        model = genai.GenerativeModel('gemini-flash-latest')
+        # 💥 替換此行：明確指定使用 1.5 flash 版本，享受每日 1500 次高額度
+        model = genai.GenerativeModel('gemini-1.5-flash')
         prompt = f"""
         你是一位資深台股產業分析師。請針對「{company_name}」生成以下 5 項核心分析資訊。
         請務必以嚴格的 JSON 格式回傳，絕不允許包含任何 Markdown 標記 (如 ```json) 或其他口語文字：
@@ -237,14 +238,17 @@ def auto_update_industry_db(sid):
             "drivers": "等待重新檢索..."
          }
 
-    # 直接以 sid 獨立儲存，寫入資料庫
+    # 在 auto_update_industry_db 函式內部
+    import datetime
+    
     db[sid] = {
         "name": company_name,
-        "company_brief": ai_data.get("company_brief", "資料生成失敗"),
-        "overview": ai_data.get("overview", "資料生成失敗"),
-        "value_chain": ai_data.get("value_chain", "資料生成失敗"),
+        "company_brief": ai_data.get("company_brief", ""),
+        "overview": ai_data.get("overview", ""),
+        "value_chain": ai_data.get("value_chain", ""),
         "competitors": ai_data.get("competitors", []),
-        "drivers": ai_data.get("drivers", "資料生成失敗")
+        "drivers": ai_data.get("drivers", ""),
+        "last_updated": datetime.date.today().isoformat() # 💥 確保有這一行
     }
 
     # 寫入 JSON 存檔
@@ -516,31 +520,52 @@ with st.sidebar:
     st.sidebar.link_button("📊 Goodinfo 財報數據", f"https://goodinfo.tw/tw/StockDetail.asp?STOCK_ID={target_sid}")
     
     current_ind = next((n for n, d in INDUSTRY_DB.items() if target_sid in d.get("stocks", [])), "通用電子")
-   # --- UI 百科顯示區塊 ---
+  # --- UI 百科顯示區塊 (新增自動更新與時間顯示) ---
     st.sidebar.subheader("🏢 AI 專屬百科")
     
-    # 直接從 DB 中提取該 sid 的專屬資料
+    # 1. 取得該個股資料
     stock_info = INDUSTRY_DB.get(target_sid, {})
+    last_updated_str = stock_info.get("last_updated", "2000-01-01")
     
+    # 2. ⚡ 【核心：自動檢查並更新機制】
+    import datetime
+    today = datetime.date.today()
+    try:
+        last_date = datetime.date.fromisoformat(last_updated_str)
+        days_diff = (today - last_date).days
+    except:
+        days_diff = 999 # 格式錯誤則強制更新
+
+    # 如果資料超過 7 天，系統主動代為執行更新 (無感自動更新)
+    if days_diff >= 7:
+        with st.sidebar.status(f"🔄 資料已逾 {days_diff} 天，自動更新中...", expanded=False):
+            success, msg = auto_update_industry_db(target_sid)
+            if success:
+                st.rerun() # 更新完畢後自動重新整理畫面顯示新資料
+
+    # 3. 渲染五大百科卡片 (維持原樣)
     with st.sidebar.expander("🎯 個股主要業務", expanded=True):
-        st.info(stock_info.get("company_brief", "暫無專屬資料，請點擊下方一鍵更新。"))
+        st.info(stock_info.get("company_brief", "暫無專屬資料。"))
         
     with st.sidebar.expander("📍 產業市場規模", expanded=False):
-        st.info(stock_info.get("overview", "暫無專屬資料，請點擊下方一鍵更新。"))
+        st.info(stock_info.get("overview", "暫無專屬資料。"))
         
     with st.sidebar.expander("🔗 產業價值鏈", expanded=False):
-        st.info(stock_info.get("value_chain", "暫無專屬資料，請點擊下方一鍵更新。"))
+        st.info(stock_info.get("value_chain", "暫無專屬資料。"))
         
-    with st.sidebar.expander("🔗 相關產業連動與競爭對手", expanded=True):
+    with st.sidebar.expander("🔗 相關產業連動與競爭對手", expanded=False):
         competitors = stock_info.get("competitors", [])
         if competitors:
-            st.write("💡 **AI 分析關鍵連動對手**：")
             st.markdown("\n".join([f"- **{peer}**" for peer in competitors]))
         else:
-            st.info("暫無連動資料，請點擊下方一鍵更新。")
+            st.info("暫無連動資料。")
             
     with st.sidebar.expander("📈 產業驅動因子", expanded=False):
-        st.info(stock_info.get("drivers", "暫無專屬資料，請點擊下方一鍵更新。"))
+        st.info(stock_info.get("drivers", "暫無專屬資料。"))
+
+    # 4. 📅 【新增：底部時間戳記顯示】
+    if "last_updated" in stock_info:
+        st.sidebar.caption(f"✨ 百科更新時間：{last_updated_str} (每 7 天自動刷新)")
 
     st.sidebar.divider()
     st.sidebar.subheader("🩺 AI 引擎連線體檢")
