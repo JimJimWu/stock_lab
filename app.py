@@ -191,41 +191,36 @@ INDUSTRY_DB = st.session_state['INDUSTRY_DB']
 def auto_update_industry_db(sid):
     sid = str(sid).strip()
     db_file = "industry_db.json"
-    db = load_industry_db() # 讀取現有 DB
+    db = load_industry_db()
+    stock_dict = load_stock_dict() # 取得您清單中的股票名稱
 
-    # 1. 取得 yfinance 官方簡介作為 AI 的判斷素材
-    info = None
-    for suffix in [".TWO", ".TW"]:
-        try:
-            ticker = yf.Ticker(f"{sid}{suffix}")
-            info = ticker.info
-            if 'longName' in info or 'symbol' in info: break
-        except: continue
+    # 💥 【升級點1】：直接取得股票名稱 (如 "3595 (山太士)")，不再依賴 yfinance
+    company_name = stock_dict.get(sid, f"台股代號 {sid}")
+    
+    # 💥 【升級點2】：更改 Prompt，讓 AI 直接用內建知識庫分析
+    summary = f"請直接利用你的 AI 知識庫，分析台灣股市標的「{company_name}」的核心業務、產業鏈位置與關聯對手。"
 
-    if not info: 
-        return False, "❌ 無法獲取此代號數據。"
-
-    company_name = info.get("longName") or info.get("shortName") or sid
-    summary = info.get("longBusinessSummary", f"請依據台股代號 {sid} 與公司名稱 {company_name} 直接推斷其核心業務與市場關聯。")
-
-    # 2. 呼叫 AI 取得專屬報告
+    # 呼叫 AI 取得專屬報告
     ai_data = generate_ai_insights(company_name, summary)
     
-    # 防呆機制：若 AI 暫時無回應，填入預設值
+    # 防呆機制：若 AI 暫時無回應或遭限流
     if not ai_data:
          ai_data = {
-            "company_brief": "AI 檢索中...", "overview": "AI 檢索中...",
-            "value_chain": "AI 檢索中...", "competitors": [], "drivers": "AI 檢索中..."
+            "company_brief": "⚠️ AI 伺服器忙碌或遭限流，請稍後單獨更新。", 
+            "overview": "等待重新檢索...",
+            "value_chain": "等待重新檢索...", 
+            "competitors": [], 
+            "drivers": "等待重新檢索..."
          }
 
-    # 3. 💥 【核心升級】：直接以 sid 獨立儲存，100% 杜絕共用污染！
+    # 直接以 sid 獨立儲存，寫入資料庫
     db[sid] = {
         "name": company_name,
-        "company_brief": ai_data.get("company_brief", ""),
-        "overview": ai_data.get("overview", ""),
-        "value_chain": ai_data.get("value_chain", ""),
+        "company_brief": ai_data.get("company_brief", "資料生成失敗"),
+        "overview": ai_data.get("overview", "資料生成失敗"),
+        "value_chain": ai_data.get("value_chain", "資料生成失敗"),
         "competitors": ai_data.get("competitors", []),
-        "drivers": ai_data.get("drivers", "")
+        "drivers": ai_data.get("drivers", "資料生成失敗")
     }
 
     # 寫入 JSON 存檔
@@ -234,7 +229,7 @@ def auto_update_industry_db(sid):
     
     st.session_state['INDUSTRY_DB'] = db
     return True, f"✅ 成功更新 {company_name} 的 AI 專屬百科！"
-
+	
 # --- K線獲取與修正清洗防線 ---
 cache_ttl = 5 if is_trading_hours else 300
 @st.cache_data(ttl=cache_ttl)
@@ -559,16 +554,27 @@ with st.sidebar:
         if st.button(
             "🧹 一鍵全百科重置",
             use_container_width=True,
-            help="【警告】此按鈕會刪除現有的百科緩存檔案，強制重新對所有股票抓取 AI 數據與競爭對手。"
+            help="【警告】此按鈕會刪除現有百科，並以每檔 4 秒的間隔呼叫 AI，請耐心等待執行完畢。"
         ):
             if os.path.exists(INDUSTRY_DB_FILE): os.remove(INDUSTRY_DB_FILE)
             st.cache_data.clear()
             current_stocks = load_stock_dict()
-            for sid in current_stocks.keys():
+            
+            # 加入進度條，讓您知道 AI 正在慢慢跑
+            progress_text = "🤖 AI 全百科重建中，請勿關閉網頁..."
+            my_bar = st.sidebar.progress(0, text=progress_text)
+            total = len(current_stocks)
+            
+            for i, sid in enumerate(current_stocks.keys()):
                 try:
                     auto_update_industry_db(sid)
-                except: pass
-            st.sidebar.success("全體 AI 百科重建完畢！")
+                    # 💥 【升級點3】：強制休息 4 秒，保護免費 API 額度不被封鎖
+                    time.sleep(4) 
+                except: 
+                    pass
+                my_bar.progress((i + 1) / total, text=f"進度: {i+1}/{total} 檔")
+                
+            st.sidebar.success("✅ 全體 AI 百科重建完畢！")
             time.sleep(1)
             st.rerun()
 
