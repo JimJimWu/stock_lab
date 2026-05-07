@@ -533,19 +533,22 @@ with st.sidebar:
     db = load_industry_db()
     target_sid_str = str(target_sid).strip()
     stock_info = db.get(target_sid_str)
-    if stock_info:
-    	# ✅ 只要 JSON 裡有紀錄，就「直接顯示」舊資料，不執行自動更新
-    	with st.sidebar.expander("🎯 個股主要業務", expanded=True):
-        	st.info(stock_info.get("company_brief", "資料載入中..."))
-    	with st.sidebar.expander("📍 產業市場規模", expanded=False):
-        	st.info(stock_info.get("overview", "資料載入中..."))
-   	 	with st.sidebar.expander("🔗 產業價值鏈", expanded=False):
-        	st.info(stock_info.get("value_chain", "資料載入中..."))
-    	with st.sidebar.expander("🔗 相關競爭對手", expanded=False):
-	        st.markdown("\n".join([f"- **{peer}**" for peer in stock_info.get("competitors", [])]) or "暫無資料")
-    	with st.sidebar.expander("📈 產業驅動因子", expanded=False):
-        	st.info(stock_info.get("drivers", "資料載入中..."))
+   if stock_info:
+        # ✅ 只要 JSON 裡有紀錄，就「直接顯示」舊資料，不執行自動更新
+        with st.sidebar.expander("🎯 個股主要業務", expanded=True):
+            st.info(stock_info.get("company_brief", "資料載入中..."))
         
+        with st.sidebar.expander("📍 產業市場規模", expanded=False):
+            st.info(stock_info.get("overview", "資料載入中..."))    
+        
+        with st.sidebar.expander("🔗 產業價值鏈", expanded=False):
+            st.info(stock_info.get("value_chain", "資料載入中..."))
+        
+        with st.sidebar.expander("🔗 相關競爭對手", expanded=False):
+            st.markdown("\n".join([f"- **{peer}**" for peer in stock_info.get("competitors", [])]) or "暫無資料")
+        
+        with st.sidebar.expander("📈 產業驅動因子", expanded=False):
+            st.info(stock_info.get("drivers", "資料載入中...")) 
         st.sidebar.caption(f"✨ 百科更新時間：{stock_info.get('last_updated', '歷史資料')}")
         # 內嵌的小更新按鈕
         if st.sidebar.button("🔄 更新這檔百科", key=f"re_up_{target_sid_str}"):
