@@ -2,6 +2,35 @@
 # 秉諺的黑馬雷達 V41.0 - 網頁儀表板主程式 (還原真實聯亞股價、拔除錯誤10倍補償)
 # ==============================================================================
 import streamlit as st  # 必須是第一個匯入，防止 Streamlit 初始化崩潰
+import google.generativeai as genai
+import os
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyCh7pQyjjxP8S6wXdAhoHHgxh4BJXwXmRo")
+genai.configure(api_key=GEMINI_API_KEY)
+
+def generate_ai_insights(company_name, summary):
+    """透過 AI 一次性產出五大百科獨立分析"""
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        prompt = f"""
+        你是一位資深台股產業分析師。請根據以下公司簡介，針對「{company_name}」生成以下 5 項核心分析資訊。
+        請務必以嚴格的 JSON 格式回傳，不要包含任何 Markdown 語法或多餘文字：
+        {{
+            "company_brief": "用一小段話精準描述這家公司的主要核心業務與近期焦點",
+            "overview": "用一句話描述這家公司在所屬產業市場中的規模與地位",
+            "value_chain": "描述這家公司在產業鏈中的位置（上中下游關聯）",
+            "competitors": ["列出 1~3 檔最具代表性的台股連動標的或國際競爭對手", "對手2", "對手3"],
+            "drivers": "這家公司未來的關鍵成長動能或題材"
+        }}
+        公司簡介：{summary}
+        """
+        response = model.generate_content(prompt)
+        # 清洗 LLM 回傳的字串，確保可解析為 JSON
+        text = response.text.replace('```json', '').replace('```', '').strip()
+        return json.loads(text)
+    except Exception as e:
+        print(f"AI 生成失敗: {e}")
+        return None
+
 
 # --- 1. 頂部防禦 ---
 st.set_page_config(layout="wide", page_title="秉諺的黑馬雷達 V41.0")
@@ -162,128 +191,56 @@ INDUSTRY_DB = st.session_state['INDUSTRY_DB']
 def auto_update_industry_db(sid):
     sid = str(sid).strip()
     db_file = "industry_db.json"
-    db = load_industry_db()
+    db = load_industry_db() # 讀取現有 DB
 
+    # 1. 取得 yfinance 官方簡介作為 AI 的判斷素材
     info = None
     for suffix in [".TWO", ".TW"]:
         try:
             ticker = yf.Ticker(f"{sid}{suffix}")
-            temp_info = ticker.info
-            if 'longName' in temp_info or 'symbol' in temp_info:
-                info = temp_info
-                break
+            info = ticker.info
+            if 'longName' in info or 'symbol' in info: break
         except: continue
 
-    if not info:
+    if not info: 
         return False, "❌ 無法獲取此代號數據。"
 
     company_name = info.get("longName") or info.get("shortName") or sid
-    sector = info.get("sector") or "Basic Materials"
-    summary = info.get("longBusinessSummary", "")
+    summary = info.get("longBusinessSummary", f"請依據台股代號 {sid} 與公司名稱 {company_name} 直接推斷其核心業務與市場關聯。")
 
-    sector_mapping = {
-        "Technology": "半導體與電子科技",
-        "Basic Materials": "高階材料與基礎民生",
-        "Consumer Cyclical": "消費性電子/車用",
-        "Communication Services": "光通訊與電信服務",
-        "Industrials": "工業與自動化設備"
-    }
-    chinese_sector = sector_mapping.get(sector, sector)
-
-    ai_tech_tags = {
-        "foplp": "扇出型面板級封裝 (FOPLP)",
-        "cowos": "先進封裝技術 (CoWoS)",
-        "copos": "面板化封裝檢測 (CoPoS)",
-        "cpo": "共封裝光學 (CPO)",
-        "silicon photonics": "矽光子與光通訊技術",
-        "glass fiber": "低介電電子級玻璃纖維布 (Low-D)",
-        "low-d": "高頻高速伺服器板材料 (Low-D)",
-        "optical glass": "光電/平板顯示玻璃",
-        "semiconductor": "半導體關鍵耗材",
-        "substrate": "IC 封裝載板核心基材",
-        "optical inspection": "自動光學檢測 (AOI)"
-    }
-
-    detected_tags = []
-    lower_summary = summary.lower() if summary else ""
-    for eng_key, ch_name in ai_tech_tags.items():
-        if eng_key in lower_summary:
-            detected_tags.append(ch_name)
-
-    if sid == "1802":
-        detected_tags = ["低介電電子級玻璃纖維布 (Low-D)", "AI 伺服器 PCB 高頻基材", "高階光電與觸控顯示玻璃"]
-    elif sid == "1815":
-        detected_tags = ["高階電子級玻璃纖維布/紗", "半導體與高速傳輸板基礎材料"]
-
-    tags_str = "、".join(detected_tags) if detected_tags else "高階電子零組件與先進材料"
+    # 2. 呼叫 AI 取得專屬報告
+    ai_data = generate_ai_insights(company_name, summary)
     
-    if sid == "1802":
-        ai_extracted_brief = (
-            f"🎯 **主要技術領域**：{tags_str}\n\n"
-            f"📖 **官方核心業務大綱**：高階材料與玻璃纖維大廠。除傳統平板建築玻璃外，技術已深度跨足「電子級超薄玻璃纖維布」與「低介電 (Low-D) 玻纖布」。此產品為 AI 伺服器與高速運算（HPC）PCB板材的極核心上游介電材料，具備極佳的傳輸耗損抑制率。\n\n"
-            f"🎯 **近期市場焦點**：隨著輝達與台積電先進封裝產能擴張，憑藉先進 Low-D 玻纖布技術，強勢切入高階 AI 伺服器與光通訊模組供應鏈，實現向高階半導體基材轉型的巨大紅利。"
-        )
-    elif sid == "1815":
-        ai_extracted_brief = (
-            f"🎯 **主要技術領域**：{tags_str}\n\n"
-            f"📖 **官方核心業務大綱**：專業高階電子級玻璃纖維紗及玻璃纖維布製造大廠，產品主要應用於多層印刷電路板（PCB）與高速傳輸基板。\n\n"
-            f"🎯 **近期市場焦點**：高階產品成功切入伺服器、低軌衛星等供應鏈，與上游材料商緊密合作，具備優異的技術與報價反彈彈性。"
-        )
-    else:
-        first_sentence = summary.split(".")[0] + "." if summary else "專注於高階電子科技與材料研發。"
-        ai_extracted_brief = (
-            f"🎯 **主要技術領域**：{tags_str}\n\n"
-            f"📖 **官方核心業務大綱**：{first_sentence[:180]}\n\n"
-            f"🎯 **近期市場焦點**：成功透過核心技術轉型，切入高階半導體與先進材料供應鏈，具備卓越的國產化替代優勢。"
-        )
+    # 防呆機制：若 AI 暫時無回應，填入預設值
+    if not ai_data:
+         ai_data = {
+            "company_brief": "AI 檢索中...", "overview": "AI 檢索中...",
+            "value_chain": "AI 檢索中...", "competitors": [], "drivers": "AI 檢索中..."
+         }
 
-    ai_competitors = []
-    if sid in ["1802", "1815"] or "glass" in lower_summary or "fiber" in lower_summary:
-        ai_competitors = [
-            "日本日東紡 (Nittobo) - 全球 Low-D 玻纖技術絕對霸主 [國際大廠]",
-            "美國康寧 (Corning) - 全球高階特殊玻璃龍頭 [國際大廠]",
-            "富喬 (1815) - 台灣高階電子級玻纖布重要同業"
-        ]
-    elif "foplp" in lower_summary or "copos" in lower_summary:
-        ai_competitors = [
-            "群創 (3481) - 面板級封裝同盟", 
-            "政美應用 (7853) - 外觀檢測同業", 
-            "東捷 (8064) - 封裝製程設備"
-        ]
-    elif "cowos" in lower_summary or "wafer" in lower_summary:
-        ai_competitors = [
-            "台積電 (2330) - 先進封裝老大哥 [龍頭]", 
-            "弘塑 (3131) - 濕製程設備龍頭", 
-            "辛耘 (3583) - 設備與再生晶圓同業"
-        ]
-    elif "cpo" in lower_summary or "silicon photonics" in lower_summary:
-        ai_competitors = [
-            "聯鈞 (3450) - 矽光子晶片封裝", 
-            "上詮 (3363) - 光通訊同盟", 
-            "波若威 (3163) - 光主被動元件"
-        ]
-    else:
-        if chinese_sector == "高階材料與基礎民生":
-            ai_competitors = [
-                "信越化學 (Shin-Etsu) - 全球半導體與矽晶圓材料之王 [國際大廠]",
-                "康寧公司 (Corning) - 世界特殊玻璃與陶瓷材料先驅 [國際大廠]",
-                "台玻 (1802) - 台灣高階電子與工業級玻璃代表"
-            ]
-        else:
-            ai_competitors = [
-                "台積電 (2330) - 全球半導體製造與先進製程龍頭 [台灣之光]",
-                "艾司摩爾 (ASML) - 全球最頂尖極紫外光光刻設備巨頭 [國際大廠]",
-                "日月光投控 (3711) - 全球第一大半導體先進封測大廠 [龍頭]"
-            ]
+    # 3. 💥 【核心升級】：直接以 sid 獨立儲存，100% 杜絕共用污染！
+    db[sid] = {
+        "name": company_name,
+        "company_brief": ai_data.get("company_brief", ""),
+        "overview": ai_data.get("overview", ""),
+        "value_chain": ai_data.get("value_chain", ""),
+        "competitors": ai_data.get("competitors", []),
+        "drivers": ai_data.get("drivers", "")
+    }
 
-    if chinese_sector not in db:
-        db[chinese_sector] = {
-            "overview": f"此分類涵蓋 **{chinese_sector}** 相關產業鏈。隨著高階半導體產能與 AI 伺服器材料要求爆發，相關設備與精密耗材材料商迎來黃金轉型高成長期。",
-            "value_chain": "上游：精密高階材料與IC設計 -> 中游：高階設備、晶圓代工與精細檢測 -> 下游：系統整合、先進封測與終端模組組裝。",
-            "competitors": "國際大廠（如信越化學、康寧）與台灣本土高階材料與半導體供應鏈之技術競合。",
-            "drivers": "AI 高算力高頻傳輸需求、高階 PCB 材料升級 (Low-D)",
-            "stocks": []
-        }
+    # 寫入 JSON 存檔
+    with open(db_file, "w", encoding="utf-8") as f:
+        json.dump(db, f, ensure_ascii=False, indent=4)
+    
+    st.session_state['INDUSTRY_DB'] = db
+    return True, f"✅ 成功更新 {company_name} 的 AI 專屬百科！"
+# --- 在函式末端，呼叫 AI 後存入資料 ---
+# 假設你已經寫好 generate_ai_insights 函式
+ai_insights = generate_ai_insights(company_name, summary) 
+
+db[chinese_sector]["overview_db"][sid] = ai_insights.get("overview")
+db[chinese_sector]["value_chain_db"][sid] = ai_insights.get("value_chain")
+db[chinese_sector]["drivers_db"][sid] = ai_insights.get("drivers")
 
     if sid not in db[chinese_sector]["stocks"]:
         db[chinese_sector]["stocks"].append(sid)
@@ -534,7 +491,7 @@ def run_single_scan_signal(sid, sname, webhook_url):
     return None
 
 # ==============================================================================
-# 💥 【V41.0 全域作用域宣告】
+# 💥 【全域作用域宣告】
 # ==============================================================================
 current_stocks_dict = load_stock_dict()
 selected_label = list(current_stocks_dict.values())[0] if current_stocks_dict else "3595 (山太士)"
@@ -544,7 +501,7 @@ target_sid = selected_label.split(" ")[0]
 with st.sidebar:
     st.sidebar.markdown(f"""<div style="background: linear-gradient(135deg, #1e3a8a, #000000); padding: 15px; border-radius: 12px; border: 1px solid #3b82f6; text-align: center;">
         <h1 style="color: #60a5fa; font-size: 18px; margin: 0;">🚀 戰情操控中心</h1>
-        <p style="color: #94a3b8; font-size: 11px; margin-top:5px;">吳秉諺 專屬系統 V41.0</p>
+        <p style="color: #94a3b8; font-size: 11px; margin-top:5px;">吳秉諺 專屬系統</p>
     </div>""", unsafe_allow_html=True)
 
     st.sidebar.divider()
@@ -565,36 +522,31 @@ with st.sidebar:
     st.sidebar.link_button("📊 Goodinfo 財報數據", f"https://goodinfo.tw/tw/StockDetail.asp?STOCK_ID={target_sid}")
     
     current_ind = next((n for n, d in INDUSTRY_DB.items() if target_sid in d.get("stocks", [])), "通用電子")
-    st.sidebar.subheader(f"🏢 {current_ind} 百科")
-    if current_ind in INDUSTRY_DB:
-        d = INDUSTRY_DB[current_ind]
-        company_briefs = d.get("company_briefs", {})
-        current_brief = company_briefs.get(target_sid, "暫無個股主要業務描述，請利用下方一鍵更新。")
+   # --- UI 百科顯示區塊 ---
+    st.sidebar.subheader("🏢 AI 專屬百科")
+    
+    # 直接從 DB 中提取該 sid 的專屬資料
+    stock_info = INDUSTRY_DB.get(target_sid, {})
+    
+    with st.sidebar.expander("🎯 個股主要業務", expanded=True):
+        st.info(stock_info.get("company_brief", "暫無專屬資料，請點擊下方一鍵更新。"))
         
-        with st.sidebar.expander("🎯 個股主要業務", expanded=True):
-            st.info(current_brief)
+    with st.sidebar.expander("📍 產業市場規模", expanded=False):
+        st.info(stock_info.get("overview", "暫無專屬資料，請點擊下方一鍵更新。"))
+        
+    with st.sidebar.expander("🔗 產業價值鏈", expanded=False):
+        st.info(stock_info.get("value_chain", "暫無專屬資料，請點擊下方一鍵更新。"))
+        
+    with st.sidebar.expander("🔗 相關產業連動與競爭對手", expanded=True):
+        competitors = stock_info.get("competitors", [])
+        if competitors:
+            st.write("💡 **AI 分析關鍵連動對手**：")
+            st.markdown("\n".join([f"- **{peer}**" for peer in competitors]))
+        else:
+            st.info("暫無連動資料，請點擊下方一鍵更新。")
             
-        with st.sidebar.expander("📍 產業市場規模", expanded=False):
-            st.info(d.get("overview", "暫無"))
-            
-        with st.sidebar.expander("🔗 產業價值鏈", expanded=False):
-            st.info(d.get("value_chain", "暫無"))
-            
-        with st.sidebar.expander("🔗 相關產業連動與競爭對手", expanded=True):
-            competitors_db = d.get("competitors_db", {})
-            ai_related_list = competitors_db.get(target_sid, [])
-            if ai_related_list:
-                st.write("💡 **AI 即時連網分析**此標的之**關鍵對手/同盟連動股**：")
-                st.markdown("\n".join([f"- **{peer}**" for peer in ai_related_list]))
-            else:
-                related_sids = [s for s in d.get("stocks", []) if s != target_sid]
-                if related_sids:
-                    st.markdown("\n".join([f"- **{STOCK_DICT.get(r, f'{r} (連動)')}**" for r in related_sids]))
-                else:
-                    st.write("💡 目前該領域暫無同盟股，請新增同板塊個股解鎖。")
-                    
-        with st.sidebar.expander("📈 產業驅動因子", expanded=False):
-            st.info(d.get("drivers", "暫無"))
+    with st.sidebar.expander("📈 產業驅動因子", expanded=False):
+        st.info(stock_info.get("drivers", "暫無專屬資料，請點擊下方一鍵更新。"))
 
     # 擴建雷達
     st.sidebar.divider()
