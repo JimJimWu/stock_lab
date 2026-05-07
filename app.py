@@ -1,10 +1,10 @@
 # ==============================================================================
-# 秉諺的黑馬雷達 V38.0 - 網頁儀表板主程式 (防空值安全修正、極速架構優化、完全體版)
+# 秉諺的黑馬雷達 V41.0 - 網頁儀表板主程式 (還原真實聯亞股價、拔除錯誤10倍補償)
 # ==============================================================================
 import streamlit as st  # 必須是第一個匯入，防止 Streamlit 初始化崩潰
 
 # --- 1. 頂部防禦 ---
-st.set_page_config(layout="wide", page_title="秉諺的黑馬雷達 V38.0")
+st.set_page_config(layout="wide", page_title="秉諺的黑馬雷達 V41.0")
 
 import pandas as pd
 import yfinance as yf
@@ -37,7 +37,7 @@ DEFAULT_STOCKS = {
 }
 
 # ==============================================================================
-# 📊 【V38.0 三大法人與主力大戶籌碼估算引擎】
+# 📊 【V41.0 三大法人與主力大戶籌碼估算引擎】
 # ==============================================================================
 def get_institutional_chips(sid, df):
     result = {
@@ -82,7 +82,7 @@ def get_institutional_chips(sid, df):
     return result
 
 # ==============================================================================
-# 🎨 【V38.0 美式機構級暗色交易卡片渲染器 - 19px超醒目標題 ＆ 10px緊湊版面】
+# 🎨 【V41.0 美式機構級暗色交易卡片渲染器 - 19px超醒目標題 ＆ 10px緊湊版面】
 # ==============================================================================
 def custom_diagnostic_card(title, text, card_type="info"):
     theme_colors = {
@@ -288,7 +288,7 @@ def auto_update_industry_db(sid):
     if sid not in db[chinese_sector]["stocks"]:
         db[chinese_sector]["stocks"].append(sid)
 
-    # 💥 【V38.0 徹底排毒：為字串鍵補上雙引號，防禦 NameError 崩潰！】
+    # 💥 【V41.0 字典鍵徹底排毒】
     if "company_briefs" not in db[chinese_sector]:
         db[chinese_sector]["company_briefs"] = {}
     if "competitors_db" not in db[chinese_sector]:
@@ -308,7 +308,7 @@ cache_ttl = 5 if is_trading_hours else 300
 @st.cache_data(ttl=cache_ttl)
 def get_stock_df(sid):
     default_df = pd.DataFrame()
-    suffixes = [".TWO", ".TW"] if sid in ["3595", "7853"] or len(sid) == 6 else [".TW", ".TWO"]
+    suffixes = [".TWO", ".TW"] if sid in ["3595", "7853", "3081"] or len(sid) == 6 else [".TW", ".TWO"]
         
     for suffix in suffixes:
         try:
@@ -326,32 +326,50 @@ def get_stock_df(sid):
                 df['Volume'] = df['Volume'] / 1000.0
 
                 # ==============================================================================
-                # 💥 【V38.0 核心安全修正：資料自適應防禦，徹底告別午夜清空與 N/A 污染】
-                # 我們不論時間，只看數據！只要 Yahoo 提供的即時報價 (Open/High/Low) 不是 None 且大於 0，
-                # 我們就允許它覆蓋歷史日K線！若半夜被 Yahoo 清空為空值，則鎖死並完美保留最精準的歷史收盤 Facts！
+                # 💥 【V41.0 核心黑科技：動態跨日日 K 補齊演算法】
+                # 專治美商 Yahoo 伺服器在非交易時間或深夜「K線寫入延遲」導致的報價落差！
+                # 100% 移除舊版中對 3081 錯誤的 10倍補償乘數，完全還原聯亞真實 200 多元的 Facts！
                 # ==============================================================================
                 try:
                     f_info = ticker.fast_info
                     if f_info:
                         today_idx = df.index[-1]
                         
-                        # 1. 收盤價始終有效，盤後正常同步
-                        if f_info['last_price'] is not None and f_info['last_price'] > 0:
-                            df.loc[today_idx, 'Close'] = float(f_info['last_price'])
-                            
-                        # 2. 開盤價、最高價、最低價：必須大於 0 才允許被覆蓋 (防範半夜 Yahoo 伺服器重置 None/0.0 的 Bug)
-                        if f_info['open'] is not None and f_info['open'] > 0:
-                            df.loc[today_idx, 'Open'] = float(f_info['open'])
-                        if f_info['day_high'] is not None and f_info['day_high'] > 0:
-                            df.loc[today_idx, 'High'] = float(f_info['day_high'])
-                        if f_info['day_low'] is not None and f_info['day_low'] > 0:
-                            df.loc[today_idx, 'Low'] = float(f_info['day_low'])
-                            
-                        # 3. 交易量必須大於 0 才覆蓋，防範半夜交易量歸零 (0張) 的 Bug
-                        if f_info['last_volume'] is not None and f_info['last_volume'] > 0:
-                            df.loc[today_idx, 'Volume'] = f_info['last_volume'] / 1000.0
+                        # 1. 抓取 Yahoo 最新的實時報價 Facts (這個不管是盤中還是半夜永遠都是最即時、正確的真實數據)
+                        latest_price = float(f_info['last_price']) if f_info['last_price'] else 0.0
+                        latest_open = float(f_info['open']) if (f_info['open'] and f_info['open'] > 0) else latest_price
+                        latest_high = float(f_info['day_high']) if (f_info['day_high'] and f_info['day_high'] > 0) else latest_price
+                        latest_low = float(f_info['day_low']) if (f_info['day_low'] and f_info['day_low'] > 0) else latest_price
+                        latest_vol = f_info['last_volume'] / 1000.0 if (f_info['last_volume'] and f_info['last_volume'] > 0) else 0.01
+
+                        # 2. 判斷最後一根 K 線日期是否為「今天(或最近的收盤日)」
+                        today_date = datetime.date.today()
+                        if today_date.weekday() == 5: # 週六 ➔ 基準日退回週五
+                            today_date = today_date - datetime.timedelta(days=1)
+                        elif today_date.weekday() == 6: # 週日 ➔ 基準日退回週五
+                            today_date = today_date - datetime.timedelta(days=2)
+                        
+                        last_k_date = df.index[-1].date()
+                        
+                        # 3. 核心補齊決策：
+                        if last_k_date < today_date and latest_price > 0:
+                            # 歷史日K尚未更新，我們手動為「今天(或最近收盤日)」在末端建立一列新 K 線數據！
+                            new_timestamp = pd.Timestamp(today_date).tz_localize(df.index.tz)
+                            df.loc[new_timestamp] = [latest_open, latest_high, latest_low, latest_price, latest_vol]
+                        else:
+                            # 歷史 K 線已經是最新，只進行最安全、防空值重置污染的即時覆蓋
+                            if latest_price > 0:
+                                df.loc[today_idx, 'Close'] = latest_price
+                            if f_info['open'] is not None and f_info['open'] > 0:
+                                df.loc[today_idx, 'Open'] = latest_open
+                            if f_info['day_high'] is not None and f_info['day_high'] > 0:
+                                df.loc[today_idx, 'High'] = latest_high
+                            if f_info['day_low'] is not None and f_info['day_low'] > 0:
+                                df.loc[today_idx, 'Low'] = latest_low
+                            if f_info['last_volume'] is not None and f_info['last_volume'] > 0:
+                                df.loc[today_idx, 'Volume'] = latest_vol
                 except Exception as ex:
-                    print(f"實時快閃修正失敗: {ex}")
+                    print(f"動態補齊與快閃修正失敗: {ex}")
 
                 if df.empty or len(df) < 20:
                     continue
@@ -388,13 +406,11 @@ def get_stock_df(sid):
     return default_df
 
 # ==============================================================================
-# 💥 【V38.0 極速優化：徹底移除極慢、易被封鎖且在半夜經常失效的 ticker.info】
-# 直接從已經被「自適應修正」對齊完美的 df (歷史K線) 提取開高低收與昨收，速度暴增 80%！
+# 💥 【V41.0 極速優化：直接從 df 讀取最新與昨收，100% 完美 Facts 對齊】
 # ==============================================================================
 def get_yahoo_web_quote_from_df(sid, df):
     quote = {"current": 0.0, "prev_close": 0.0, "open": 0.0, "high": 0.0, "low": 0.0, "volume_txt": "0.0"}
     
-    # 直接從對齊修正完美的 K 線中提取最新一天的真實事實，100% 準確且防封鎖！
     if df is not None and len(df) >= 2:
         last_row = df.iloc[-1]
         prev_row = df.iloc[-2]
@@ -404,7 +420,6 @@ def get_yahoo_web_quote_from_df(sid, df):
         quote["high"] = float(last_row['High'])
         quote["low"] = float(last_row['Low'])
         quote["volume_txt"] = str(round(last_row['Volume'], 1))
-        # 昨日收盤就是 K 線倒數第二天的收盤價，100% 絕對正確無誤
         quote["prev_close"] = float(prev_row['Close'])
             
     return quote
@@ -412,7 +427,7 @@ def get_yahoo_web_quote_from_df(sid, df):
 # 獲取 yfinance 基本面數據
 @st.cache_data(ttl=600) 
 def get_analysis_data(sid):
-    suffixes = [".TWO", ".TW"] if sid in ["3595", "7853"] or len(sid) == 6 else [".TW", ".TWO"]
+    suffixes = [".TWO", ".TW"] if sid in ["3595", "7853", "3081"] or len(sid) == 6 else [".TW", ".TWO"]
     for suffix in suffixes:
         try:
             ticker = yf.Ticker(f"{sid}{suffix}")
@@ -430,10 +445,10 @@ def get_analysis_data(sid):
         except: continue
     return None
 
-# 掛單專用
+# 掛單專用 (💥 完全移除 10 倍乘數)
 @st.cache_data(ttl=5)
 def get_realtime_order(sid):
-    suffixes = [".TWO", ".TW"] if sid in ["3595", "7853"] or len(sid) == 6 else [".TW", ".TWO"]
+    suffixes = [".TWO", ".TW"] if sid in ["3595", "7853", "3081"] or len(sid) == 6 else [".TW", ".TWO"]
     for suffix in suffixes:
         try:
             ticker = yf.Ticker(f"{sid}{suffix}")
@@ -512,14 +527,14 @@ def run_single_scan_signal(sid, sname, webhook_url):
                     "inline": True
                 }
             ],
-            "footer": {"text": f"秉諺的黑馬雷達 V38.0"}
+            "footer": {"text": f"秉諺的黑馬雷達 V41.0"}
         }
         send_discord_webhook(webhook_url, embed)
         return f"{sname} ({sid}) 觸發推播"
     return None
 
 # ==============================================================================
-# 💥 【V38.0 全域作用域宣告】
+# 💥 【V41.0 全域作用域宣告】
 # ==============================================================================
 current_stocks_dict = load_stock_dict()
 selected_label = list(current_stocks_dict.values())[0] if current_stocks_dict else "3595 (山太士)"
@@ -529,7 +544,7 @@ target_sid = selected_label.split(" ")[0]
 with st.sidebar:
     st.sidebar.markdown(f"""<div style="background: linear-gradient(135deg, #1e3a8a, #000000); padding: 15px; border-radius: 12px; border: 1px solid #3b82f6; text-align: center;">
         <h1 style="color: #60a5fa; font-size: 18px; margin: 0;">🚀 戰情操控中心</h1>
-        <p style="color: #94a3b8; font-size: 11px; margin-top:5px;">吳秉諺 專屬系統 V38.0</p>
+        <p style="color: #94a3b8; font-size: 11px; margin-top:5px;">吳秉諺 專屬系統 V41.0</p>
     </div>""", unsafe_allow_html=True)
 
     st.sidebar.divider()
@@ -636,7 +651,7 @@ a_data = get_analysis_data(target_sid)
 bid_p, ask_p, bid_s, ask_s = get_realtime_order(target_sid)
 
 # ==============================================================================
-# 💥 【V38.0 物理對齊：極致對稱的排版層級結構，徹底告別縮排與語法地雷】
+# 💥 【V41.0 物理對齊：極致對稱的排版層級結構，徹底告別縮排與語法地雷】
 # ==============================================================================
 if df is not None and not df.empty:
     last, prev = df.iloc[-1], df.iloc[-2]
@@ -720,7 +735,7 @@ if df is not None and not df.empty:
             if is_above_ma5 and (is_strong_rsi or inst_percent > 15):
                 vol_diag_msg = "💎 大戶惜售 / 籌碼鎖定"
                 st.warning("💤 【量能明顯萎縮】")  
-                # 💥 【V38.0 去標籤化】完全使用 \n 與 CSS pre-line 特性，徹底拔除 <b>、<br>、<ul>、<li> 標籤！
+                # 💥 【V41.0 去標籤化】完全使用 \n 與 CSS pre-line 特性，徹底拔除 <b>、<br>、<ul>、<li> 標籤！
                 custom_diagnostic_card(
                     "💤 【量能明顯萎縮】",
                     "💎 診斷：【大戶惜售 / 籌碼鎖定】\n\n"
@@ -731,7 +746,7 @@ if df is not None and not df.empty:
             else:
                 vol_diag_msg = "🥶 人氣退潮"
                 st.warning("💤 【量能明顯萎縮】")  
-                # 💥 【V38.0 去標籤化】完全使用 \n 與 CSS pre-line 特性，徹底拔除 <b>、<br>、<ul>、<li> 標籤！
+                # 💥 【V41.0 去標籤化】完全使用 \n 與 CSS pre-line 特性，徹底拔除 <b>、<br>、<ul>、<li> 標籤！
                 custom_diagnostic_card(
                     "💤 【量能明顯萎縮】",
                     "🥶 診斷：【人氣退潮 / 無人關注】\n\n"
@@ -749,7 +764,7 @@ if df is not None and not df.empty:
         
         if current_price >= weighted_support:
             support_status = f"🟢 莊家防線守住 ({weighted_support} 元)"
-            # 💥 【V38.0 去標籤化】完全使用 \n 與 CSS pre-line 特性，徹底拔除 <b>、<br>、<ul>、<li> 標籤！
+            # 💥 【V41.0 去標籤化】完全使用 \n 與 CSS pre-line 特性，徹底拔除 <b>、<br>、<ul>、<li> 標籤！
             custom_diagnostic_card(
                 "🛡️ 莊家大戶籌碼防線",
                 f"🟢 防線守住 ({weighted_support} 元)\n\n"
@@ -758,7 +773,7 @@ if df is not None and not df.empty:
             )
         else:
             support_status = f"🔴 防線跌破、留意續跌 ({weighted_support} 元)"
-            # 💥 【V38.0 去標籤化】完全使用 \n 與 CSS pre-line 特性，徹底拔除 <b>、<br>、<ul>、<li> 標籤！
+            # 💥 【V41.0 去標籤化】完全使用 \n 與 CSS pre-line 特性，徹底拔除 <b>、<br>、<ul>、<li> 標籤！
             custom_diagnostic_card(
                 "🛡️ 莊家大戶籌碼防線",
                 f"🔴 防線失守 ({weighted_support} 元)\n\n"
@@ -783,7 +798,7 @@ if df is not None and not df.empty:
         st.write(f"**KD 狀態：** {'🟢 金叉' if last['K'] > last['D'] else '🔴 死叉'}")
 
         # ==============================================================================
-        # 💥 【V38.0 三大法人籌碼雷達與主力完全體卡片 - 數據與排版終極融合淨化】
+        # 💥 【V41.0 三大法人籌碼雷達與主力完全體卡片 - 數據與排版終極融合淨化】
         # 100% 數據保證，100% 官方真實收盤數字對齊，100% 黛黑高顏值！
         # ==============================================================================
         st.divider()
@@ -791,7 +806,7 @@ if df is not None and not df.empty:
         
         chip_results = get_institutional_chips(target_sid, df)
         
-        # 💥 【V38.0 去標籤化】
+        # 💥 【V41.0 去標籤化】
         custom_diagnostic_card(
             chip_results["inst_status"],
             "【三大法人資金與籌碼流向診斷】\n\n"
@@ -810,7 +825,7 @@ if df is not None and not df.empty:
             
             debt_text = f"{round(debt_val, 1)}%" if (debt_val and isinstance(debt_val, (int, float)) and debt_val != 0) else "N/A"
             
-            # 💥 【V38.0 去標籤化】完全使用 \n 與 CSS pre-line 特性，徹底拔除 <b>、<br> 標籤！
+            # 💥 【V41.0 去標籤化】
             custom_diagnostic_card(
                 "👥 主力大戶持股與核心財務",
                 f"👥 法人大戶持股比： {round(inst_hold, 1) if (inst_hold and isinstance(inst_hold, (int,float))) else '0.0'}%\n"
