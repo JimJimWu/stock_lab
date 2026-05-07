@@ -9,6 +9,7 @@ import json
 import pandas as pd
 
 # 安全讀取邏輯：優先讀取 Secrets，若無則報錯，不再放任何預設金鑰字串
+# ✅ 正確的安全寫法（請確保 app.py 是長這樣）
 GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
 
 if not GEMINI_API_KEY:
