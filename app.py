@@ -643,15 +643,17 @@ with st.sidebar:
             st.cache_data.clear()
             current_stocks = load_stock_dict()
             
+        # 💥 核心修復：先明確定義「所有股票代號」的清單
+        all_sids = list(current_stocks.keys())
+        
         # 加入進度條，讓您知道 AI 正在慢慢跑
         progress_text = "🤖 AI 全百科重建中，請勿關閉網頁..."
         my_bar = st.sidebar.progress(0, text=progress_text)
         
-        # 💥 校正：確保進度條總數與迴圈目標的數量完全一致
-        total = len(target_sids)
+        # 將總數與迴圈目標統一設定為 all_sids
+        total = len(all_sids)
 
-        # 💥 校正：將 for 迴圈往左退，與上面的 total 完美對齊
-        for i, sid in enumerate(target_sids):
+        for i, sid in enumerate(all_sids):
             try:
                 auto_update_industry_db(sid)
                 # 核心防護：配合每分鐘 5 次的限制，強制休息 15 秒
