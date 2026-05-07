@@ -642,31 +642,24 @@ with st.sidebar:
             if os.path.exists(INDUSTRY_DB_FILE): os.remove(INDUSTRY_DB_FILE)
             st.cache_data.clear()
             current_stocks = load_stock_dict()
-
-		# 💥 終極修復：第一步，先去把目前的股票清單讀取出來！
-        current_stocks = load_stock_dict()
-        # 💥 核心修復：先明確定義「所有股票代號」的清單
-        all_sids = list(current_stocks.keys())
-        
-        # 加入進度條，讓您知道 AI 正在慢慢跑
-        progress_text = "🤖 AI 全百科重建中，請勿關閉網頁..."
-        my_bar = st.sidebar.progress(0, text=progress_text)
-        
-        # 將總數與迴圈目標統一設定為 all_sids
-        total = len(all_sids)
-
-        for i, sid in enumerate(all_sids):
-            try:
-                auto_update_industry_db(sid)
-                # 核心防護：配合每分鐘 5 次的限制，強制休息 15 秒
-                time.sleep(15)
-            except:
-                pass
-            my_bar.progress((i + 1) / total, text=f"進度: {i+1}/{total} 檔")
-
-        st.sidebar.success("✅ 全體 AI 百科重建完畢！")
-        time.sleep(1)
-        st.rerun()
+            
+            # 加入進度條，讓您知道 AI 正在慢慢跑
+            progress_text = "🤖 AI 全百科重建中，請勿關閉網頁..."
+            my_bar = st.sidebar.progress(0, text=progress_text)
+            total = len(current_stocks)
+            
+            for i, sid in enumerate(target_sids):
+                    try:
+                        auto_update_industry_db(sid)
+                        # 💥 核心防護：配合每分鐘 5 次的限制，強制休息 15 秒
+                        time.sleep(15) 
+                    except: 
+                        pass
+                    my_bar.progress((i + 1) / total, text=f"進度: {i+1}/{total} 檔")
+                
+            st.sidebar.success("✅ 全體 AI 百科重建完畢！")
+            time.sleep(1)
+            st.rerun()
 
 # 數據加載與實時計量
 df = get_stock_df(target_sid)
