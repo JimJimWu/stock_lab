@@ -536,6 +536,30 @@ with st.sidebar:
     with st.sidebar.expander("📈 產業驅動因子", expanded=False):
         st.info(stock_info.get("drivers", "暫無專屬資料，請點擊下方一鍵更新。"))
 
+
+st.sidebar.divider()
+    st.sidebar.subheader("🩺 AI 引擎連線體檢")
+    if st.sidebar.button("檢查可用模型清單 (List Models)"):
+        with st.sidebar.status("正在向 Google 伺服器請求權限清單..."):
+            try:
+                available_models = []
+                # 呼叫官方 API 列出這把金鑰看得到的所有模型
+                for m in genai.list_models():
+                    if 'generateContent' in m.supported_generation_methods:
+                        available_models.append(m.name)
+                
+                if available_models:
+                    st.success("連線成功！您的金鑰支援以下模型：")
+                    st.write(available_models)
+                    # 如果清單中有 models/gemini-1.5-flash，請記下它的精確名稱
+                else:
+                    st.error("金鑰有效，但該專案下沒有任何可用的生成式模型。請檢查 Google Cloud API 啟用狀態。")
+            except Exception as e:
+                st.error(f"連線失敗，金鑰可能無效。錯誤訊息：{e}")
+
+
+
+
     # 擴建雷達
     st.sidebar.divider()
     st.sidebar.subheader("➕ 擴建雷達與一鍵更新")
