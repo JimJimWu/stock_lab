@@ -637,7 +637,7 @@ with st.sidebar:
         if st.button(
             "🧹 一鍵全百科重置",
             use_container_width=True,
-            help="【警告】此按鈕會刪除現有百科，並以每檔 4 秒的間隔呼叫 AI，請耐心等待執行完畢。"
+            help="【警告】此按鈕會刪除現有百科，並以每檔 15 秒的間隔呼叫 AI，請耐心等待執行完畢。"
         ):
             if os.path.exists(INDUSTRY_DB_FILE): os.remove(INDUSTRY_DB_FILE)
             st.cache_data.clear()
@@ -647,8 +647,8 @@ with st.sidebar:
             progress_text = "🤖 AI 全百科重建中，請勿關閉網頁..."
             my_bar = st.sidebar.progress(0, text=progress_text)
             total = len(current_stocks)
-            
-            for i, sid in enumerate(target_sids):
+            all_sids = list(current_stocks.keys())
+            for i, sid in enumerate(all_sids):
                     try:
                         auto_update_industry_db(sid)
                         # 核心防護：配合每分鐘 5 次的限制，強制休息 15 秒
