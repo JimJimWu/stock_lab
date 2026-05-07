@@ -642,7 +642,9 @@ with st.sidebar:
             if os.path.exists(INDUSTRY_DB_FILE): os.remove(INDUSTRY_DB_FILE)
             st.cache_data.clear()
             current_stocks = load_stock_dict()
-            
+
+		# 💥 終極修復：第一步，先去把目前的股票清單讀取出來！
+        current_stocks = load_stock_dict()
         # 💥 核心修復：先明確定義「所有股票代號」的清單
         all_sids = list(current_stocks.keys())
         
