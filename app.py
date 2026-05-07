@@ -539,7 +539,7 @@ if stock_info:
             st.info(stock_info.get("company_brief", "資料載入中..."))
         
         with st.sidebar.expander("📍 產業市場規模", expanded=False):
-            st.info(stock_info.get("overview", "資料載入中..."))    
+            st.info(stock_info.get("overview", "資料載入中..."))
         
         with st.sidebar.expander("🔗 產業價值鏈", expanded=False):
             st.info(stock_info.get("value_chain", "資料載入中..."))
@@ -549,31 +549,31 @@ if stock_info:
         
         with st.sidebar.expander("📈 產業驅動因子", expanded=False):
             st.info(stock_info.get("drivers", "資料載入中..."))
+            
         st.sidebar.caption(f"✨ 百科更新時間：{stock_info.get('last_updated', '歷史資料')}")
+        
         # 內嵌的小更新按鈕
         if st.sidebar.button("🔄 更新這檔百科", key=f"re_up_{target_sid_str}"):
             with st.sidebar.status("AI 更新中..."):
                 auto_update_industry_db(target_sid_str)
                 st.rerun()
-else:
+    else:
         st.sidebar.warning(f"⚠️ 庫存中無 {target_sid_str} 的資料")
         if st.sidebar.button(f"🎯 消耗額度生成百科", key=f"init_{target_sid_str}"):
             with st.sidebar.status("AI 聯網抓取中..."):
                 auto_update_industry_db(target_sid_str)
                 st.rerun()
 
-    # 5. 🩺 系統檢修區 (隱藏式設計，不佔空間)
+    # 5. 🩺 系統檢修區
     st.sidebar.divider()
     with st.sidebar.expander("🛠️ 系統後勤工具", expanded=False):
         st.markdown("**AI 連線測試**")
         col_test1, col_test2 = st.columns(2)
         with col_test1:
             if st.button("🔍 版本測試", use_container_width=True):
-                # 測試代碼...
                 st.toast("正在測試...")
         with col_test2:
             if st.button("📋 模型清單", use_container_width=True):
-                # 清單代碼...
                 pass
         
         st.divider()
@@ -582,62 +582,49 @@ else:
             with open(INDUSTRY_DB_FILE, "r", encoding="utf-8") as f:
                 st.download_button("📥 下載 JSON 資料庫", f.read(), "industry_db.json", "application/json", use_container_width=True)
 
-    # 6. ➕ 擴建雷達 (放置於最下方)
+    # 6. ➕ 擴建雷達
     st.sidebar.divider()
-    st.sidebar.markdown("### ➕ 擴建雷達新增股票標的")
-    new_sid = st.sidebar.text_input(
-        "輸入股票代號 (例如: 1815)",
-        help="輸入新標的的股票代碼（例如 1815 富喬）。"
-    )
-    new_name = st.sidebar.text_input(
-        "輸入股票名稱 (例如: 富喬)",
-        help="輸入與上述代碼對應的繁體中文公司簡稱。"
-	)
+    st.sidebar.markdown("### ➕ 擴建雷達")
+    new_sid = st.sidebar.text_input("輸入股票代號 (1815)", help="例如 1815")
+    new_name = st.sidebar.text_input("輸入股票名稱 (富喬)", help="例如 富喬")
     
     col_add, col_clean = st.sidebar.columns(2)
     with col_add:
-        if st.button("⚡ 新增百科標的", use_container_width=True, help="一鍵將此新股加入自選，自動啟動 AI 對手分析，永不卡死！"):
-            # 新增邏輯...
-			if new_sid and new_name:
+        if st.button("⚡ 新增百科標的", use_container_width=True):
+            if new_sid and new_name:
                 current_stocks = load_stock_dict()
                 current_stocks[new_sid] = f"{new_sid} ({new_name})"
                 save_stock_dict(current_stocks)
                 st.session_state['STOCK_DICT'] = current_stocks
                 try:
-                    success, msg = auto_update_industry_db(new_sid)
-                    st.sidebar.success(f"🎉 新增成功且 AI 連網更新完成！")
+                    auto_update_industry_db(new_sid)
+                    st.sidebar.success("🎉 新增成功！")
                 except:
-                    st.sidebar.warning(f"⚠️ 新增成功！")
+                    st.sidebar.warning("⚠️ 新增成功但百科更新失敗")
                 time.sleep(1)
                 st.rerun()
-            st.rerun()
+                
     with col_clean:
-        if st.button("🧹 百科全重置", use_container_width=True, help="【警告】此按鈕會清空所有百科快取，並以每檔 15 秒的間隔呼叫 AI，請耐心等待執行完畢。"):
-            if os.path.exists(INDUSTRY_DB_FILE): os.remove(INDUSTRY_DB_FILE)
+        if st.button("🧹 百科全重置", use_container_width=True):
+            if os.path.exists(INDUSTRY_DB_FILE): 
+                os.remove(INDUSTRY_DB_FILE)
             st.cache_data.clear()
             current_stocks = load_stock_dict()
-            
-            # 加入進度條，讓您知道 AI 正在慢慢跑
-            progress_text = "🤖 AI 全百科重建中，請勿關閉網頁..."
-            my_bar = st.sidebar.progress(0, text=progress_text)
-            total = len(current_stocks)
-            all_sids = list(current_stocks.keys())      
+            progress_bar = st.sidebar.progress(0, text="🤖 AI 百科重建中...")
+            all_sids = list(current_stocks.keys())
+            total = len(all_sids)
             for i, sid in enumerate(all_sids):
-                    try:
-                        auto_update_industry_db(sid)
-                        # 核心防護：配合每分鐘 5 次的限制，強制休息 15 秒
-                        time.sleep(15)
-                    except: 
-                        pass
-                    my_bar.progress((i + 1) / total, text=f"進度: {i+1}/{total} 檔")
-                
-            st.sidebar.success("✅ 全體 AI 百科重建完畢！")
+                try:
+                    auto_update_industry_db(sid)
+                    time.sleep(15)
+                except:
+                    pass
+                progress_bar.progress((i + 1) / total)
+            st.sidebar.success("✅ 重建完畢！")
             time.sleep(1)
-
-			# 重置邏輯...
             st.rerun()
 
-# --- 數據加載線 (外掛) ---
+# --- 數據加載線 (外掛 - 必須靠最左邊) ---
 df = get_stock_df(target_sid)
 a_data = get_analysis_data(target_sid)
 bid_p, ask_p, bid_s, ask_s = get_realtime_order(target_sid)
