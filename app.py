@@ -199,8 +199,14 @@ def load_industry_db():
     if os.path.exists(INDUSTRY_DB_FILE):
         try:
             with open(INDUSTRY_DB_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except: pass
+                data = json.load(f)
+                # 💥 診斷診斷：在畫面上印出讀取到的 key，看看是不是 3595
+                 st.sidebar.write(f"DEBUG: 已讀取到 {len(data)} 筆百科資料")
+                 st.sidebar.write(f"DEBUG: 第一筆 Key 為: {list(data.keys())[0] if data else '無'}")
+                return data
+        except Exception as e:
+            st.error(f"讀取 JSON 失敗: {e}")
+            return {}
     return {}
 
 # 確保 Session State 初始化
@@ -217,7 +223,14 @@ def auto_update_industry_db(sid):
     sid = str(sid).strip()
     db_file = "industry_db.json"
     db = load_industry_db()
-    stock_dict = load_stock_dict() # 取得您清單中的股票名稱
+    target_sid_str = str(target_sid).strip() # 確保是字串且無空格
+    stock_info = db.get(target_sid_str) # 使用強制轉型後的 Key 來讀取
+	if stock_info:
+        # 成功讀取後的顯示邏輯...
+        st.sidebar.success(f"✅ 已載入 {target_sid_str} 離線百科")
+    else:
+        # 沒讀取到，才會跑 9623 天的邏輯...
+        st.sidebar.warning(f"❌ 找不到 {target_sid_str} 的資料")
 
     # 💥 【升級點1】：直接取得股票名稱 (如 "3595 (山太士)")，不再依賴 yfinance
     company_name = stock_dict.get(sid, f"台股代號 {sid}")
