@@ -536,8 +536,7 @@ with st.sidebar:
     with st.sidebar.expander("📈 產業驅動因子", expanded=False):
         st.info(stock_info.get("drivers", "暫無專屬資料，請點擊下方一鍵更新。"))
 
-
-st.sidebar.divider()
+    st.sidebar.divider()
     st.sidebar.subheader("🩺 AI 引擎連線體檢")
     if st.sidebar.button("檢查可用模型清單 (List Models)"):
         with st.sidebar.status("正在向 Google 伺服器請求權限清單..."):
@@ -556,9 +555,6 @@ st.sidebar.divider()
                     st.error("金鑰有效，但該專案下沒有任何可用的生成式模型。請檢查 Google Cloud API 啟用狀態。")
             except Exception as e:
                 st.error(f"連線失敗，金鑰可能無效。錯誤訊息：{e}")
-
-
-
 
     # 擴建雷達
     st.sidebar.divider()
