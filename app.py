@@ -498,12 +498,15 @@ target_sid = selected_label.split(" ")[0]
 
 # 側邊欄
 with st.sidebar:
+    # 1. 戰情操控中心標題
     st.sidebar.markdown(f"""<div style="background: linear-gradient(135deg, #1e3a8a, #000000); padding: 15px; border-radius: 12px; border: 1px solid #3b82f6; text-align: center;">
         <h1 style="color: #60a5fa; font-size: 18px; margin: 0;">🚀 戰情操控中心</h1>
         <p style="color: #94a3b8; font-size: 11px; margin-top:5px;">吳秉諺 專屬系統</p>
     </div>""", unsafe_allow_html=True)
 
     st.sidebar.divider()
+
+    # 2. 標的與顯示天數選擇
     selected_label = st.sidebar.selectbox(
         "🎯 選擇標的 (Target)", 
         list(STOCK_DICT.values()),
@@ -517,189 +520,114 @@ with st.sidebar:
     )
     
     st.sidebar.divider()
-    st.sidebar.link_button("🌐 Yahoo 股市 (新聞/行情)", f"https://tw.stock.yahoo.com/quote/{target_sid}")
-    st.sidebar.link_button("📊 Goodinfo 財報數據", f"https://goodinfo.tw/tw/StockDetail.asp?STOCK_ID={target_sid}")
     
-    current_ind = next((n for n, d in INDUSTRY_DB.items() if target_sid in d.get("stocks", [])), "通用電子")
-  # --- UI 百科顯示區塊 (新增自動更新與時間顯示) ---
-    st.sidebar.subheader("🏢 AI 專屬百科")
-    
-    # 1. 取得該個股資料
-    stock_info = INDUSTRY_DB.get(target_sid, {})
-    last_updated_str = stock_info.get("last_updated", "2000-01-01")
-    
-    # 2. ⚡ 【核心：自動檢查並更新機制】
-    import datetime
-    today = datetime.date.today()
-    try:
-        last_date = datetime.date.fromisoformat(last_updated_str)
-        days_diff = (today - last_date).days
-    except:
-        days_diff = 999 # 格式錯誤則強制更新
-
-    # 如果資料超過 7 天，系統主動代為執行更新 (無感自動更新)
-    if days_diff >= 7:
-        with st.sidebar.status(f"🔄 資料已逾 {days_diff} 天，自動更新中...", expanded=False):
-            success, msg = auto_update_industry_db(target_sid)
-            if success:
-                st.rerun() # 更新完畢後自動重新整理畫面顯示新資料
-
-# --- 1. 讀取並校準資料庫 ---
-db = load_industry_db()
-# 強制轉型為字串並去除空白，確保能對上 JSON 裡的 Key
-target_sid_str = str(target_sid).strip()
-stock_info = db.get(target_sid_str)
-
-# --- 2. 判斷顯示邏輯 ---
-if stock_info:
-    # ✅ 成功讀取：渲染五大百科卡片
-    with st.sidebar.expander("🎯 個股主要業務", expanded=True):
-        st.info(stock_info.get("company_brief", "暫無專屬資料。"))
-        
-    with st.sidebar.expander("📍 產業市場規模", expanded=False):
-        st.info(stock_info.get("overview", "暫無專屬資料。"))
-        
-    with st.sidebar.expander("🔗 產業價值鏈", expanded=False):
-        st.info(stock_info.get("value_chain", "暫無專屬資料。"))
-        
-    with st.sidebar.expander("🔗 相關產業連動與競爭對手", expanded=False):
-        competitors = stock_info.get("competitors", [])
-        if competitors:
-            st.markdown("\n".join([f"- **{peer}**" for peer in competitors]))
-        else:
-            st.info("暫無連動資料。")
-            
-    with st.sidebar.expander("📈 產業驅動因子", expanded=False):
-        st.info(stock_info.get("drivers", "暫無專屬資料。"))
-
-    # 顯示更新時間 (確保顯示正確日期)
-    last_up = stock_info.get("last_updated", "2000-01-01")
-    st.sidebar.caption(f"✨ 百科更新時間：{last_up}")
-
-else:
-    # ❌ 讀取失敗：改為「手動授權」按鈕，防止自動扣額度
-    st.sidebar.warning(f"⚠️ 找不到 {target_sid_str} 的離線百科資料")
-    
-    # 只有按下按鈕，才會真正消耗那 20 次之一的額度
-    if st.sidebar.button(f"🎯 消耗額度更新 {target_sid_str}", key=f"manual_up_{target_sid_str}"):
-        with st.sidebar.status(f"🔄 正在為 {target_sid_str} 呼叫 AI 引擎...", expanded=False):
-            success, msg = auto_update_industry_db(target_sid_str)
-            if success:
-                st.success(msg)
-                st.rerun()
-            else:
-                st.error(msg)
+    # 3. 外部連結按鈕
+    col_link1, col_link2 = st.sidebar.columns(2)
+    with col_link1:
+        st.link_button("🌐 Yahoo 股市", f"https://tw.stock.yahoo.com/quote/{target_sid}", use_container_width=True)
+    with col_link2:
+        st.link_button("📊 Goodinfo", f"https://goodinfo.tw/tw/StockDetail.asp?STOCK_ID={target_sid}", use_container_width=True)
 
     st.sidebar.divider()
+
+    # 4. AI 引擎連線體檢 (移動至百科上方，確保系統檢查優先)
     st.sidebar.subheader("🩺 AI 引擎連線體檢")
-# --- 將這段貼在「AI 引擎連線體檢」的區塊內 ---
-    if st.sidebar.button("🔍 測試當前模型真實版本"):
-        with st.sidebar.status("正在呼叫 API 進行自我測試..."):
-            try:
-                # 這裡使用您要測試的最新別名
-                test_model = genai.GenerativeModel('gemini-2.5-flash')
-                # 直接發送測試問句
-                response = test_model.generate_content("請用一句話回答：你目前底層運行的模型精確版本代號是什麼？(例如 1.5-flash 或 3.0-flash)")
-                
-                st.success("測試成功！AI 的真實身份是：")
-                # 直接把 AI 的回答印在側邊欄上
-                st.info(response.text)
-            except Exception as e:
-                st.error(f"測試失敗，錯誤訊息：{e}")
-    if st.sidebar.button("檢查可用模型清單 (List Models)"):
-        with st.sidebar.status("正在向 Google 伺服器請求權限清單..."):
-            try:
-                available_models = []
-                # 呼叫官方 API 列出這把金鑰看得到的所有模型
-                for m in genai.list_models():
-                    if 'generateContent' in m.supported_generation_methods:
-                        available_models.append(m.name)
-                
-                if available_models:
-                    st.success("連線成功！您的金鑰支援以下模型：")
+    col_test1, col_test2 = st.sidebar.columns(2)
+    with col_test1:
+        if st.sidebar.button("🔍 真實版本測試", use_container_width=True):
+            with st.sidebar.status("測試中..."):
+                try:
+                    test_model = genai.GenerativeModel('gemini-2.5-flash')
+                    response = test_model.generate_content("請回答：你目前的模型精確版本代號是什麼？")
+                    st.success("成功！")
+                    st.info(response.text)
+                except Exception as e:
+                    st.error(f"失敗：{e}")
+    with col_test2:
+        if st.sidebar.button("📋 模型清單", use_container_width=True):
+            with st.sidebar.status("請求清單中..."):
+                try:
+                    available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
                     st.write(available_models)
-                    # 如果清單中有 models/gemini-flash-latest請記下它的精確名稱
-                else:
-                    st.error("金鑰有效，但該專案下沒有任何可用的生成式模型。請檢查 Google Cloud API 啟用狀態。")
-            except Exception as e:
-                st.error(f"連線失敗，金鑰可能無效。錯誤訊息：{e}")
+                except Exception as e:
+                    st.error(f"連線失敗：{e}")
 
-    # 擴建雷達
     st.sidebar.divider()
-    st.sidebar.subheader("➕ 擴建雷達與一鍵更新")
-    new_sid = st.sidebar.text_input(
-        "輸入股票代號 (例如: 1815)",
-        help="輸入新標的的股票代碼（例如 1815 富喬）。"
-    )
-    new_name = st.sidebar.text_input(
-        "輸入股票名稱 (例如: 富喬)",
-        help="輸入與上述代碼對應的繁體中文公司簡稱。"
-    )
+
+    # 5. AI 專屬百科顯示區 (離線讀取優先)
+    st.sidebar.subheader("🏢 AI 專屬百科")
+    db = load_industry_db()
+    target_sid_str = str(target_sid).strip()
+    stock_info = db.get(target_sid_str)
+
+    if stock_info:
+        # ✅ 離線資料讀取成功
+        with st.sidebar.expander("🎯 個股主要業務", expanded=True):
+            st.info(stock_info.get("company_brief", "暫無資料。"))
+        with st.sidebar.expander("📍 產業市場規模", expanded=False):
+            st.info(stock_info.get("overview", "暫無資料。"))
+        with st.sidebar.expander("🔗 產業價值鏈", expanded=False):
+            st.info(stock_info.get("value_chain", "暫無資料。"))
+        with st.sidebar.expander("🔗 相關競爭對手", expanded=False):
+            st.markdown("\n".join([f"- **{peer}**" for peer in stock_info.get("competitors", [])]) or "暫無資料")
+        with st.sidebar.expander("📈 產業驅動因子", expanded=False):
+            st.info(stock_info.get("drivers", "暫無資料。"))
+        
+        st.sidebar.caption(f"✨ 百科更新時間：{stock_info.get('last_updated', '2000-01-01')}")
+    else:
+        # ❌ 無資料，顯示手動更新按鈕
+        st.sidebar.warning(f"⚠️ 找不到 {target_sid_str} 的離線資料")
+        if st.sidebar.button(f"🎯 消耗額度更新 {target_sid_str}", key=f"up_{target_sid_str}"):
+            with st.sidebar.status("🔄 AI 連網更新中..."):
+                success, msg = auto_update_industry_db(target_sid_str)
+                if success: st.rerun()
+
+    # 📥 雲端資料救援按鈕 (僅在有檔案時顯示)
+    if os.path.exists(INDUSTRY_DB_FILE):
+        with open(INDUSTRY_DB_FILE, "r", encoding="utf-8") as f:
+            db_data = f.read()
+        st.sidebar.download_button(
+            label="📥 下載雲端資料庫 (JSON同步用)",
+            data=db_data,
+            file_name="industry_db.json",
+            mime="application/json",
+            use_container_width=True
+        )
+
+    st.sidebar.divider()
+
+    # 6. 擴建雷達與重置功能
+    st.sidebar.subheader("➕ 擴建雷達與管理")
+    new_sid = st.sidebar.text_input("輸入股票代號 (1815)")
+    new_name = st.sidebar.text_input("輸入股票名稱 (富喬)")
     
     col_add, col_clean = st.sidebar.columns(2)
     with col_add:
-        if st.button(
-            "⚡ 新增並更新百科",
-            use_container_width=True,
-            help="一鍵將此新股加入自選，自動啟動 AI 對手分析，永不卡死！"
-        ):
+        if st.button("⚡ 新增標的", use_container_width=True):
             if new_sid and new_name:
                 current_stocks = load_stock_dict()
                 current_stocks[new_sid] = f"{new_sid} ({new_name})"
                 save_stock_dict(current_stocks)
                 st.session_state['STOCK_DICT'] = current_stocks
-                try:
-                    success, msg = auto_update_industry_db(new_sid)
-                    st.sidebar.success(f"🎉 新增成功且 AI 連網更新完成！")
-                except:
-                    st.sidebar.warning(f"⚠️ 新增成功！")
-                time.sleep(1)
+                auto_update_industry_db(new_sid)
                 st.rerun()
-                    
+    
     with col_clean:
-        if st.button(
-            "🧹 一鍵全百科重置",
-            use_container_width=True,
-            help="【警告】此按鈕會刪除現有百科，並以每檔 15 秒的間隔呼叫 AI，請耐心等待執行完畢。"
-        ):
+        if st.button("🧹 全百科重置", use_container_width=True, help="每檔間隔 15 秒"):
             if os.path.exists(INDUSTRY_DB_FILE): os.remove(INDUSTRY_DB_FILE)
             st.cache_data.clear()
             current_stocks = load_stock_dict()
-            
-            # 加入進度條，讓您知道 AI 正在慢慢跑
-            progress_text = "🤖 AI 全百科重建中，請勿關閉網頁..."
-            my_bar = st.sidebar.progress(0, text=progress_text)
-            total = len(current_stocks)
+            progress_bar = st.sidebar.progress(0)
             all_sids = list(current_stocks.keys())
             for i, sid in enumerate(all_sids):
-                    try:
-                        auto_update_industry_db(sid)
-                        # 核心防護：配合每分鐘 5 次的限制，強制休息 15 秒
-                        time.sleep(15)
-                    except: 
-                        pass
-                    my_bar.progress((i + 1) / total, text=f"進度: {i+1}/{total} 檔")
-                
-            st.sidebar.success("✅ 全體 AI 百科重建完畢！")
-            time.sleep(1)
+                try:
+                    auto_update_industry_db(sid)
+                    time.sleep(15)
+                except: pass
+                progress_bar.progress((i + 1) / len(all_sids))
             st.rerun()
 
-import json
-
-# 在側邊欄加入一個下載按鈕，把雲端的 industry_db.json 救回來
-if os.path.exists(INDUSTRY_DB_FILE):
-    with open(INDUSTRY_DB_FILE, "r", encoding="utf-8") as f:
-        db_data = f.read()
-    
-    st.sidebar.download_button(
-        label="📥 下載雲端百科資料庫 (JSON)",
-        data=db_data,
-        file_name="industry_db.json",
-        mime="application/json",
-        help="將雲端已經更新好的資料抓回電腦，避免浪費額度"
-    )
-
-# 數據加載與實時計量
+# --- 資料加載線 (放置在 with st.sidebar 區塊之外) ---
 df = get_stock_df(target_sid)
 a_data = get_analysis_data(target_sid)
 bid_p, ask_p, bid_s, ask_s = get_realtime_order(target_sid)
