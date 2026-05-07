@@ -197,23 +197,18 @@ def save_stock_dict(data):
 
 def load_industry_db():
     """
-    從 JSON 檔案載入產業百科資料庫 (已優化對齊版)
+    從 JSON 檔案載入產業百科資料庫 (清潔完工版)
     """
     if os.path.exists(INDUSTRY_DB_FILE):
         try:
             with open(INDUSTRY_DB_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                # --- 核心診斷：強制輸出於網頁側邊欄，確認雲端到底讀到什麼 ---
-                st.sidebar.markdown(f"🔍 **系統診斷：讀取成功 ({len(data)} 筆)**")
-                if data:
-                    st.sidebar.caption(f"📌 首筆 Key: {list(data.keys())[0]}")
-                # ---------------------------------------------------
+                # 💥 修正重點：把原本這裡所有的 st.sidebar.write / markdown 內容全部刪除或註解掉
                 return data
         except Exception as e:
+            # 只保留真正的錯誤報錯即可
             st.sidebar.error(f"❌ 讀取 JSON 失敗: {e}")
             return {}
-    else:
-        st.sidebar.info("ℹ️ 找不到 industry_db.json，將建立新庫。")
     return {}
 
 # 確保 Session State 初始化
