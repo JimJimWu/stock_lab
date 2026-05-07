@@ -10,7 +10,7 @@ genai.configure(api_key=GEMINI_API_KEY)
 def generate_ai_insights(company_name, summary):
     """透過 AI 一次性產出五大百科獨立分析 (具備強制擷取與錯誤穿透功能)"""
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-pro')
         prompt = f"""
         你是一位資深台股產業分析師。請針對「{company_name}」生成以下 5 項核心分析資訊。
         請務必以嚴格的 JSON 格式回傳，絕不允許包含任何 Markdown 標記 (如 ```json) 或其他口語文字：
