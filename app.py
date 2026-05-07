@@ -651,8 +651,8 @@ with st.sidebar:
             for i, sid in enumerate(target_sids):
                     try:
                         auto_update_industry_db(sid)
-                        # 💥 核心防護：配合每分鐘 5 次的限制，強制休息 15 秒
-                        time.sleep(15) 
+                        # 核心防護：配合每分鐘 5 次的限制，強制休息 15 秒
+                        time.sleep(15)
                     except: 
                         pass
                     my_bar.progress((i + 1) / total, text=f"進度: {i+1}/{total} 檔")
@@ -660,6 +660,21 @@ with st.sidebar:
             st.sidebar.success("✅ 全體 AI 百科重建完畢！")
             time.sleep(1)
             st.rerun()
+
+import json
+
+# 在側邊欄加入一個下載按鈕，把雲端的 industry_db.json 救回來
+if os.path.exists(INDUSTRY_DB_FILE):
+    with open(INDUSTRY_DB_FILE, "r", encoding="utf-8") as f:
+        db_data = f.read()
+    
+    st.sidebar.download_button(
+        label="📥 下載雲端百科資料庫 (JSON)",
+        data=db_data,
+        file_name="industry_db.json",
+        mime="application/json",
+        help="將雲端已經更新好的資料抓回電腦，避免浪費額度"
+    )
 
 # 數據加載與實時計量
 df = get_stock_df(target_sid)
