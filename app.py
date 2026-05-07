@@ -555,7 +555,7 @@ if stock_info:
             with st.sidebar.status("AI 更新中..."):
                 auto_update_industry_db(target_sid_str)
                 st.rerun()
-    else:
+else:
         st.sidebar.warning(f"⚠️ 庫存中無 {target_sid_str} 的資料")
         if st.sidebar.button(f"🎯 消耗額度生成百科", key=f"init_{target_sid_str}"):
             with st.sidebar.status("AI 聯網抓取中..."):
