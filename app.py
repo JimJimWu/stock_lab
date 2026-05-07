@@ -1,5 +1,5 @@
 # ==============================================================================
-# 秉諺的黑馬雷達 V41.0 - 網頁儀表板主程式 (還原真實聯亞股價、拔除錯誤10倍補償)
+# 秉諺的黑馬雷達 V41.0 - 網頁儀表板主程式 
 # ==============================================================================
 import streamlit as st  # 必須是第一個匯入，防止 Streamlit 初始化崩潰
 import google.generativeai as genai
@@ -234,31 +234,6 @@ def auto_update_industry_db(sid):
     
     st.session_state['INDUSTRY_DB'] = db
     return True, f"✅ 成功更新 {company_name} 的 AI 專屬百科！"
-# --- 在函式末端，呼叫 AI 後存入資料 ---
-# 假設你已經寫好 generate_ai_insights 函式
-ai_insights = generate_ai_insights(company_name, summary) 
-
-db[chinese_sector]["overview_db"][sid] = ai_insights.get("overview")
-db[chinese_sector]["value_chain_db"][sid] = ai_insights.get("value_chain")
-db[chinese_sector]["drivers_db"][sid] = ai_insights.get("drivers")
-
-    if sid not in db[chinese_sector]["stocks"]:
-        db[chinese_sector]["stocks"].append(sid)
-
-    # 💥 【V41.0 字典鍵徹底排毒】
-    if "company_briefs" not in db[chinese_sector]:
-        db[chinese_sector]["company_briefs"] = {}
-    if "competitors_db" not in db[chinese_sector]:
-        db[chinese_sector]["competitors_db"] = {}
-
-    db[chinese_sector]["company_briefs"][sid] = ai_extracted_brief
-    db[chinese_sector]["competitors_db"][sid] = ai_competitors
-
-    with open(db_file, "w", encoding="utf-8") as f:
-        json.dump(db, f, ensure_ascii=False, indent=4)
-    
-    st.session_state['INDUSTRY_DB'] = db
-    return True, f"✅ 成功更新 {company_name} 的 AI 核心業務與競爭同盟對手！"
 
 # --- K線獲取與修正清洗防線 ---
 cache_ttl = 5 if is_trading_hours else 300
