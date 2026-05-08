@@ -366,33 +366,34 @@ def get_stock_df(sid):
 # 💥 【V41.0 極速優化：直接從 df 讀取最新與昨收，100% 完美 Facts 對齊】
 # ==============================================================================
 def get_yahoo_web_quote_from_df(sid, df):
-	# 💥 診斷行：直接在側邊欄印出資料的前兩行日期，一眼就能看出是「天」還是「分鐘」
-    st.sidebar.write(f"DEBUG 資料時間範例：{df.index[0]}")
     quote = {"current": 0.0, "prev_close": 0.0, "open": 0.0, "high": 0.0, "low": 0.0, "volume_txt": "0.0"}
     
     if df is not None and len(df) >= 2:
-        # 確保索引是日期格式
-        df.index = pd.to_datetime(df.index)
-        
-        # 1. 取得最後一行（今天即時數據）
+        # 1. 取得今日即時數據 (這部分 DF 是準確的)
         last_row = df.iloc[-1]
-        last_date = last_row.name.date()
-        
         quote["current"] = float(last_row['Close'])
         quote["open"] = float(last_row['Open'])
         quote["high"] = float(last_row['High'])
         quote["low"] = float(last_row['Low'])
         quote["volume_txt"] = str(round(last_row['Volume'], 1))
 
-        # 2. 💥 強制找「不同於今天」的最後一個交易日收盤價
-        # 這樣可以避開「盤中即時數據」導致的 iloc[-2] 誤抓
-        historical_prev_rows = df[df.index.date < last_date]
-        
-        if not historical_prev_rows.empty:
-            # 抓取距離今天最近的那個交易日收盤價
-            quote["prev_close"] = float(historical_prev_rows.iloc[-1]['Close'])
-        else:
-            # 如果 df 沒過濾出來，保險起見才用 iloc[-2]
+        # 2. 💥 【核心修復】不再用 df.iloc[-2]，直接跟 Yahoo 總部要官方昨收
+        try:
+            import yfinance as yf
+            # 確保代號包含 .TW
+            full_sid = f"{sid}.TW" if ".TW" not in sid and ".TWO" not in sid else sid
+            ticker_info = yf.Ticker(full_sid).info
+            
+            # 優先抓取 regularMarketPreviousClose (這是 Yahoo 網頁顯示 2510 的那個欄位)
+            official_prev = ticker_info.get('regularMarketPreviousClose') or ticker_info.get('previousClose')
+            
+            if official_prev:
+                quote["prev_close"] = float(official_prev)
+            else:
+                # 萬一 Info 沒回傳，才退回使用 DF 計算
+                quote["prev_close"] = float(df.iloc[-2]['Close'])
+        except Exception as e:
+            # 發生錯誤時的保險
             quote["prev_close"] = float(df.iloc[-2]['Close'])
             
     return quote
