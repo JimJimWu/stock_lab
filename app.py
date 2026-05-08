@@ -261,7 +261,10 @@ def auto_update_industry_db(sid):
     return True, f"✅ 成功更新 {company_name}"
 	
 # --- K線獲取與修正清洗防線 ---
-cache_ttl = 5 if is_trading_hours else 300
+# 盤中快取 300 秒 (5分鐘) 剛好對齊 st_autorefresh
+# 盤後快取 3600 秒 (1小時) 大幅節省伺服器資源
+cache_ttl = 300 if is_trading_hours else 3600
+
 @st.cache_data(ttl=cache_ttl)
 def get_stock_df(sid):
     default_df = pd.DataFrame()
@@ -279,7 +282,6 @@ def get_stock_df(sid):
                 
                 df = df.dropna(subset=['Close'])
                 df = df[(df['Volume'] > 0) & (df['Volume'].notna())]
-
                 df['Volume'] = df['Volume'] / 1000.0
 
                 # ==============================================================================
@@ -292,7 +294,7 @@ def get_stock_df(sid):
                     if f_info:
                         today_idx = df.index[-1]
                         
-                        # 1. 抓取 Yahoo 最新的實時報價 Facts (這個不管是盤中還是半夜永遠都是最即時、正確的真實數據)
+                        # 1. 抓取 Yahoo 最新的實時報價 Facts
                         latest_price = float(f_info['last_price']) if f_info['last_price'] else 0.0
                         latest_open = float(f_info['open']) if (f_info['open'] and f_info['open'] > 0) else latest_price
                         latest_high = float(f_info['day_high']) if (f_info['day_high'] and f_info['day_high'] > 0) else latest_price
@@ -300,6 +302,7 @@ def get_stock_df(sid):
                         latest_vol = f_info['last_volume'] / 1000.0 if (f_info['last_volume'] and f_info['last_volume'] > 0) else 0.01
 
                         # 2. 判斷最後一根 K 線日期是否為「今天(或最近的收盤日)」
+                        import datetime
                         today_date = datetime.date.today()
                         if today_date.weekday() == 5: # 週六 ➔ 基準日退回週五
                             today_date = today_date - datetime.timedelta(days=1)
@@ -310,11 +313,11 @@ def get_stock_df(sid):
                         
                         # 3. 核心補齊決策：
                         if last_k_date < today_date and latest_price > 0:
-                            # 歷史日K尚未更新，我們手動為「今天(或最近收盤日)」在末端建立一列新 K 線數據！
+                            # 手動建立新 K 線
                             new_timestamp = pd.Timestamp(today_date).tz_localize(df.index.tz)
                             df.loc[new_timestamp] = [latest_open, latest_high, latest_low, latest_price, latest_vol]
                         else:
-                            # 歷史 K 線已經是最新，只進行最安全、防空值重置污染的即時覆蓋
+                            # 進行即時覆蓋
                             if latest_price > 0:
                                 df.loc[today_idx, 'Close'] = latest_price
                             if f_info['open'] is not None and f_info['open'] > 0:
@@ -331,6 +334,9 @@ def get_stock_df(sid):
                 if df.empty or len(df) < 20:
                     continue
 
+                # ==============================================================================
+                # 📈 技術指標計算區 (MA, MACD, KD, RSI)
+                # ==============================================================================
                 df['MA5'] = df['Close'].rolling(5).mean()
                 df['MA10'] = df['Close'].rolling(10).mean()
                 df['MA20'] = df['Close'].rolling(20).mean()
@@ -355,7 +361,9 @@ def get_stock_df(sid):
                 denom_rsi = loss.replace(0, 0.00001)
                 rs = gain / denom_rsi
                 df['RSI'] = 100 - (100 / (1 + rs))
+                
                 return df
+                
         except Exception as e:
             print(f"抓取 {sid}{suffix} K線失敗: {e}")
             continue
