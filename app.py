@@ -369,28 +369,28 @@ def get_yahoo_web_quote_from_df(sid, df):
     quote = {"current": 0.0, "prev_close": 0.0, "open": 0.0, "high": 0.0, "low": 0.0, "volume_txt": "0.0"}
     
     if df is not None and len(df) >= 2:
-        last_row = df.iloc[-1]
+        # 確保索引是日期格式
+        df.index = pd.to_datetime(df.index)
         
-        # 取得最新價格資訊
+        # 1. 取得最後一行（今天即時數據）
+        last_row = df.iloc[-1]
+        last_date = last_row.name.date()
+        
         quote["current"] = float(last_row['Close'])
         quote["open"] = float(last_row['Open'])
         quote["high"] = float(last_row['High'])
         quote["low"] = float(last_row['Low'])
         quote["volume_txt"] = str(round(last_row['Volume'], 1))
 
-        # --- 💥 關鍵校準區：精準抓取「昨日收盤」 ---
-        import yfinance as yf
-        ticker = yf.Ticker(sid if ".TW" in sid or ".TWO" in sid else f"{sid}.TW")
+        # 2. 💥 強制找「不同於今天」的最後一個交易日收盤價
+        # 這樣可以避開「盤中即時數據」導致的 iloc[-2] 誤抓
+        historical_prev_rows = df[df.index.date < last_date]
         
-        # 優先從 ticker.info 抓取官方定義的昨收 (regularMarketPreviousClose)
-        # 這是最不容易跳動的數值
-        info = ticker.info
-        official_prev = info.get('regularMarketPreviousClose') or info.get('previousClose')
-        
-        if official_prev:
-            quote["prev_close"] = float(official_prev)
+        if not historical_prev_rows.empty:
+            # 抓取距離今天最近的那個交易日收盤價
+            quote["prev_close"] = float(historical_prev_rows.iloc[-1]['Close'])
         else:
-            # 如果 Info 抓不到，則從 df 往前找「不同日期」的最後一筆收盤價
+            # 如果 df 沒過濾出來，保險起見才用 iloc[-2]
             quote["prev_close"] = float(df.iloc[-2]['Close'])
             
     return quote
