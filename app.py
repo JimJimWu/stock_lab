@@ -366,6 +366,8 @@ def get_stock_df(sid):
 # 💥 【V41.0 極速優化：直接從 df 讀取最新與昨收，100% 完美 Facts 對齊】
 # ==============================================================================
 def get_yahoo_web_quote_from_df(sid, df):
+	# 💥 診斷行：直接在側邊欄印出資料的前兩行日期，一眼就能看出是「天」還是「分鐘」
+    st.sidebar.write(f"DEBUG 資料時間範例：{df.index[0]}")
     quote = {"current": 0.0, "prev_close": 0.0, "open": 0.0, "high": 0.0, "low": 0.0, "volume_txt": "0.0"}
     
     if df is not None and len(df) >= 2:
