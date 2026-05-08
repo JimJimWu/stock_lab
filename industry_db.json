@@ -1,12 +1,15 @@
 {
     "3595": {
         "name": "3595 (山太士)",
-        "company_brief": "⚠️ 系統真實錯誤原因: 429 You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\nPlease retry in 24.781315832s. [links {\n  description: \"Learn more about Gemini API quotas\"\n  url: \"https://ai.google.dev/gemini-api/docs/rate-limits\"\n}\n, violations {\n  quota_metric: \"generativelanguage.googleapis.com/generate_content_free_tier_requests\"\n  quota_id: \"GenerateRequestsPerDayPerProjectPerModel-FreeTier\"\n  quota_dimensions {\n    key: \"model\"\n    value: \"gemini-2.5-flash\"\n  }\n  quota_dimensions {\n    key: \"location\"\n    value: \"global\"\n  }\n  quota_value: 20\n}\n, retry_delay {\n  seconds: 24\n}\n]",
-        "overview": "生成失敗，請查看上方主要業務欄位的錯誤訊息。",
-        "value_chain": "生成失敗，請查看上方主要業務欄位的錯誤訊息。",
-        "competitors": [],
-        "drivers": "生成失敗，請查看上方主要業務欄位的錯誤訊息。",
-        "last_updated": "2026-05-07"
+        "company_brief": "山太士（Sunplus）主要核心業務為消費性電子、多媒體與嵌入式系統相關之積體電路（IC）設計、研發與銷售，近年來積極轉型，聚焦於AIoT、智慧家庭、車用電子及工業控制等高附加價值市場。",
+        "overview": "在台灣IC設計產業中，山太士屬於具備完整系統單晶片（SoC）開發能力的利基型供應商。",
+        "value_chain": "山太士位於半導體產業鏈中的中游，扮演IC設計公司的角色，負責晶片功能設計與架構規劃，並委由上游晶圓代工廠進行製造，最終將其晶片或解決方案提供給下游的品牌廠、模組廠或系統整合商。",
+        "competitors": [
+            "2379 (瑞昱)",
+            "2401 (凌陽)"
+        ],
+        "drivers": "未來的關鍵成長動能來自於AIoT智能裝置與邊緣運算晶片需求、智慧家庭解決方案普及、車用電子（如車用影音娛樂系統、儀表板SoC）滲透率提升，以及工業控制領域的客製化晶片商機。",
+        "last_updated": "2026-05-08"
     },
     "3450": {
         "name": "3450 (聯鈞)",
