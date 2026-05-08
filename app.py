@@ -604,25 +604,49 @@ with st.sidebar:
                 time.sleep(1)
                 st.rerun()
                 
-    with col_clean:
-        if st.button("🧹 百科全重置", use_container_width=True):
-            if os.path.exists(INDUSTRY_DB_FILE): 
-                os.remove(INDUSTRY_DB_FILE)
-            st.cache_data.clear()
-            current_stocks = load_stock_dict()
-            progress_bar = st.sidebar.progress(0, text="🤖 AI 百科重建中...")
-            all_sids = list(current_stocks.keys())
-            total = len(all_sids)
-            for i, sid in enumerate(all_sids):
-                try:
-                    auto_update_industry_db(sid)
-                    time.sleep(15)
-                except:
-                    pass
-                progress_bar.progress((i + 1) / total)
-            st.sidebar.success("✅ 重建完畢！")
-            time.sleep(1)
-            st.rerun()
+with col_clean:
+        if st.button("🧹 百科智慧補全", use_container_width=True, help="僅針對尚未有資料的股票進行 AI 生成"):
+            st.session_state['confirm_reset'] = True
+
+        if st.session_state.get('confirm_reset'):
+            st.sidebar.warning("⚠️ 系統將掃描清單，僅更新「無資料」的標的。")
+            col_yes, col_no = st.sidebar.columns(2)
+            
+            with col_yes:
+                if st.button("✅ 開始補百科資料", use_container_width=True):
+                    # 1. 讀取現有資料庫 (不刪除檔案了！)
+                    db = load_industry_db() 
+                    current_stocks = load_stock_dict()
+                    all_sids = list(current_stocks.keys())
+                    total = len(all_sids)
+                    
+                    progress_bar = st.sidebar.progress(0, text="🤖 檢查資料庫狀態...")
+                    
+                    for i, sid in enumerate(all_sids):
+                        # 💥 核心安全檢查：如果這檔股票已經在 JSON 裡了，就跳過
+                        if str(sid).strip() in db:
+                            # 已有資料，進度條直接跑過，不執行 AI
+                            pass 
+                        else:
+                            # 真的沒資料，才動用 AI
+                            try:
+                                auto_update_industry_db(sid)
+                                time.sleep(15) # 保護額度，避免頻率過快
+                            except:
+                                pass
+                        
+                        # 更新進度條視覺
+                        progress_bar.progress((i + 1) / total, text=f"🔍 檢查中: {i+1}/{total}")
+                    
+                    st.sidebar.success("✅ 百科補全作業完成！")
+                    time.sleep(1)
+                    st.session_state['confirm_reset'] = False
+                    st.rerun()
+            
+            with col_no:
+                if st.button("❌ 取消", use_container_width=True):
+                    st.session_state['confirm_reset'] = False
+                    st.rerun()
 
 # --- 數據加載線 (外掛 - 必須靠最左邊) ---
 df = get_stock_df(target_sid)
