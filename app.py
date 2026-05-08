@@ -370,14 +370,28 @@ def get_yahoo_web_quote_from_df(sid, df):
     
     if df is not None and len(df) >= 2:
         last_row = df.iloc[-1]
-        prev_row = df.iloc[-2]
         
+        # 取得最新價格資訊
         quote["current"] = float(last_row['Close'])
         quote["open"] = float(last_row['Open'])
         quote["high"] = float(last_row['High'])
         quote["low"] = float(last_row['Low'])
         quote["volume_txt"] = str(round(last_row['Volume'], 1))
-        quote["prev_close"] = float(prev_row['Close'])
+
+        # --- 💥 關鍵校準區：精準抓取「昨日收盤」 ---
+        import yfinance as yf
+        ticker = yf.Ticker(sid if ".TW" in sid or ".TWO" in sid else f"{sid}.TW")
+        
+        # 優先從 ticker.info 抓取官方定義的昨收 (regularMarketPreviousClose)
+        # 這是最不容易跳動的數值
+        info = ticker.info
+        official_prev = info.get('regularMarketPreviousClose') or info.get('previousClose')
+        
+        if official_prev:
+            quote["prev_close"] = float(official_prev)
+        else:
+            # 如果 Info 抓不到，則從 df 往前找「不同日期」的最後一筆收盤價
+            quote["prev_close"] = float(df.iloc[-2]['Close'])
             
     return quote
 
