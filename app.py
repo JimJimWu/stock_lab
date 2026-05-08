@@ -7,6 +7,12 @@ import os
 import re  # 💥 新增這一行：匯入正則表達式模組
 import json
 import pandas as pd
+from streamlit_autorefresh import st_autorefresh
+
+# --- 背景自動刷新設定 ---
+# 每 300,000 毫秒 (即 5 分鐘) 自動觸發一次 st.rerun()
+# 這會強迫網頁重新抓取最新的 Yahoo 股市數據與籌碼，但不會觸發 AI
+count = st_autorefresh(interval=300000, key="f5_refresh")
 
 # 安全讀取邏輯：優先讀取 Secrets，若無則報錯，不再放任何預設金鑰字串
 # ✅ 正確的安全寫法（請確保 app.py 是長這樣）
