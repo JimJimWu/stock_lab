@@ -369,7 +369,7 @@ def get_yahoo_web_quote_from_df(sid, df):
     quote = {"current": 0.0, "prev_close": 0.0, "open": 0.0, "high": 0.0, "low": 0.0, "volume_txt": "0.0"}
     
     if df is not None and len(df) >= 2:
-        # 1. 取得今日即時數據 (這部分 DF 是準確的)
+        # 1. 基礎數據
         last_row = df.iloc[-1]
         quote["current"] = float(last_row['Close'])
         quote["open"] = float(last_row['Open'])
@@ -377,27 +377,36 @@ def get_yahoo_web_quote_from_df(sid, df):
         quote["low"] = float(last_row['Low'])
         quote["volume_txt"] = str(round(last_row['Volume'], 1))
 
-        # 2. 💥 【核心修復】不再用 df.iloc[-2]，直接跟 Yahoo 總部要官方昨收
+        # 2. 💥 自動校準代號邏輯
         try:
             import yfinance as yf
-            # 確保代號包含 .TW
-            full_sid = f"{sid}.TW" if ".TW" not in sid and ".TWO" not in sid else sid
-            ticker_info = yf.Ticker(full_sid).info
+            # 如果傳進來只是數字 '3595'，我們先嘗試用 .TWO (興櫃/上櫃常出錯的地方)
+            # 或是在您的 STOCK_DICT 裡就直接存好帶後綴的代號
             
-            # 優先抓取 regularMarketPreviousClose (這是 Yahoo 網頁顯示 2510 的那個欄位)
-            official_prev = ticker_info.get('regularMarketPreviousClose') or ticker_info.get('previousClose')
+            clean_sid = str(sid).split(".")[0] # 只取數字部分
             
-            if official_prev:
-                quote["prev_close"] = float(official_prev)
-            else:
-                # 萬一 Info 沒回傳，才退回使用 DF 計算
+            # 建立一個測試清單：先試 .TWO (因為你有興櫃標的)，再試 .TW
+            for suffix in [".TWO", ".TW"]:
+                test_sid = f"{clean_sid}{suffix}"
+                ticker = yf.Ticker(test_sid)
+                info = ticker.info
+                
+                # 只要能抓到 regularMarketPreviousClose，就代表代號對了！
+                official_prev = info.get('regularMarketPreviousClose') or info.get('previousClose')
+                
+                if official_prev:
+                    quote["prev_close"] = float(official_prev)
+                    # st.sidebar.write(f"✅ 成功匹配代號: {test_sid}") # 測試用
+                    break
+            
+            if quote["prev_close"] == 0.0:
+                # 如果兩者都試失敗，才退回使用 DF
                 quote["prev_close"] = float(df.iloc[-2]['Close'])
+                
         except Exception as e:
-            # 發生錯誤時的保險
             quote["prev_close"] = float(df.iloc[-2]['Close'])
             
     return quote
-
 # 獲取 yfinance 基本面數據
 @st.cache_data(ttl=600) 
 def get_analysis_data(sid):
