@@ -180,21 +180,42 @@ def custom_diagnostic_card(title, text, card_type="info"):
 
 # --- 永久資料庫讀寫 ---
 def load_stock_dict():
+    # 1. 取得基礎名單 (先載入程式碼寫好的預設清單)
+    current_data = DEFAULT_STOCKS.copy()
+    
+    # 2. 讀取舊的 stock_dict.json，並把裡面的紀錄「合併」進來
     if os.path.exists(DICT_FILE):
         try:
             with open(DICT_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                if data and isinstance(data, dict) and len(data) > 0:
-                    return data
+                saved_data = json.load(f)
+                if saved_data and isinstance(saved_data, dict):
+                    current_data.update(saved_data)
         except Exception as e:
             print(f"讀取 stock_dict.json 失敗: {e}")
             
+    # 3. 💥 自動同步機制：翻找 industry_db.json 倉庫，把漏掉的加進來
+    try:
+        db = load_industry_db()
+        for sid, info in db.items():
+            sid_str = str(sid).strip()
+            if sid_str not in current_data:
+                # 嘗試抓取當時 AI 存下來的公司名稱
+                company_name = info.get("name", "未知名稱")
+                if sid_str in company_name:
+                    current_data[sid_str] = company_name
+                else:
+                    current_data[sid_str] = f"{sid_str} ({company_name})"
+    except Exception as e:
+        print(f"自動同步選單失敗: {e}")
+
+    # 4. 把最新、最完整的名單存回檔案中
     try:
         with open(DICT_FILE, "w", encoding="utf-8") as f:
-            json.dump(DEFAULT_STOCKS, f, ensure_ascii=False, indent=4)
+            json.dump(current_data, f, ensure_ascii=False, indent=4)
     except Exception as e:
         print(f"建立 stock_dict.json 失敗: {e}")
-    return DEFAULT_STOCKS.copy()
+        
+    return current_data
 
 def save_stock_dict(data):
     try:
