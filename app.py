@@ -180,27 +180,29 @@ def custom_diagnostic_card(title, text, card_type="info"):
 
 # --- 永久資料庫讀寫 ---
 def load_stock_dict():
-    # 1. 取得基礎名單 (先載入程式碼寫好的預設清單)
     current_data = DEFAULT_STOCKS.copy()
     
-    # 2. 讀取舊的 stock_dict.json，並把裡面的紀錄「合併」進來
+    # 1. 讀取舊名單，並自動清洗掉「台股代號」這些垃圾字眼
     if os.path.exists(DICT_FILE):
         try:
             with open(DICT_FILE, "r", encoding="utf-8") as f:
                 saved_data = json.load(f)
                 if saved_data and isinstance(saved_data, dict):
-                    current_data.update(saved_data)
+                    for k, v in saved_data.items():
+                        # 💥 洗白髒資料
+                        clean_v = v.replace("台股代號 ", "").replace("台股代號", "")
+                        current_data[k] = clean_v
         except Exception as e:
             print(f"讀取 stock_dict.json 失敗: {e}")
             
-    # 3. 💥 自動同步機制：翻找 industry_db.json 倉庫，把漏掉的加進來
+    # 2. 自動同步 JSON 倉庫 (把富喬、台玻自動加回來)
     try:
         db = load_industry_db()
         for sid, info in db.items():
             sid_str = str(sid).strip()
             if sid_str not in current_data:
-                # 嘗試抓取當時 AI 存下來的公司名稱
-                company_name = info.get("name", "未知名稱")
+                # 把百科裡的名稱也洗白
+                company_name = info.get("name", "未知名稱").replace("台股代號 ", "")
                 if sid_str in company_name:
                     current_data[sid_str] = company_name
                 else:
@@ -208,7 +210,7 @@ def load_stock_dict():
     except Exception as e:
         print(f"自動同步選單失敗: {e}")
 
-    # 4. 把最新、最完整的名單存回檔案中
+    # 3. 將乾淨的名單存回檔案
     try:
         with open(DICT_FILE, "w", encoding="utf-8") as f:
             json.dump(current_data, f, ensure_ascii=False, indent=4)
@@ -540,34 +542,36 @@ def run_single_scan_signal(sid, sname, webhook_url):
 # ==============================================================================
 # 💥 【全域作用域宣告】
 # ==============================================================================
-current_stocks_dict = load_stock_dict()
-# 直接抓取字典的第一個 Key (確保絕對是純數字代號，如 "3595")
-target_sid = list(current_stocks_dict.keys())[0] if current_stocks_dict else "3595"
-# 透過代號反查顯示名稱，供右側大看板使用
-selected_label = current_stocks_dict.get(target_sid, "3595 (山太士)")
+# ==============================================================================
+# 💥 【全域作用域宣告】
+# ==============================================================================
+current_stocks_dict = st.session_state['STOCK_DICT']
+
 # 側邊欄
 with st.sidebar:
     # 1. 🚀 頂端漸層設計 (Logo 與專屬標示)
     st.sidebar.markdown(f"""
         <div style="background: linear-gradient(135deg, #1e3a8a, #000000); padding: 20px; border-radius: 15px; border: 1.5px solid #3b82f6; text-align: center; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);">
             <h1 style="color: #60a5fa; font-size: 20px; font-weight: 900; margin: 0; letter-spacing: 2px;">🚀 戰情操控中心</h1>
-            <p style="color: #94a3b8; font-size: 12px; margin-top:8px; font-weight: 500;">吳秉諺 專屬 AI 投資系統 v41.0</p>
+            <p style="color: #94a3b8; font-size: 12px; margin-top:8px; font-weight: 500;">吳秉諺 專屬 AI 投資系統 v42.0</p>
         </div>
         """, unsafe_allow_html=True)
 
-    st.sidebar.write("") # 增加一點點間隔
+    st.sidebar.write("") 
 
-    # 2. 🎯 核心標的選擇
+    # 2. 🎯 核心標的選擇 (💥 徹底消滅 split 地雷，改用 format_func)
     st.sidebar.markdown("### 🎯 戰略目標選擇")
-    # 💥 改用 format_func：背後傳遞 Key (純數字)，表面顯示 Value (名稱字串)
+    
+    # 這裡的 target_sid 永遠只會抓到純數字 (例如 "5297")
     target_sid = st.sidebar.selectbox(
         "選擇您的掃描標的", 
-        options=list(STOCK_DICT.keys()), 
-        format_func=lambda sid: STOCK_DICT.get(sid, sid),
+        options=list(current_stocks_dict.keys()), 
+        format_func=lambda sid: current_stocks_dict.get(sid, sid),
         help="選擇您清單中要進行深度技術與籌碼分析的股票標的。"
     )
+    
     # 同步更新 label 給右側大看板顯示用
-    selected_label = STOCK_DICT.get(target_sid, target_sid)
+    selected_label = current_stocks_dict.get(target_sid, target_sid)
     
     view_days = st.sidebar.slider(
         "📅 歷史數據追蹤天數", 30, 240, 90,
