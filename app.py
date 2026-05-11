@@ -25,61 +25,41 @@ else:
     genai.configure(api_key=GEMINI_API_KEY)
 
 def generate_ai_insights(company_name, summary):
-    """透過 AI 一次性產出五大百科獨立分析 (通用型防幻覺與事實查核版本)"""
+    """透過 AI 產出分析，並抓取 Google 搜尋實體來源"""
     try:
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        model = genai.GenerativeModel(
+            model_name='gemini-1.5-flash', 
+            tools=[{'google_search_retrieval': {}}] # 💥 確認開啟搜尋工具
+        )
         
-        # 💥 動態拆解邏輯：自動從 "5297 (廣化)" 中分離出「代號」與「名稱」
         import re
-        # 這個寫法可以完美處理 "5297 (廣化)"、"2409" 或是 "友達" 等各種格式
         match = re.match(r'^([A-Za-z0-9]+)(?:\s*\((.*?)\))?', company_name.strip())
         if match:
-            ticker = match.group(1)
-            pure_name = match.group(2) if match.group(2) else ticker
+            ticker = match.group(1); pure_name = match.group(2) if match.group(2) else ticker
         else:
-            ticker = company_name
-            pure_name = company_name
+            ticker = company_name; pure_name = company_name
         
-        # 💥 通用防幻覺提示詞：套用嚴格的事實查核機制
-        prompt = f"""
-        [角色任務]：你是一位精通台灣股市與產業鏈的資深分析師。
-        [背景資訊]：我需要更新台灣股市的產業百科。你現在【唯一】要分析的標的為：台股代號「{ticker}」，名稱「{pure_name}」。
-        
-        [具體指令]：請務必執行「內部事實查核」程序。
-        1. 【證據優先】：請依據資料庫中針對代號 {ticker} ({pure_name}) 『確切已知』的業務內容來回答。
-        2. 【允許留白】：如果你的資料庫缺乏這家公司的精確營業項目，請直接在 company_brief 輸出：「【資料不足，無法確認】」。
-        3. 請以嚴格的 JSON 格式回傳：
-        {{
-            "company_brief": "用一小段話精準描述 {ticker} {pure_name} 的主要核心業務與近期焦點",
-            "overview": "用一句話描述 {pure_name} 在所屬產業市場中的規模與地位",
-            "value_chain": "描述 {pure_name} 在產業鏈中的位置（上中下游關聯）",
-            "competitors": ["列出 1~3 檔與 {pure_name} 具備連動關係的台股或國際對手", "對手2"],
-            "drivers": "{pure_name} 未來的關鍵成長動能或題材"
-        }}
-        
-        [約束條件]：你輸出的所有分析都必須專屬於官方登記代號為 {ticker} 的這家企業。嚴格禁止將其他公司的資料拼湊進來。
-        背景參考：{summary}
-        """
+        prompt = f"請連網查詢「台股 {ticker} {pure_name}」最新業務與產業地位，並以 JSON 回傳。格式：{{'company_brief': '...', 'overview': '...', 'value_chain': '...', 'competitors': [], 'drivers': '...'}}"
         
         response = model.generate_content(prompt)
         
-        # 使用正則表達式強行抓取大括號 {} 內的所有內容
+        # 💥 核心黑科技：抓取搜尋來源網址
+        source_url = ""
+        try:
+            metadata = response.candidates[0].grounding_metadata
+            # 優先抓取具體的來源網頁連結
+            if metadata.grounding_chunks:
+                source_url = metadata.grounding_chunks[0].web.uri
+        except:
+            source_url = f"https://www.google.com/search?q=台股+{ticker}+{pure_name}+產業分析"
+
         match_json = re.search(r'\{.*\}', response.text, re.DOTALL)
         if match_json:
-            clean_json = match_json.group(0)
-            return json.loads(clean_json)
-        else:
-            raise ValueError("無法從 AI 回應中提取有效的 JSON 格式")
-            
+            ai_dict = json.loads(match_json.group(0))
+            ai_dict['source_url'] = source_url # 🎯 封裝網址進去
+            return ai_dict
     except Exception as e:
-        error_msg = str(e)
-        return {
-            "company_brief": f"⚠️ 系統真實錯誤原因: {error_msg}",
-            "overview": "【資料不足，無法確認】",
-            "value_chain": "【資料不足，無法確認】",
-            "competitors": [],
-            "drivers": "【資料不足，無法確認】"
-        }
+        return {"company_brief": f"⚠️ 錯誤: {str(e)}", "source_url": ""}
 
 # --- 1. 頂部防禦 ---
 st.set_page_config(layout="wide", page_title="秉諺的黑馬雷達 V41.0")
@@ -292,6 +272,7 @@ def auto_update_industry_db(sid):
         "value_chain": ai_data.get("value_chain", ""),
         "competitors": ai_data.get("competitors", []),
         "drivers": ai_data.get("drivers", ""),
+		"source_url": ai_data.get("source_url", ""), # 🎯 物理存檔
         "last_updated": datetime.date.today().isoformat()
     }
 
@@ -603,11 +584,12 @@ with st.sidebar:
 
     st.sidebar.divider()
 
-    # 4. 🏢 AI 產業百科 (離線優先，維持戰略深度)
+   # 4. 🏢 AI 產業百科 (離線優先，維持戰略深度)
     st.sidebar.markdown("### 🏢 AI 產業百科")
     db = load_industry_db()
     target_sid_str = str(target_sid).strip()
     stock_info = db.get(target_sid_str)
+    
     if stock_info:
         # ✅ 只要 JSON 裡有紀錄，就「直接顯示」舊資料，不執行自動更新
         with st.sidebar.expander("🎯 個股主要業務", expanded=True):
@@ -627,9 +609,21 @@ with st.sidebar:
             
         st.sidebar.caption(f"✨ 百科更新時間：{stock_info.get('last_updated', '歷史資料')}")
         
+        # ==========================================
+        # 🎯 核心插入點：安全版資料來源網址導流按鈕
+        # ==========================================
+        s_url = stock_info.get("source_url", "")
+        if s_url:
+            # 💥 改用字串相加，徹底消滅 """ 造成的反藍當機問題
+            html_btn = '<div style="text-align: right; margin-bottom: 10px;">' + \
+                       f'<a href="{s_url}" target="_blank" style="color: #60a5fa; text-decoration: none; font-size: 13px; font-weight: 600;">' + \
+                       '🔍 查看 AI 參考來源網頁 →</a></div>'
+            st.sidebar.markdown(html_btn, unsafe_allow_html=True)
+        # ==========================================
+        
         # 內嵌的小更新按鈕
         if st.sidebar.button("🔄 更新這檔百科", key=f"re_up_{target_sid_str}"):
-            with st.sidebar.status("AI 更新中..."):
+            with st.sidebar.status("AI 聯網更新中..."):
                 auto_update_industry_db(target_sid_str)
                 st.rerun()
     else:
