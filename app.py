@@ -25,41 +25,46 @@ else:
     genai.configure(api_key=GEMINI_API_KEY)
 
 def generate_ai_insights(company_name, summary):
-    """透過 AI 產出分析，並抓取 Google 搜尋實體來源"""
+    """透過 AI 一次性產出分析，並抓取 Google 搜尋實體來源"""
     try:
+        # 💥 核心升級：強制掛載 Google 搜尋工具
         model = genai.GenerativeModel(
             model_name='gemini-1.5-flash', 
-            tools=[{'google_search_retrieval': {}}] # 💥 確認開啟搜尋工具
+            tools='google_search_retrieval' 
         )
         
-        import re
         match = re.match(r'^([A-Za-z0-9]+)(?:\s*\((.*?)\))?', company_name.strip())
         if match:
-            ticker = match.group(1); pure_name = match.group(2) if match.group(2) else ticker
+            ticker = match.group(1)
+            pure_name = match.group(2) if match.group(2) else ticker
         else:
-            ticker = company_name; pure_name = company_name
+            ticker = company_name
+            pure_name = company_name
         
-        prompt = f"請連網查詢「台股 {ticker} {pure_name}」最新業務與產業地位，並以 JSON 回傳。格式：{{'company_brief': '...', 'overview': '...', 'value_chain': '...', 'competitors': [], 'drivers': '...'}}"
+        prompt = f"請連網查詢台股「{ticker} {pure_name}」的最新官方業務與產業地位。請以 JSON 格式回傳，欄位包含 company_brief, overview, value_chain, competitors (陣列), drivers。"
         
         response = model.generate_content(prompt)
         
-        # 💥 核心黑科技：抓取搜尋來源網址
+        # 💥 擷取搜尋來源網址
         source_url = ""
         try:
             metadata = response.candidates[0].grounding_metadata
-            # 優先抓取具體的來源網頁連結
-            if metadata.grounding_chunks:
+            if metadata and metadata.grounding_chunks:
                 source_url = metadata.grounding_chunks[0].web.uri
-        except:
+        except Exception as ex:
+            print(f"網址擷取失敗: {ex}")
             source_url = f"https://www.google.com/search?q=台股+{ticker}+{pure_name}+產業分析"
 
         match_json = re.search(r'\{.*\}', response.text, re.DOTALL)
         if match_json:
             ai_dict = json.loads(match_json.group(0))
-            ai_dict['source_url'] = source_url # 🎯 封裝網址進去
+            ai_dict['source_url'] = source_url
             return ai_dict
+        else:
+            raise ValueError("無法提取 JSON")
+            
     except Exception as e:
-        return {"company_brief": f"⚠️ 錯誤: {str(e)}", "source_url": ""}
+        return {"company_brief": f"⚠️ 系統錯誤: {str(e)}", "source_url": ""}
 
 # --- 1. 頂部防禦 ---
 st.set_page_config(layout="wide", page_title="秉諺的黑馬雷達 V41.0")
@@ -584,7 +589,7 @@ with st.sidebar:
 
     st.sidebar.divider()
 
-   # 4. 🏢 AI 產業百科 (離線優先，維持戰略深度)
+ # 4. 🏢 AI 產業百科 (離線優先，維持戰略深度)
     st.sidebar.markdown("### 🏢 AI 產業百科")
     db = load_industry_db()
     target_sid_str = str(target_sid).strip()
@@ -614,7 +619,6 @@ with st.sidebar:
         # ==========================================
         s_url = stock_info.get("source_url", "")
         if s_url:
-            # 💥 改用字串相加，徹底消滅 """ 造成的反藍當機問題
             html_btn = '<div style="text-align: right; margin-bottom: 10px;">' + \
                        f'<a href="{s_url}" target="_blank" style="color: #60a5fa; text-decoration: none; font-size: 13px; font-weight: 600;">' + \
                        '🔍 查看 AI 參考來源網頁 →</a></div>'
@@ -632,7 +636,6 @@ with st.sidebar:
             with st.sidebar.status("AI 聯網抓取中..."):
                 auto_update_industry_db(target_sid_str)
                 st.rerun()
-
     # 5. 🩺 系統檢修區
     st.sidebar.divider()
     with st.sidebar.expander("🛠️ 系統後勤工具", expanded=False):
