@@ -25,13 +25,16 @@ else:
     genai.configure(api_key=GEMINI_API_KEY)
 
 def generate_ai_insights(company_name, summary):
-    """透過 AI 一次性產出五大百科獨立分析 (具備強制擷取與錯誤穿透功能)"""
+    """透過 AI 一次性產出五大百科獨立分析 (具備強制擷取與錯誤穿透、防幻覺功能)"""
     try:
-        # 💥 替換此行：明確指定使用 1.5 flash 版本，享受每日 1500 次高額度
+        # 明確指定使用 2.5 flash 版本
         model = genai.GenerativeModel('gemini-2.5-flash')
+        
+        # 💥 升級核心：防幻覺鎖定提示詞 (Prompt Engineering)
         prompt = f"""
-        你是一位資深台股產業分析師。請針對「{company_name}」生成以下 5 項核心分析資訊。
-        請務必以嚴格的 JSON 格式回傳，絕不允許包含任何 Markdown 標記 (如 ```json) 或其他口語文字：
+        [角色任務]：你是一位精通台灣股市與產業鏈的資深分析師。
+        [背景資訊]：我需要更新台灣股市標的「{company_name}」的產業百科。
+        [具體指令]：請務必確認你分析的是真正的「{company_name}」，絕對不可以寫成其他公司（嚴禁張冠李戴）。請以嚴格的 JSON 格式回傳，絕不允許包含任何 Markdown 標記 (如 ```json) 或其他口語文字：
         {{
             "company_brief": "用一小段話精準描述這家公司的主要核心業務與近期焦點",
             "overview": "用一句話描述這家公司在所屬產業市場中的規模與地位",
@@ -39,11 +42,13 @@ def generate_ai_insights(company_name, summary):
             "competitors": ["列出 1~3 檔最具代表性的台股連動標的或國際對手", "對手2"],
             "drivers": "這家公司未來的關鍵成長動能或題材"
         }}
+        [約束條件]：如果你的資料庫缺乏「{company_name}」的確切資料，請在 company_brief 直接填寫「資料不足，需手動查閱」，絕對不允許捏造或使用無關企業的資料來填補。
         背景參考：{summary}
         """
+        
         response = model.generate_content(prompt)
         
-        # 💥 升級 1：使用正則表達式強行抓取大括號 {} 內的所有內容，過濾掉 AI 亂加的廢話
+        # 使用正則表達式強行抓取大括號 {} 內的所有內容
         match = re.search(r'\{.*\}', response.text, re.DOTALL)
         if match:
             clean_json = match.group(0)
@@ -52,7 +57,7 @@ def generate_ai_insights(company_name, summary):
             raise ValueError("無法從 AI 回應中提取有效的 JSON 格式")
             
     except Exception as e:
-        # 💥 升級 2：錯誤穿透機制，將真實的 Python/API 錯誤原因直接印在網頁畫面上
+        # 錯誤穿透機制
         error_msg = str(e)
         return {
             "company_brief": f"⚠️ 系統真實錯誤原因: {error_msg}",
@@ -61,7 +66,6 @@ def generate_ai_insights(company_name, summary):
             "competitors": [],
             "drivers": "生成失敗，請查看上方主要業務欄位的錯誤訊息。"
         }
-# ----------------------------------------------
 
 # --- 1. 頂部防禦 ---
 st.set_page_config(layout="wide", page_title="秉諺的黑馬雷達 V41.0")
