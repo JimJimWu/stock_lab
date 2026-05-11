@@ -45,7 +45,7 @@ def generate_ai_insights(company_name, summary):
     try:
         # 【主引擎】：使用支援度最廣泛的 1.5-pro 版本來進行連網搜尋
         model_pro = genai.GenerativeModel(
-            model_name='gemini-1.5-pro', 
+            model_name='gemini-2.5-pro', 
             tools='google_search_retrieval'
         )
         prompt_pro = f"請連網查詢台股「{ticker} {pure_name}」的最新官方業務與產業地位。請以 JSON 格式回傳，欄位包含 company_brief, overview, value_chain, competitors (陣列), drivers。"
