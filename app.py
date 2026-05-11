@@ -25,46 +25,60 @@ else:
     genai.configure(api_key=GEMINI_API_KEY)
 
 def generate_ai_insights(company_name, summary):
-    """透過 AI 一次性產出五大百科獨立分析 (具備強制擷取與錯誤穿透、防幻覺功能)"""
+    """透過 AI 一次性產出五大百科獨立分析 (通用型防幻覺與事實查核版本)"""
     try:
-        # 明確指定使用 2.5 flash 版本
         model = genai.GenerativeModel('gemini-2.5-flash')
         
-        # 💥 升級核心：防幻覺鎖定提示詞 (Prompt Engineering)
+        # 💥 動態拆解邏輯：自動從 "5297 (廣化)" 中分離出「代號」與「名稱」
+        import re
+        # 這個寫法可以完美處理 "5297 (廣化)"、"2409" 或是 "友達" 等各種格式
+        match = re.match(r'^([A-Za-z0-9]+)(?:\s*\((.*?)\))?', company_name.strip())
+        if match:
+            ticker = match.group(1)
+            pure_name = match.group(2) if match.group(2) else ticker
+        else:
+            ticker = company_name
+            pure_name = company_name
+        
+        # 💥 通用防幻覺提示詞：套用嚴格的事實查核機制
         prompt = f"""
         [角色任務]：你是一位精通台灣股市與產業鏈的資深分析師。
-        [背景資訊]：我需要更新台灣股市標的「{company_name}」的產業百科。
-        [具體指令]：請務必確認你分析的是真正的「{company_name}」，絕對不可以寫成其他公司（嚴禁張冠李戴）。請以嚴格的 JSON 格式回傳，絕不允許包含任何 Markdown 標記 (如 ```json) 或其他口語文字：
+        [背景資訊]：我需要更新台灣股市的產業百科。你現在【唯一】要分析的標的為：台股代號「{ticker}」，名稱「{pure_name}」。
+        
+        [具體指令]：請務必執行「內部事實查核」程序。
+        1. 【證據優先】：請依據資料庫中針對代號 {ticker} ({pure_name}) 『確切已知』的業務內容來回答。
+        2. 【允許留白】：如果你的資料庫缺乏這家公司的精確營業項目，請直接在 company_brief 輸出：「【資料不足，無法確認】」。
+        3. 請以嚴格的 JSON 格式回傳：
         {{
-            "company_brief": "用一小段話精準描述這家公司的主要核心業務與近期焦點",
-            "overview": "用一句話描述這家公司在所屬產業市場中的規模與地位",
-            "value_chain": "描述這家公司在產業鏈中的位置（上中下游關聯）",
-            "competitors": ["列出 1~3 檔最具代表性的台股連動標的或國際對手", "對手2"],
-            "drivers": "這家公司未來的關鍵成長動能或題材"
+            "company_brief": "用一小段話精準描述 {ticker} {pure_name} 的主要核心業務與近期焦點",
+            "overview": "用一句話描述 {pure_name} 在所屬產業市場中的規模與地位",
+            "value_chain": "描述 {pure_name} 在產業鏈中的位置（上中下游關聯）",
+            "competitors": ["列出 1~3 檔與 {pure_name} 具備連動關係的台股或國際對手", "對手2"],
+            "drivers": "{pure_name} 未來的關鍵成長動能或題材"
         }}
-        [約束條件]：如果你的資料庫缺乏「{company_name}」的確切資料，請在 company_brief 直接填寫「資料不足，需手動查閱」，絕對不允許捏造或使用無關企業的資料來填補。
+        
+        [約束條件]：你輸出的所有分析都必須專屬於官方登記代號為 {ticker} 的這家企業。嚴格禁止將其他公司的資料拼湊進來。
         背景參考：{summary}
         """
         
         response = model.generate_content(prompt)
         
         # 使用正則表達式強行抓取大括號 {} 內的所有內容
-        match = re.search(r'\{.*\}', response.text, re.DOTALL)
-        if match:
-            clean_json = match.group(0)
+        match_json = re.search(r'\{.*\}', response.text, re.DOTALL)
+        if match_json:
+            clean_json = match_json.group(0)
             return json.loads(clean_json)
         else:
             raise ValueError("無法從 AI 回應中提取有效的 JSON 格式")
             
     except Exception as e:
-        # 錯誤穿透機制
         error_msg = str(e)
         return {
             "company_brief": f"⚠️ 系統真實錯誤原因: {error_msg}",
-            "overview": "生成失敗，請查看上方主要業務欄位的錯誤訊息。",
-            "value_chain": "生成失敗，請查看上方主要業務欄位的錯誤訊息。",
+            "overview": "【資料不足，無法確認】",
+            "value_chain": "【資料不足，無法確認】",
             "competitors": [],
-            "drivers": "生成失敗，請查看上方主要業務欄位的錯誤訊息。"
+            "drivers": "【資料不足，無法確認】"
         }
 
 # --- 1. 頂部防禦 ---
