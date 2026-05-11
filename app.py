@@ -541,9 +541,10 @@ def run_single_scan_signal(sid, sname, webhook_url):
 # 💥 【全域作用域宣告】
 # ==============================================================================
 current_stocks_dict = load_stock_dict()
-selected_label = list(current_stocks_dict.values())[0] if current_stocks_dict else "3595 (山太士)"
-target_sid = selected_label.split(" ")[0]
-
+# 直接抓取字典的第一個 Key (確保絕對是純數字代號，如 "3595")
+target_sid = list(current_stocks_dict.keys())[0] if current_stocks_dict else "3595"
+# 透過代號反查顯示名稱，供右側大看板使用
+selected_label = current_stocks_dict.get(target_sid, "3595 (山太士)")
 # 側邊欄
 with st.sidebar:
     # 1. 🚀 頂端漸層設計 (Logo 與專屬標示)
@@ -558,12 +559,15 @@ with st.sidebar:
 
     # 2. 🎯 核心標的選擇
     st.sidebar.markdown("### 🎯 戰略目標選擇")
-    selected_label = st.sidebar.selectbox(
+    # 💥 改用 format_func：背後傳遞 Key (純數字)，表面顯示 Value (名稱字串)
+    target_sid = st.sidebar.selectbox(
         "選擇您的掃描標的", 
-        list(STOCK_DICT.values()),
+        options=list(STOCK_DICT.keys()), 
+        format_func=lambda sid: STOCK_DICT.get(sid, sid),
         help="選擇您清單中要進行深度技術與籌碼分析的股票標的。"
     )
-    target_sid = selected_label.split(" ")[0]
+    # 同步更新 label 給右側大看板顯示用
+    selected_label = STOCK_DICT.get(target_sid, target_sid)
     
     view_days = st.sidebar.slider(
         "📅 歷史數據追蹤天數", 30, 240, 90,
