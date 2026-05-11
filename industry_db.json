@@ -26,12 +26,16 @@
     },
     "3037": {
         "name": "3037 (欣興)",
-        "company_brief": "⚠️ 系統真實錯誤原因: 429 You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\nPlease retry in 54.184223928s. [links {\n  description: \"Learn more about Gemini API quotas\"\n  url: \"https://ai.google.dev/gemini-api/docs/rate-limits\"\n}\n, violations {\n  quota_metric: \"generativelanguage.googleapis.com/generate_content_free_tier_requests\"\n  quota_id: \"GenerateRequestsPerDayPerProjectPerModel-FreeTier\"\n  quota_dimensions {\n    key: \"model\"\n    value: \"gemini-2.5-flash\"\n  }\n  quota_dimensions {\n    key: \"location\"\n    value: \"global\"\n  }\n  quota_value: 20\n}\n, retry_delay {\n  seconds: 54\n}\n]",
-        "overview": "生成失敗，請查看上方主要業務欄位的錯誤訊息。",
-        "value_chain": "生成失敗，請查看上方主要業務欄位的錯誤訊息。",
-        "competitors": [],
-        "drivers": "生成失敗，請查看上方主要業務欄位的錯誤訊息。",
-        "last_updated": "2026-05-07"
+        "company_brief": "欣興電子是全球領先的積體電路(IC)載板與高階印刷電路板(PCB)製造商，特別在高階ABF載板領域佔有舉足輕重的地位，其產品是人工智慧(AI)、高效能運算(HPC)與伺服器等關鍵應用的核心元件。",
+        "overview": "欣興是全球IC載板產業的龍頭廠商之一，尤其在ABF載板領域擁有領先的市佔率與技術實力，是半導體先進封裝供應鏈中不可或缺的關鍵角色。",
+        "value_chain": "欣興位於電子產業供應鏈的中游。上游為銅箔、玻纖布、樹脂等基材及化學品供應商；欣興製造IC載板與高階PCB後，供應給下游的IC設計公司、IDM廠以及專業晶圓代工廠與封測廠（如台積電、Intel、NVIDIA、AMD等）用於晶片封裝與模組組裝。",
+        "competitors": [
+            "3189 (景碩)",
+            "8046 (南電)",
+            "Ibiden (日本)"
+        ],
+        "drivers": "AI、HPC及伺服器等高階運算需求的爆發性成長，持續推升對先進ABF載板的需求；電動車與車用電子化趨勢帶動高可靠度PCB與載板需求；以及先進封裝技術演進對載板設計與製程的更高要求。",
+        "last_updated": "2026-05-11"
     },
     "2330": {
         "name": "2330 (台積電)",
@@ -170,5 +174,43 @@
         ],
         "drivers": "富喬未來的成長動能主要來自全球PCB產業景氣復甦，特別是AI、5G、高效能運算(HPC)以及車用電子等新興應用對高階、高頻高速玻纖材料的需求增加。此外，公司在高階玻纖產品的研發與量產能力，以及生產成本的有效控制，也將是關鍵的成長引擎。",
         "last_updated": "2026-05-07"
+    },
+    "2409": {
+        "name": "台股代號 2409",
+        "company_brief": "友達光電是全球領先的TFT-LCD及AMOLED顯示面板製造商，產品廣泛應用於電視、IT產品、車載及行動裝置，近年積極轉型，拓展智慧醫療、智慧座艙、工業應用等非顯示垂直場域解決方案，以提升附加價值。",
+        "overview": "友達光電在全球顯示面板產業中，是少數具備從LCD到OLED完整技術的領導廠商之一，其產能與技術在全球TFT-LCD市場佔有重要地位，並積極佈局新興顯示技術。",
+        "value_chain": "友達光電位於顯示器產業鏈的中游，向上游採購玻璃基板、彩色濾光片、驅動IC、背光模組等關鍵零組件，向下游供應顯示面板給品牌廠及組裝廠，用於各式終端產品，並延伸至智慧應用解決方案。",
+        "competitors": [
+            "3481 群創光電",
+            "京東方 (BOE)",
+            "樂金顯示器 (LG Display)"
+        ],
+        "drivers": "高階IT面板需求（如電競、專業顯示器）、車載顯示與智慧座艙解決方案、Micro LED及Mini LED等新世代顯示技術應用、醫療與工業等垂直場域智能解決方案的佈局、以及OLED產能擴充帶來的營收貢獻。",
+        "last_updated": "2026-05-10"
+    },
+    "7828": {
+        "name": "台股代號 7828",
+        "company_brief": "圓創科技 (InnoStark) 是一家提供專業 IC 設計服務的公司，專精於從系統規格定義到實體設計完成的一站式客製化晶片 (ASIC/SoC) 設計服務，近期焦點在於協助客戶開發高效能運算 (HPC)、人工智慧 (AI) 與車用電子等領域的先進製程客製化晶片。",
+        "overview": "在IC設計服務市場中，圓創科技屬於中小型但具備高技術含量的專業ASIC/SoC設計服務供應商，主要服務需要高度客製化與先進製程設計能力的客戶，而非通用型晶片設計公司，扮演著產業生態系統中關鍵的「設計賦能者」角色。",
+        "value_chain": "圓創科技在產業鏈中位於中游。上游與IP供應商（如Arm、Synopsys、Cadence等）及EDA工具供應商合作；中游是其核心業務，提供ASIC/SoC設計服務，承接客戶需求進行晶片設計、驗證與整合；下游則將完成的設計交付給晶圓代工廠（如台積電、聯電等）進行製造，最終產品提供給系統整合商或終端產品公司。",
+        "competitors": [
+            "3443 創意 (Global Unichip)",
+            "3035 智原 (Faraday Technology)",
+            "3661 世芯-KY (Alchip Technologies)"
+        ],
+        "drivers": "未來成長動能主要來自AI、HPC、車用電子、邊緣運算等領域對客製化晶片日益增長的需求。隨著先進製程技術的複雜度提升，以及系統廠為追求差異化而投入自研晶片，圓創科技能提供專業的設計服務，協助客戶克服技術挑戰、縮短開發時程，是其關鍵成長引擎。",
+        "last_updated": "2026-05-10"
+    },
+    "5297": {
+        "name": "台股代號 5297",
+        "company_brief": "望隼科技主要從事隱形眼鏡的研發、製造與銷售，涵蓋日拋、月拋及彩拋等產品。公司以高度自動化生產線提供OEM/ODM服務予全球知名品牌，並積極擴充產能與開發高值化產品。",
+        "overview": "望隼科技是全球重要的隱形眼鏡OEM/ODM製造商之一，在台灣及國際市場的專業隱形眼鏡製造領域中佔有一席之地，以效率與品質見長。",
+        "value_chain": "望隼科技位於隱形眼鏡產業鏈的中游，向上游採購高分子材料、模具等原物料，經由自主研發與高度自動化製程生產隱形眼鏡，再向下游供應予全球品牌商、經銷商與零售通路。",
+        "competitors": [
+            "晶碩光學 (6491)",
+            "永勝光學 (6720)"
+        ],
+        "drivers": "全球隱形眼鏡市場持續增長，尤其日拋型與彩拋型需求強勁，以及高階矽水膠與多焦點鏡片滲透率提升，加上承接國際大廠ODM/OEM訂單能力強化，產能擴充效益顯現為其未來主要成長動能。",
+        "last_updated": "2026-05-11"
     }
 }
