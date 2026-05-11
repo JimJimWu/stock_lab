@@ -25,36 +25,61 @@ else:
     genai.configure(api_key=GEMINI_API_KEY)
 
 def generate_ai_insights(company_name, summary):
-    """透過 AI 一次性產出分析，並抓取 Google 搜尋實體來源"""
-    try:
-        # 💥 核心升級：強制掛載 Google 搜尋工具
-        model = genai.GenerativeModel(
-            model_name='gemini-1.5-flash', 
-            tools='google_search_retrieval' 
-        )
-        
-        match = re.match(r'^([A-Za-z0-9]+)(?:\s*\((.*?)\))?', company_name.strip())
-        if match:
-            ticker = match.group(1)
-            pure_name = match.group(2) if match.group(2) else ticker
-        else:
-            ticker = company_name
-            pure_name = company_name
-        
-        prompt = f"請連網查詢台股「{ticker} {pure_name}」的最新官方業務與產業地位。請以 JSON 格式回傳，欄位包含 company_brief, overview, value_chain, competitors (陣列), drivers。"
-        
-        response = model.generate_content(prompt)
-        
-        # 💥 擷取搜尋來源網址
-        source_url = ""
-        try:
-            metadata = response.candidates[0].grounding_metadata
-            if metadata and metadata.grounding_chunks:
-                source_url = metadata.grounding_chunks[0].web.uri
-        except Exception as ex:
-            print(f"網址擷取失敗: {ex}")
-            source_url = f"https://www.google.com/search?q=台股+{ticker}+{pure_name}+產業分析"
+    """透過 AI 一次性產出分析，具備「雙引擎容錯」與「連網搜尋」功能"""
+    import re
+    import json
+    
+    # 動態拆解邏輯
+    match = re.match(r'^([A-Za-z0-9]+)(?:\s*\((.*?)\))?', company_name.strip())
+    if match:
+        ticker = match.group(1)
+        pure_name = match.group(2) if match.group(2) else ticker
+    else:
+        ticker = company_name
+        pure_name = company_name
 
+    # ====================================================================
+    # 💥 雙重引擎防護機制：先嘗試高階連網版，失敗則無縫切換備用版
+    # ====================================================================
+    response = None
+    try:
+        # 【主引擎】：使用支援度最廣泛的 1.5-pro 版本來進行連網搜尋
+        model_pro = genai.GenerativeModel(
+            model_name='gemini-1.5-pro', 
+            tools='google_search_retrieval'
+        )
+        prompt_pro = f"請連網查詢台股「{ticker} {pure_name}」的最新官方業務與產業地位。請以 JSON 格式回傳，欄位包含 company_brief, overview, value_chain, competitors (陣列), drivers。"
+        response = model_pro.generate_content(prompt_pro)
+        
+    except Exception as e:
+        print(f"主引擎連網失敗，自動切換備用引擎: {e}")
+        # 【備用引擎】：退回最穩定的基礎模式，並加上最高級別的防幻覺死亡警告
+        try:
+            model_fallback = genai.GenerativeModel(model_name='gemini-1.5-flash')
+            prompt_fallback = f"""
+            你【唯一】要分析的標的為台股代號「{ticker}」，名稱「{pure_name}」。
+            嚴厲警告：絕對不可寫成宏碩系統或望隼等無關企業！
+            請以 JSON 回傳以下欄位：company_brief, overview, value_chain, competitors (陣列), drivers。
+            如果缺乏確切資料，請在 company_brief 填寫「【資料不足，需手動查閱】」。
+            """
+            response = model_fallback.generate_content(prompt_fallback)
+        except Exception as ex:
+            # 連備用引擎都失效時的最終防線
+            return {"company_brief": f"⚠️ API 完全失效: {str(ex)}", "source_url": ""}
+
+    # ====================================================================
+    # 💥 擷取來源網址與 JSON 輸出
+    # ====================================================================
+    source_url = ""
+    try:
+        # 嘗試從 Google 搜尋結果中抽出真實網址
+        if hasattr(response.candidates[0], 'grounding_metadata') and response.candidates[0].grounding_metadata.grounding_chunks:
+            source_url = response.candidates[0].grounding_metadata.grounding_chunks[0].web.uri
+    except:
+        # 如果沒抓到，就自動生成一個 Google 搜尋的快捷按鈕網址
+        source_url = f"https://www.google.com/search?q=台股+{ticker}+{pure_name}+產業分析"
+
+    try:
         match_json = re.search(r'\{.*\}', response.text, re.DOTALL)
         if match_json:
             ai_dict = json.loads(match_json.group(0))
@@ -62,9 +87,12 @@ def generate_ai_insights(company_name, summary):
             return ai_dict
         else:
             raise ValueError("無法提取 JSON")
-            
-    except Exception as e:
-        return {"company_brief": f"⚠️ 系統錯誤: {str(e)}", "source_url": ""}
+    except Exception as ex:
+        return {
+            "company_brief": f"⚠️ JSON 解析失敗: {str(ex)}", 
+            "overview": "...", "value_chain": "...", "competitors": [], "drivers": "...",
+            "source_url": source_url
+        }
 
 # --- 1. 頂部防禦 ---
 st.set_page_config(layout="wide", page_title="秉諺的黑馬雷達 V41.0")
