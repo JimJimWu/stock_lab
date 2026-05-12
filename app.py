@@ -40,7 +40,7 @@ def generate_ai_insights(company_name, summary):
 
     response = None
     try:
-        # 【主引擎】：使用 gemini-2.5-pro 連網搜尋
+        # 【主引擎】：嘗試使用 gemini-2.5-pro 連網搜尋
         model_pro = genai.GenerativeModel(
             model_name='gemini-2.5-pro', 
             tools='google_search_retrieval'
@@ -52,11 +52,12 @@ def generate_ai_insights(company_name, summary):
         print(f"主引擎連網失敗，切換備用引擎: {e}")
         try:
             model_fallback = genai.GenerativeModel(model_name='gemini-2.5-flash')
+            # 💥 終極防幻覺：強制所有欄位同步封口，絕不允許在 overview 瞎掰
             prompt_fallback = f"""
             你【唯一】要分析的標的為台股代號「{ticker}」，名稱「{pure_name}」。
-            嚴厲警告：絕對不可寫成宏碩系統、望隼或保瑞藥業等無關企業！
+            嚴厲警告：絕對不可寫成宏碩系統、望隼、保瑞藥業或旺宏電子等無關企業！
             請以 JSON 回傳以下欄位：company_brief, overview, value_chain, competitors (陣列), drivers。
-            如果缺乏確切資料，請在 company_brief 填寫「【資料不足，無法確認】」。
+            如果你對這家公司的具體營業項目不確定，請將 company_brief, overview, value_chain, drivers 這四個欄位【全部】填寫「【資料不足，無法確認】」，competitors 填寫空陣列 []。絕不允許在任何欄位捏造故事！
             """
             response = model_fallback.generate_content(prompt_fallback)
         except Exception as ex:
