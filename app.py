@@ -29,6 +29,7 @@ def generate_ai_insights(company_name, summary):
     import re
     import json
     
+    # 動態拆解邏輯
     match = re.match(r'^([A-Za-z0-9]+)(?:\s*\((.*?)\))?', company_name.strip())
     if match:
         ticker = match.group(1)
@@ -39,24 +40,32 @@ def generate_ai_insights(company_name, summary):
 
     response = None
     try:
+        # 【主引擎】：嘗試使用 gemini-2.5-pro 連網搜尋
         model_pro = genai.GenerativeModel(
             model_name='gemini-2.5-pro', 
             tools='google_search_retrieval'
         )
-        # 💥 明確警告禁止使用巢狀字典
         prompt_pro = f"請連網查詢台股「{ticker} {pure_name}」的最新官方業務與產業地位。請以 JSON 格式回傳，欄位包含 company_brief, overview, value_chain(純文字，嚴禁巢狀字典), competitors (陣列), drivers。"
         response = model_pro.generate_content(prompt_pro)
         
     except Exception as e:
         print(f"主引擎連網失敗，切換備用引擎: {e}")
-        try:
-            model_fallback = genai.GenerativeModel(model_name='gemini-2.5-flash')
+       try:
+            # 💥 備用引擎改用 1.5-flash，享受每日 1500 次大額度
+            model_fallback = genai.GenerativeModel(model_name='gemini-1.5-flash')
+            
+            # 💥 融入您的「名稱搜尋優先」嚴厲警告
             prompt_fallback = f"""
-            你【唯一】要分析的標的為台股代號「{ticker}」，名稱「{pure_name}」。
-            嚴厲警告：絕對不可寫成宏碩系統、望隼、保瑞或旺宏等無關企業！
-            請以 JSON 回傳以下欄位：company_brief, overview, value_chain, competitors (陣列), drivers。
-            注意：所有內容必須是「純文字」，嚴禁在 value_chain 使用 upstream/midstream 等巢狀字典格式。
-            如果缺乏確切資料，請將前四個欄位【全部】填寫「【資料不足，無法確認】」，competitors 填寫 []。
+            [核心目標]：你【唯一】要分析的企業為「{pure_name}」(代號:{ticker})。
+            
+            [嚴厲警告]：
+            1. 執行任務時，必須【優先以名稱：「{pure_name}」】進行檢索，絕對不可寫成任何與此名稱無關之企業（例如宏碩、望隼、保瑞、旺宏等）！
+            2. 輸出之所有產業資訊必須嚴格對齊「{pure_name}」的真實官方業務。
+            
+            [格式要求]：請以 JSON 回傳欄位：company_brief, overview, value_chain, competitors (陣列), drivers。
+            注意：所有內容必須是「純文字」，嚴禁使用巢狀字典格式。
+            
+            [查核規範]：如果你對「{pure_name}」這家公司的具體營業項目不確定，請將前四個欄位【全部】填寫「【資料不足，無法確認】」，competitors 填寫空陣列 []。
             """
             response = model_fallback.generate_content(prompt_fallback)
         except Exception as ex:
@@ -83,7 +92,6 @@ def generate_ai_insights(company_name, summary):
             "overview": "【資料不足，無法確認】", "value_chain": "【資料不足，無法確認】", "competitors": [], "drivers": "【資料不足，無法確認】",
             "source_url": source_url
         }
-
     # ====================================================================
     # 💥 擷取來源網址與 JSON 輸出
     # ====================================================================
@@ -162,12 +170,32 @@ INDUSTRY_DB_FILE = "industry_db.json"
 DEFAULT_DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK") or ""
 
 DEFAULT_STOCKS = {
-    "3595": "3595 (山太士)", "3450": "3450 (聯鈞)", "3037": "3037 (欣興)", 
-    "2330": "2330 (台積電)", "3363": "3363 (上詮)", "6451": "6451 (訊芯-KY)", 
-    "3163": "3163 (波若威)", "4979": "4979 (華星光)", "3081": "3081 (聯亞)", 
-    "2455": "2455 (全新)", "6442": "6442 (光聖)", "2486": "2486 (一銓)",
-    "3714": "3714 (富采)", "1802": "1802 (台玻)", "2408": "2408 (南亞科)",
-    "1815": "1815 (富喬)", "4958": "4958 (臻鼎-KY)", "7853": "7853 (政美應用)"
+    # === 半導體與封裝設備 (核心戰略區) ===
+    "2330": "2330 (台積電)",
+    "5297": "5297 (廣化)",      # 封裝設備
+    "7853": "7853 (政美應用)",  # AOI 檢測設備
+    "3595": "3595 (山太士)",    # 封裝材料/IC設計
+    
+    # === CPO 與 光通訊族群 (強勢題材區) ===
+    "3450": "3450 (聯鈞)",
+    "3363": "3363 (上詮)",
+    "6442": "6442 (光聖)",
+    "6451": "6451 (訊芯-KY)",
+    "3163": "3163 (波若威)",
+    "4979": "4979 (華星光)",
+    "3081": "3081 (聯亞)",
+    "2455": "2455 (全新)",      # 化合物半導體(光通訊上游)
+    
+    # === 載板、PCB 與 散熱設備 (電子供應鏈) ===
+    "3037": "3037 (欣興)",      # ABF載板
+    "4958": "4958 (臻鼎-KY)",   # PCB
+    "1815": "1815 (富喬)",      # 玻纖布(PCB上游)
+    "2486": "2486 (一銓)",      # 均熱片
+    
+    # === 面板、記憶體與傳產 (循環與轉機區) ===
+    "2408": "2408 (南亞科)",    # 記憶體
+    "1802": "1802 (台玻)",      # 玻璃/電子級玻纖
+    "3714": "3714 (富采)"       # LED/化合物半導體
 }
 
 # ==============================================================================
@@ -609,36 +637,49 @@ def run_single_scan_signal(sid, sname, webhook_url):
         return f"{sname} ({sid}) 觸發推播"
     return None
 
-# ==============================================================================
 # 💥 【全域作用域宣告】
 # ==============================================================================
-# ==============================================================================
-# 💥 【全域作用域宣告】
-# ==============================================================================
-current_stocks_dict = st.session_state['STOCK_DICT']
-
+# --- 在全域變數區塊 ---
+current_stocks_dict = st.session_state.get('STOCK_DICT', load_stock_dict())
+# 💥 關鍵修改：如果 session_state 裡還沒有選中的代號，才預設為清單中的第一個
+if 'selected_sid' not in st.session_state:
+    # list(current_stocks_dict.keys())[0] 會自動抓取您清單中的第一個代號 (現在是 2330)
+    # 如果萬一連清單都是空的，最後才會用到 "2330" 這個保險
+    st.session_state['selected_sid'] = list(current_stocks_dict.keys())[0] if current_stocks_dict else "2330"
 # 側邊欄
 with st.sidebar:
     # 1. 🚀 頂端漸層設計 (Logo 與專屬標示)
     st.sidebar.markdown(f"""
         <div style="background: linear-gradient(135deg, #1e3a8a, #000000); padding: 20px; border-radius: 15px; border: 1.5px solid #3b82f6; text-align: center; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);">
             <h1 style="color: #60a5fa; font-size: 20px; font-weight: 900; margin: 0; letter-spacing: 2px;">🚀 戰情操控中心</h1>
-            <p style="color: #94a3b8; font-size: 12px; margin-top:8px; font-weight: 500;">吳秉諺 專屬 AI 投資系統 v42.0</p>
+            <p style="color: #94a3b8; font-size: 12px; margin-top:8px; font-weight: 500;">吳秉諺 專屬 AI 投資系統 v42.1</p>
         </div>
         """, unsafe_allow_html=True)
 
     st.sidebar.write("") 
 
-    # 2. 🎯 核心標的選擇 (💥 徹底消滅 split 地雷，改用 format_func)
+# 2. 🎯 核心標的選擇
     st.sidebar.markdown("### 🎯 戰略目標選擇")
     
-    # 這裡的 target_sid 永遠只會抓到純數字 (例如 "5297")
+    # 💥 關鍵修改：增加 index 參數，並監聽變化
+    # 先找出目前存好的 sid 在清單中是第幾個
+    options_list = list(current_stocks_dict.keys())
+    try:
+        current_idx = options_list.index(st.session_state['selected_sid'])
+    except:
+        current_idx = 0
+
     target_sid = st.sidebar.selectbox(
         "選擇您的掃描標的", 
-        options=list(current_stocks_dict.keys()), 
+        options=options_list, 
+        index=current_idx, # 🎯 讓選單釘在您剛選的位置
         format_func=lambda sid: current_stocks_dict.get(sid, sid),
+        key="target_sid_selectbox",
         help="選擇您清單中要進行深度技術與籌碼分析的股票標的。"
     )
+    
+    # 當選單改變時，同步更新記憶
+    st.session_state['selected_sid'] = target_sid
     
     # 同步更新 label 給右側大看板顯示用
     selected_label = current_stocks_dict.get(target_sid, target_sid)
