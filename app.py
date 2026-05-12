@@ -836,9 +836,6 @@ with st.sidebar:
                     use_container_width=True,
                     help="下載您的自選股雷達名單。將此檔案上傳至 GitHub 後，背景掃描器 (auto_scan.py) 才能偵測到新加入的股票。"
                 )
-        if os.path.exists(INDUSTRY_DB_FILE):
-            with open(INDUSTRY_DB_FILE, "r", encoding="utf-8") as f:
-                st.download_button("📥 下載 JSON 資料庫", f.read(), "industry_db.json", "application/json", use_container_width=True)
 
 # 6. ➕ 擴建雷達
     st.sidebar.divider()
