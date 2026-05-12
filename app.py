@@ -38,12 +38,9 @@ def generate_ai_insights(company_name, summary):
         ticker = company_name
         pure_name = company_name
 
-    # ====================================================================
-    # 💥 雙重引擎防護機制：先嘗試高階連網版，失敗則無縫切換備用版
-    # ====================================================================
     response = None
     try:
-        # 【主引擎】：使用支援度最高、環境相容的 gemini-2.5-pro 版本來進行連網搜尋
+        # 【主引擎】：使用 gemini-2.5-pro 連網搜尋
         model_pro = genai.GenerativeModel(
             model_name='gemini-2.5-pro', 
             tools='google_search_retrieval'
@@ -52,20 +49,40 @@ def generate_ai_insights(company_name, summary):
         response = model_pro.generate_content(prompt_pro)
         
     except Exception as e:
-        print(f"主引擎連網失敗，自動切換備用引擎: {e}")
-        # 【備用引擎】：退回 gemini-2.5-flash，並加上最高級別的防幻覺死亡警告
+        print(f"主引擎連網失敗，切換備用引擎: {e}")
         try:
             model_fallback = genai.GenerativeModel(model_name='gemini-2.5-flash')
             prompt_fallback = f"""
             你【唯一】要分析的標的為台股代號「{ticker}」，名稱「{pure_name}」。
-            嚴厲警告：絕對不可寫成宏碩系統或望隼等無關企業！
+            嚴厲警告：絕對不可寫成宏碩系統、望隼或保瑞藥業等無關企業！
             請以 JSON 回傳以下欄位：company_brief, overview, value_chain, competitors (陣列), drivers。
-            如果缺乏確切資料，請在 company_brief 填寫「【資料不足，需手動查閱】」。
+            如果缺乏確切資料，請在 company_brief 填寫「【資料不足，無法確認】」。
             """
             response = model_fallback.generate_content(prompt_fallback)
         except Exception as ex:
-            # 連備用引擎都失效時的最終防線
             return {"company_brief": f"⚠️ API 完全失效: {str(ex)}", "source_url": ""}
+
+    source_url = ""
+    try:
+        if hasattr(response.candidates[0], 'grounding_metadata') and response.candidates[0].grounding_metadata.grounding_chunks:
+            source_url = response.candidates[0].grounding_metadata.grounding_chunks[0].web.uri
+    except:
+        source_url = f"https://www.google.com/search?q=台股+{ticker}+{pure_name}+產業分析"
+
+    try:
+        match_json = re.search(r'\{.*\}', response.text, re.DOTALL)
+        if match_json:
+            ai_dict = json.loads(match_json.group(0))
+            ai_dict['source_url'] = source_url
+            return ai_dict
+        else:
+            raise ValueError("無法提取 JSON")
+    except Exception as ex:
+        return {
+            "company_brief": f"⚠️ JSON 解析失敗: {str(ex)}", 
+            "overview": "【資料不足，無法確認】", "value_chain": "【資料不足，無法確認】", "competitors": [], "drivers": "【資料不足，無法確認】",
+            "source_url": source_url
+        }
 
     # ====================================================================
     # 💥 擷取來源網址與 JSON 輸出
@@ -643,14 +660,13 @@ with st.sidebar:
 
     st.sidebar.divider()
 
- # 4. 🏢 AI 產業百科 (離線優先，維持戰略深度)
+# 4. 🏢 AI 產業百科 (離線優先，維持戰略深度)
     st.sidebar.markdown("### 🏢 AI 產業百科")
     db = load_industry_db()
     target_sid_str = str(target_sid).strip()
     stock_info = db.get(target_sid_str)
     
     if stock_info:
-        # ✅ 只要 JSON 裡有紀錄，就「直接顯示」舊資料，不執行自動更新
         with st.sidebar.expander("🎯 個股主要業務", expanded=True):
             st.info(stock_info.get("company_brief", "資料載入中..."))
         
@@ -679,7 +695,6 @@ with st.sidebar:
             st.sidebar.markdown(html_btn, unsafe_allow_html=True)
         # ==========================================
         
-        # 內嵌的小更新按鈕
         if st.sidebar.button("🔄 更新這檔百科", key=f"re_up_{target_sid_str}"):
             with st.sidebar.status("AI 聯網更新中..."):
                 auto_update_industry_db(target_sid_str)
