@@ -29,7 +29,6 @@ def generate_ai_insights(company_name, summary):
     import re
     import json
     
-    # 動態拆解邏輯
     match = re.match(r'^([A-Za-z0-9]+)(?:\s*\((.*?)\))?', company_name.strip())
     if match:
         ticker = match.group(1)
@@ -40,24 +39,24 @@ def generate_ai_insights(company_name, summary):
 
     response = None
     try:
-        # 【主引擎】：嘗試使用 gemini-2.5-pro 連網搜尋
         model_pro = genai.GenerativeModel(
             model_name='gemini-2.5-pro', 
             tools='google_search_retrieval'
         )
-        prompt_pro = f"請連網查詢台股「{ticker} {pure_name}」的最新官方業務與產業地位。請以 JSON 格式回傳，欄位包含 company_brief, overview, value_chain, competitors (陣列), drivers。"
+        # 💥 明確警告禁止使用巢狀字典
+        prompt_pro = f"請連網查詢台股「{ticker} {pure_name}」的最新官方業務與產業地位。請以 JSON 格式回傳，欄位包含 company_brief, overview, value_chain(純文字，嚴禁巢狀字典), competitors (陣列), drivers。"
         response = model_pro.generate_content(prompt_pro)
         
     except Exception as e:
         print(f"主引擎連網失敗，切換備用引擎: {e}")
         try:
             model_fallback = genai.GenerativeModel(model_name='gemini-2.5-flash')
-            # 💥 終極防幻覺：強制所有欄位同步封口，絕不允許在 overview 瞎掰
             prompt_fallback = f"""
             你【唯一】要分析的標的為台股代號「{ticker}」，名稱「{pure_name}」。
-            嚴厲警告：絕對不可寫成宏碩系統、望隼、保瑞藥業或旺宏電子等無關企業！
+            嚴厲警告：絕對不可寫成宏碩系統、望隼、保瑞或旺宏等無關企業！
             請以 JSON 回傳以下欄位：company_brief, overview, value_chain, competitors (陣列), drivers。
-            如果你對這家公司的具體營業項目不確定，請將 company_brief, overview, value_chain, drivers 這四個欄位【全部】填寫「【資料不足，無法確認】」，competitors 填寫空陣列 []。絕不允許在任何欄位捏造故事！
+            注意：所有內容必須是「純文字」，嚴禁在 value_chain 使用 upstream/midstream 等巢狀字典格式。
+            如果缺乏確切資料，請將前四個欄位【全部】填寫「【資料不足，無法確認】」，competitors 填寫 []。
             """
             response = model_fallback.generate_content(prompt_fallback)
         except Exception as ex:
@@ -667,32 +666,50 @@ with st.sidebar:
     stock_info = db.get(target_sid_str)
     
     if stock_info:
+        # 💥 終極格式清洗器：專治 AI 亂吐巢狀字典或陣列，自動轉成漂亮條列式
+        def format_text(val):
+            if isinstance(val, dict):
+                return "\n\n".join([f"🔸 {v}" for k, v in val.items()])
+            elif isinstance(val, list):
+                return "\n\n".join([f"🔸 {v}" for v in val])
+            return str(val)
+
         with st.sidebar.expander("🎯 個股主要業務", expanded=True):
-            st.info(stock_info.get("company_brief", "資料載入中..."))
+            st.info(format_text(stock_info.get("company_brief", "資料載入中...")))
         
         with st.sidebar.expander("📍 產業市場規模", expanded=False):
-            st.info(stock_info.get("overview", "資料載入中..."))
+            st.info(format_text(stock_info.get("overview", "資料載入中...")))
         
         with st.sidebar.expander("🔗 產業價值鏈", expanded=False):
-            st.info(stock_info.get("value_chain", "資料載入中..."))
+            st.info(format_text(stock_info.get("value_chain", "資料載入中...")))
         
         with st.sidebar.expander("🔗 相關競爭對手", expanded=False):
-            st.markdown("\n".join([f"- **{peer}**" for peer in stock_info.get("competitors", [])]) or "暫無資料")
+            comp_data = stock_info.get("competitors", [])
+            if isinstance(comp_data, list):
+                st.markdown("\n".join([f"- **{peer}**" for peer in comp_data]) or "暫無資料")
+            elif isinstance(comp_data, dict):
+                st.markdown("\n".join([f"- **{v}**" for k, v in comp_data.items()]))
+            else:
+                st.markdown(str(comp_data))
         
         with st.sidebar.expander("📈 產業驅動因子", expanded=False):
-            st.info(stock_info.get("drivers", "資料載入中..."))
+            st.info(format_text(stock_info.get("drivers", "資料載入中...")))
             
         st.sidebar.caption(f"✨ 百科更新時間：{stock_info.get('last_updated', '歷史資料')}")
         
         # ==========================================
-        # 🎯 核心插入點：安全版資料來源網址導流按鈕
+        # 🎯 絕對強制顯示版：資料來源網址導流按鈕
         # ==========================================
         s_url = stock_info.get("source_url", "")
-        if s_url:
-            html_btn = '<div style="text-align: right; margin-bottom: 10px;">' + \
-                       f'<a href="{s_url}" target="_blank" style="color: #60a5fa; text-decoration: none; font-size: 13px; font-weight: 600;">' + \
-                       '🔍 查看 AI 參考來源網頁 →</a></div>'
-            st.sidebar.markdown(html_btn, unsafe_allow_html=True)
+        # 如果舊資料沒存到網址，我們直接現場生一個 Google 連結給它，確保按鈕 100% 出現！
+        if not s_url:
+            c_name = stock_info.get("name", target_sid_str)
+            s_url = f"https://www.google.com/search?q=台股+{c_name}+產業分析"
+            
+        html_btn = '<div style="text-align: right; margin-bottom: 10px;">' + \
+                   f'<a href="{s_url}" target="_blank" style="color: #60a5fa; text-decoration: none; font-size: 13px; font-weight: 600;">' + \
+                   '🔍 查看 AI 參考來源網頁 →</a></div>'
+        st.sidebar.markdown(html_btn, unsafe_allow_html=True)
         # ==========================================
         
         if st.sidebar.button("🔄 更新這檔百科", key=f"re_up_{target_sid_str}"):
