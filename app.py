@@ -43,7 +43,7 @@ def generate_ai_insights(company_name, summary):
     # ====================================================================
     response = None
     try:
-        # 【主引擎】：使用支援度最廣泛的 1.5-pro 版本來進行連網搜尋
+        # 【主引擎】：使用支援度最高、環境相容的 gemini-2.5-pro 版本來進行連網搜尋
         model_pro = genai.GenerativeModel(
             model_name='gemini-2.5-pro', 
             tools='google_search_retrieval'
@@ -53,9 +53,9 @@ def generate_ai_insights(company_name, summary):
         
     except Exception as e:
         print(f"主引擎連網失敗，自動切換備用引擎: {e}")
-        # 【備用引擎】：退回最穩定的基礎模式，並加上最高級別的防幻覺死亡警告
+        # 【備用引擎】：退回 gemini-2.5-flash，並加上最高級別的防幻覺死亡警告
         try:
-            model_fallback = genai.GenerativeModel(model_name='gemini-1.5-flash')
+            model_fallback = genai.GenerativeModel(model_name='gemini-2.5-flash')
             prompt_fallback = f"""
             你【唯一】要分析的標的為台股代號「{ticker}」，名稱「{pure_name}」。
             嚴厲警告：絕對不可寫成宏碩系統或望隼等無關企業！
@@ -67,6 +67,32 @@ def generate_ai_insights(company_name, summary):
             # 連備用引擎都失效時的最終防線
             return {"company_brief": f"⚠️ API 完全失效: {str(ex)}", "source_url": ""}
 
+    # ====================================================================
+    # 💥 擷取來源網址與 JSON 輸出
+    # ====================================================================
+    source_url = ""
+    try:
+        # 嘗試從 Google 搜尋結果中抽出真實網址
+        if hasattr(response.candidates[0], 'grounding_metadata') and response.candidates[0].grounding_metadata.grounding_chunks:
+            source_url = response.candidates[0].grounding_metadata.grounding_chunks[0].web.uri
+    except:
+        # 如果沒抓到，就自動生成一個 Google 搜尋的快捷按鈕網址
+        source_url = f"https://www.google.com/search?q=台股+{ticker}+{pure_name}+產業分析"
+
+    try:
+        match_json = re.search(r'\{.*\}', response.text, re.DOTALL)
+        if match_json:
+            ai_dict = json.loads(match_json.group(0))
+            ai_dict['source_url'] = source_url
+            return ai_dict
+        else:
+            raise ValueError("無法提取 JSON")
+    except Exception as ex:
+        return {
+            "company_brief": f"⚠️ JSON 解析失敗: {str(ex)}", 
+            "overview": "...", "value_chain": "...", "competitors": [], "drivers": "...",
+            "source_url": source_url
+        }
     # ====================================================================
     # 💥 擷取來源網址與 JSON 輸出
     # ====================================================================
