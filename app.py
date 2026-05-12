@@ -327,19 +327,18 @@ INDUSTRY_DB = st.session_state['INDUSTRY_DB']
 def auto_update_industry_db(sid):
     sid = str(sid).strip()
     db_file = "industry_db.json"
-    db = load_industry_db() # 呼叫您原本的讀取函式
+    db = load_industry_db()
     
-    # 1. 取得名稱
-    company_name = STOCK_DICT.get(sid, f"台股代號 {sid}")
+    # 💥 關鍵修復：改用 st.session_state 抓取「最新」的字典，確保新增時能立刻抓到 (廣化)
+    current_dict = st.session_state.get('STOCK_DICT', STOCK_DICT)
+    company_name = current_dict.get(sid, f"台股代號 {sid}")
     
-    # 2. 呼叫 AI
-    summary = f"請直接利用 AI 知識庫，分析「{company_name}」的核心業務、產業鏈位置與關聯對手。"
+    summary = f"分析「{company_name}」的核心業務。"
     ai_data = generate_ai_insights(company_name, summary)
     
-    if not ai_data:
-        ai_data = {"company_brief": "⚠️ 更新失敗", "overview": "...", "value_chain": "...", "competitors": [], "drivers": "..."}
+    if not ai_data or "company_brief" not in ai_data:
+        ai_data = {"company_brief": "⚠️ 更新失敗", "overview": "...", "value_chain": "...", "competitors": [], "drivers": "...", "source_url": ""}
 
-    # 3. 蓋章存檔
     import datetime
     db[sid] = {
         "name": company_name,
@@ -348,7 +347,7 @@ def auto_update_industry_db(sid):
         "value_chain": ai_data.get("value_chain", ""),
         "competitors": ai_data.get("competitors", []),
         "drivers": ai_data.get("drivers", ""),
-		"source_url": ai_data.get("source_url", ""), # 🎯 物理存檔
+        "source_url": ai_data.get("source_url", ""), # 🎯 確保網址存檔
         "last_updated": datetime.date.today().isoformat()
     }
 
