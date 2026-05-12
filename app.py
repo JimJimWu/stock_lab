@@ -739,10 +739,9 @@ with st.sidebar:
         st.sidebar.caption(f"✨ 百科更新時間：{stock_info.get('last_updated', '歷史資料')}")
         
         # ==========================================
-        # 🎯 絕對強制顯示版：資料來源網址導流按鈕
+        # 🎯 絕對強制顯示版：資料來源網址導流按鈕 (這段在更新按鈕上方)
         # ==========================================
         s_url = stock_info.get("source_url", "")
-        # 如果舊資料沒存到網址，我們直接現場生一個 Google 連結給它，確保按鈕 100% 出現！
         if not s_url:
             c_name = stock_info.get("name", target_sid_str)
             s_url = f"https://www.google.com/search?q=台股+{c_name}+產業分析"
@@ -752,17 +751,51 @@ with st.sidebar:
                    '🔍 查看 AI 參考來源網頁 →</a></div>'
         st.sidebar.markdown(html_btn, unsafe_allow_html=True)
         # ==========================================
-        
-        if st.sidebar.button("🔄 更新這檔百科", key=f"re_up_{target_sid_str}"):
-            with st.sidebar.status("AI 聯網更新中..."):
-                auto_update_industry_db(target_sid_str)
-                st.rerun()
+
+        # 💥 視覺強化版 1：有資料時的「更新按鈕」
+        if st.sidebar.button("🔄 更新這檔百科", key=f"re_up_{target_sid_str}", use_container_width=True):
+            with st.sidebar.status(f"🚀 正在重塑 {target_sid_str} 產業百科...", expanded=True) as status:
+                prog_bar = st.progress(0, text="準備發動 AI 引擎...")
+                
+                prog_bar.progress(30, text="🌐 正在連網搜尋最新產業動態...")
+                success, msg = auto_update_industry_db(target_sid_str)
+                
+                if success:
+                    prog_bar.progress(80, text="💾 正在將新資料寫入 JSON 資料庫...")
+                    import time
+                    time.sleep(0.5) 
+                    
+                    prog_bar.progress(100, text="✅ 百科更新成功！")
+                    status.update(label="✅ 百科更新成功！", state="complete", expanded=False)
+                    st.rerun()
+                else:
+                    prog_bar.error("⚠️ 更新過程發生中斷")
+                    st.write(f"系統回報: {msg}")
+                    status.update(label="❌ 更新失敗", state="error")
+
+    # 💥 視覺強化版 2：無資料時的「首次生成按鈕」
     else:
         st.sidebar.warning(f"⚠️ 庫存中無 {target_sid_str} 的資料")
-        if st.sidebar.button(f"🎯 消耗額度生成百科", key=f"init_{target_sid_str}"):
-            with st.sidebar.status("AI 聯網抓取中..."):
-                auto_update_industry_db(target_sid_str)
-                st.rerun()
+        
+        if st.sidebar.button(f"🎯 消耗額度生成百科", key=f"init_{target_sid_str}", use_container_width=True):
+            with st.sidebar.status(f"🤖 正在為 {target_sid_str} 建立全新百科...", expanded=True) as status:
+                prog_bar = st.progress(0, text="準備發動 AI 引擎...")
+                
+                prog_bar.progress(30, text="🌐 AI 正在連網深度檢索...")
+                success, msg = auto_update_industry_db(target_sid_str)
+                
+                if success:
+                    prog_bar.progress(80, text="💾 正在建檔寫入資料庫...")
+                    import time
+                    time.sleep(0.5)
+                    
+                    prog_bar.progress(100, text="✅ 全新百科建立完成！")
+                    status.update(label="🎉 百科建檔成功！", state="complete", expanded=False)
+                    st.rerun()
+                else:
+                    prog_bar.error("⚠️ 生成過程發生中斷")
+                    st.write(f"系統回報: {msg}")
+                    status.update(label="❌ 生成失敗", state="error")
     # 5. 🩺 系統檢修區
     st.sidebar.divider()
     with st.sidebar.expander("🛠️ 系統後勤工具", expanded=False):
@@ -787,21 +820,46 @@ with st.sidebar:
     new_sid = st.sidebar.text_input("輸入股票代號", help="例如 1815")
     new_name = st.sidebar.text_input("輸入股票名稱", help="例如 富喬")
     
-    col_add, col_clean = st.sidebar.columns(2)
-    with col_add:
+with col_add:
         if st.button("⚡ 新增百科標的", use_container_width=True):
             if new_sid and new_name:
-                current_stocks = load_stock_dict()
-                current_stocks[new_sid] = f"{new_sid} ({new_name})"
-                save_stock_dict(current_stocks)
-                st.session_state['STOCK_DICT'] = current_stocks
-                try:
-                    auto_update_industry_db(new_sid)
-                    st.sidebar.success("🎉 新增成功！")
-                except:
-                    st.sidebar.warning("⚠️ 新增成功但百科更新失敗")
-                time.sleep(1)
+                # 💥 1. 初始化狀態容器與進度條
+                with st.sidebar.status("🤖 正在處理新增請求...", expanded=True) as status:
+                    # 建立一個進度條物件
+                    prog_bar = st.progress(0, text="準備開始...")
+                    
+                    # 步驟 A：寫入名單 (進度 20%)
+                    prog_bar.progress(20, text="📝 正在寫入預設名單...")
+                    current_stocks = load_stock_dict()
+                    current_stocks[new_sid] = f"{new_sid} ({new_name})"
+                    save_stock_dict(current_stocks)
+                    st.session_state['STOCK_DICT'] = current_stocks
+                    
+                    # 步驟 B：啟動 AI (進度 50%)
+                    prog_bar.progress(50, text="🌐 AI 正在連網搜尋最新資料 (這可能需要 5-10 秒)...")
+                    try:
+                        # 執行 AI 生成與存檔
+                        success, msg = auto_update_industry_db(new_sid)
+                        
+                        # 步驟 C：完成 (進度 100%)
+                        if success:
+                            prog_bar.progress(100, text="✅ 百科補全完成！")
+                            st.write(f"🎉 {msg}")
+                            status.update(label="🎉 標的新增與百科成功！", state="complete", expanded=False)
+                        else:
+                            prog_bar.error("⚠️ AI 回傳資料不完全")
+                            status.update(label="⚠️ 標的已新增，但百科失敗", state="error")
+                    except Exception as e:
+                        prog_bar.error("❌ 發生未知錯誤")
+                        st.write(f"系統訊息: {str(e)}")
+                        status.update(label="❌ 百科生成失敗", state="error")
+                
+                # 任務結束，稍停後刷頁
+                import time
+                time.sleep(1.2)
                 st.rerun()
+            else:
+                st.sidebar.error("❌ 請輸入完整的代號與名稱")
                 
 with col_clean:
         if st.button("🧹 百科智慧補全", use_container_width=True, help="僅針對尚未有資料的股票進行 AI 生成"):
