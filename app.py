@@ -50,7 +50,7 @@ def generate_ai_insights(company_name, summary):
         
     except Exception as e:
         print(f"主引擎連網失敗，切換備用引擎: {e}")
-       try:
+        try:
             # 💥 備用引擎改用 1.5-flash，享受每日 1500 次大額度
             model_fallback = genai.GenerativeModel(model_name='gemini-1.5-flash')
             
