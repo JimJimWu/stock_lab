@@ -691,12 +691,9 @@ with st.sidebar:
     
     st.sidebar.divider()
     
-    # 3. 🌐 外部情資鏈結 (美化按鈕排版)
-    col_link1, col_link2 = st.sidebar.columns(2)
-    with col_link1:
-        st.link_button("🌐 Yahoo股市", f"https://tw.stock.yahoo.com/quote/{target_sid}", use_container_width=True)
-    with col_link2:
-        st.link_button("📊 財務數據", f"https://goodinfo.tw/tw/StockDetail.asp?STOCK_ID={target_sid}", use_container_width=True)
+# 3. 🌐 外部情資鏈結 (滿版按鈕排版)
+    st.sidebar.link_button("🌐 Yahoo股市", f"https://tw.stock.yahoo.com/quote/{target_sid}", use_container_width=True)
+    st.sidebar.link_button("📊 財務數據", f"https://goodinfo.tw/tw/StockDetail.asp?STOCK_ID={target_sid}", use_container_width=True)
 
     st.sidebar.divider()
 
@@ -800,13 +797,13 @@ with st.sidebar:
     st.sidebar.divider()
     with st.sidebar.expander("🛠️ 系統後勤工具", expanded=False):
         st.markdown("**AI 連線測試**")
-        col_test1, col_test2 = st.columns(2)
-        with col_test1:
-            if st.button("🔍 版本測試", use_container_width=True):
-                st.toast("正在測試...")
-        with col_test2:
-            if st.button("📋 模型清單", use_container_width=True):
-                pass
+        
+        # 💥 捨棄 col_test 排版，改用滿版按鈕
+        if st.button("🔍 版本測試", use_container_width=True):
+            st.toast("正在測試...")
+            
+        if st.button("📋 模型清單", use_container_width=True):
+            pass
         
         st.divider()
         st.markdown("**資料庫管理**")
@@ -814,96 +811,82 @@ with st.sidebar:
             with open(INDUSTRY_DB_FILE, "r", encoding="utf-8") as f:
                 st.download_button("📥 下載 JSON 資料庫", f.read(), "industry_db.json", "application/json", use_container_width=True)
 
-    # 6. ➕ 擴建雷達
+# 6. ➕ 擴建雷達
     st.sidebar.divider()
     st.sidebar.markdown("### ➕ 擴建雷達-新增股票")
     new_sid = st.sidebar.text_input("輸入股票代號", help="例如 1815")
     new_name = st.sidebar.text_input("輸入股票名稱", help="例如 富喬")
     
-with col_add:
-        if st.button("⚡ 新增百科標的", use_container_width=True):
-            if new_sid and new_name:
-                # 💥 1. 初始化狀態容器與進度條
-                with st.sidebar.status("🤖 正在處理新增請求...", expanded=True) as status:
-                    # 建立一個進度條物件
-                    prog_bar = st.progress(0, text="準備開始...")
-                    
-                    # 步驟 A：寫入名單 (進度 20%)
-                    prog_bar.progress(20, text="📝 正在寫入預設名單...")
-                    current_stocks = load_stock_dict()
-                    current_stocks[new_sid] = f"{new_sid} ({new_name})"
-                    save_stock_dict(current_stocks)
-                    st.session_state['STOCK_DICT'] = current_stocks
-                    
-                    # 步驟 B：啟動 AI (進度 50%)
-                    prog_bar.progress(50, text="🌐 AI 正在連網搜尋最新資料 (這可能需要 5-10 秒)...")
-                    try:
-                        # 執行 AI 生成與存檔
-                        success, msg = auto_update_industry_db(new_sid)
-                        
-                        # 步驟 C：完成 (進度 100%)
-                        if success:
-                            prog_bar.progress(100, text="✅ 百科補全完成！")
-                            st.write(f"🎉 {msg}")
-                            status.update(label="🎉 標的新增與百科成功！", state="complete", expanded=False)
-                        else:
-                            prog_bar.error("⚠️ AI 回傳資料不完全")
-                            status.update(label="⚠️ 標的已新增，但百科失敗", state="error")
-                    except Exception as e:
-                        prog_bar.error("❌ 發生未知錯誤")
-                        st.write(f"系統訊息: {str(e)}")
-                        status.update(label="❌ 百科生成失敗", state="error")
+    # 💥 捨棄 with col_add 排版，直接使用全寬按鈕
+    if st.sidebar.button("⚡ 新增百科標的", use_container_width=True):
+        if new_sid and new_name:
+            with st.sidebar.status("🤖 正在處理新增請求...", expanded=True) as status:
+                prog_bar = st.progress(0, text="準備開始...")
                 
-                # 任務結束，稍停後刷頁
-                import time
-                time.sleep(1.2)
-                st.rerun()
-            else:
-                st.sidebar.error("❌ 請輸入完整的代號與名稱")
+                prog_bar.progress(20, text="📝 正在寫入預設名單...")
+                current_stocks = load_stock_dict()
+                current_stocks[new_sid] = f"{new_sid} ({new_name})"
+                save_stock_dict(current_stocks)
+                st.session_state['STOCK_DICT'] = current_stocks
                 
-with col_clean:
-        if st.button("🧹 百科智慧補全", use_container_width=True, help="僅針對尚未有資料的股票進行 AI 生成"):
-            st.session_state['confirm_reset'] = True
+                prog_bar.progress(50, text="🌐 AI 正在連網搜尋最新資料 (這可能需要 5-10 秒)...")
+                try:
+                    success, msg = auto_update_industry_db(new_sid)
+                    if success:
+                        prog_bar.progress(100, text="✅ 百科補全完成！")
+                        st.write(f"🎉 {msg}")
+                        status.update(label="🎉 標的新增與百科成功！", state="complete", expanded=False)
+                    else:
+                        prog_bar.error("⚠️ AI 回傳資料不完全")
+                        status.update(label="⚠️ 標的已新增，但百科失敗", state="error")
+                except Exception as e:
+                    prog_bar.error("❌ 發生未知錯誤")
+                    st.write(f"系統訊息: {str(e)}")
+                    status.update(label="❌ 百科生成失敗", state="error")
+            
+            import time
+            time.sleep(1.2)
+            st.rerun()
+        else:
+            st.sidebar.error("❌ 請輸入完整的代號與名稱")
+                
+    # 💥 捨棄 with col_clean 排版，直接使用全寬按鈕
+    if st.sidebar.button("🧹 百科智慧補全", use_container_width=True, help="僅針對尚未有資料的股票進行 AI 生成"):
+        st.session_state['confirm_reset'] = True
 
-        if st.session_state.get('confirm_reset'):
-            st.sidebar.warning("⚠️ 系統將掃描清單，僅更新「無資料」的標的。")
-            col_yes, col_no = st.sidebar.columns(2)
+    if st.session_state.get('confirm_reset'):
+        st.sidebar.warning("⚠️ 系統將掃描清單，僅更新「無資料」的標的。")
+        
+        # 💥 捨棄 col_yes, col_no，直接使用全寬按鈕
+        if st.sidebar.button("✅ 開始補百科資料", use_container_width=True):
+            db = load_industry_db() 
+            current_stocks = load_stock_dict()
+            all_sids = list(current_stocks.keys())
+            total = len(all_sids)
             
-            with col_yes:
-                if st.button("✅ 開始補百科資料", use_container_width=True):
-                    # 1. 讀取現有資料庫 (不刪除檔案了！)
-                    db = load_industry_db() 
-                    current_stocks = load_stock_dict()
-                    all_sids = list(current_stocks.keys())
-                    total = len(all_sids)
-                    
-                    progress_bar = st.sidebar.progress(0, text="🤖 檢查資料庫狀態...")
-                    
-                    for i, sid in enumerate(all_sids):
-                        # 💥 核心安全檢查：如果這檔股票已經在 JSON 裡了，就跳過
-                        if str(sid).strip() in db:
-                            # 已有資料，進度條直接跑過，不執行 AI
-                            pass 
-                        else:
-                            # 真的沒資料，才動用 AI
-                            try:
-                                auto_update_industry_db(sid)
-                                time.sleep(15) # 保護額度，避免頻率過快
-                            except:
-                                pass
-                        
-                        # 更新進度條視覺
-                        progress_bar.progress((i + 1) / total, text=f"🔍 檢查中: {i+1}/{total}")
-                    
-                    st.sidebar.success("✅ 百科補全作業完成！")
-                    time.sleep(1)
-                    st.session_state['confirm_reset'] = False
-                    st.rerun()
+            progress_bar = st.sidebar.progress(0, text="🤖 檢查資料庫狀態...")
             
-            with col_no:
-                if st.button("❌ 取消", use_container_width=True):
-                    st.session_state['confirm_reset'] = False
-                    st.rerun()
+            for i, sid in enumerate(all_sids):
+                if str(sid).strip() in db:
+                    pass 
+                else:
+                    try:
+                        auto_update_industry_db(sid)
+                        import time
+                        time.sleep(15) 
+                    except:
+                        pass
+                progress_bar.progress((i + 1) / total, text=f"🔍 檢查中: {i+1}/{total}")
+            
+            st.sidebar.success("✅ 百科補全作業完成！")
+            import time
+            time.sleep(1)
+            st.session_state['confirm_reset'] = False
+            st.rerun()
+        
+        if st.sidebar.button("❌ 取消", use_container_width=True):
+            st.session_state['confirm_reset'] = False
+            st.rerun()
 
 # --- 數據加載線 (外掛 - 必須靠最左邊) ---
 df = get_stock_df(target_sid)
@@ -1169,39 +1152,36 @@ if df is not None and not df.empty:
             <p style="color: #94a3b8; font-size: 13px; margin: 0 0 15px 0;">在此手動觸發連線測試，或對您清單上的所有標的進行一鍵即時雷達掃描與 Discord 推播。</p>
         </div>""", unsafe_allow_html=True)
 
-        col_dc_action1, col_dc_action2 = st.columns(2)
-        
-        with col_dc_action1:
-            if st.button(
-                "🔗 發送 Discord 測試訊息", 
-                use_container_width=True,
-                help="手動測試網頁與您的 Discord 頻道是否成功對接。"
-            ):
-                test_embed = {
-                    "title": "✅ 秉諺的黑馬雷達連線測試",
-                    "description": "網頁主端控制台發送成功！手動推播管道運作良好。",
-                    "color": 3447003,
-                    "footer": {"text": "測試時間: " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-                }
-                success, msg = send_discord_webhook(DEFAULT_DISCORD_WEBHOOK, test_embed)
-                if success: st.success("✅ " + msg)
-                else: st.error("❌ " + msg)
-                    
-        with col_dc_action2:
-            if st.button(
-                "🔍 執行全體雷達大掃描", 
-                use_container_width=True,
-                help="立即對您自選清單裡的所有股票進行技術與籌碼訊號的全面掃描。"
-            ):
-                with st.spinner("正在掃描..."):
-                    results = []
-                    current_scan_dict = load_stock_dict()
-                    for sid, sname in current_scan_dict.items():
-                        res = run_single_scan_signal(sid, sname, DEFAULT_DISCORD_WEBHOOK)
-                        if res: results.append(res)
-                    if results:
-                        st.success(f"🎉 掃描完成！共推播了 {len(results)} 檔。")
-                    else:
-                        st.info("💡 目前所有標的指標平穩，未達警報標準。")
+# 💥 捨棄 col_dc_action 排版，改為直列全寬，更具控制台氣勢
+        if st.button(
+            "🔗 發送 Discord 測試訊息", 
+            use_container_width=True,
+            help="手動測試網頁與您的 Discord 頻道是否成功對接。"
+        ):
+            test_embed = {
+                "title": "✅ 秉諺的黑馬雷達連線測試",
+                "description": "網頁主端控制台發送成功！手動推播管道運作良好。",
+                "color": 3447003,
+                "footer": {"text": "測試時間: " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+            }
+            success, msg = send_discord_webhook(DEFAULT_DISCORD_WEBHOOK, test_embed)
+            if success: st.success("✅ " + msg)
+            else: st.error("❌ " + msg)
+                
+        if st.button(
+            "🔍 執行全體雷達大掃描", 
+            use_container_width=True,
+            help="立即對您自選清單裡的所有股票進行技術與籌碼訊號的全面掃描。"
+        ):
+            with st.spinner("正在掃描..."):
+                results = []
+                current_scan_dict = load_stock_dict()
+                for sid, sname in current_scan_dict.items():
+                    res = run_single_scan_signal(sid, sname, DEFAULT_DISCORD_WEBHOOK)
+                    if res: results.append(res)
+                if results:
+                    st.success(f"🎉 掃描完成！共推播了 {len(results)} 檔。")
+                else:
+                    st.info("💡 目前所有標的指標平穩，未達警報標準。")
 else:
     st.error(f"❌ 暫時無法加載 {target_sid} 的技術數據，請在側邊欄進行重置或確認代號是否正確。")
