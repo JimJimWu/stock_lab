@@ -807,12 +807,35 @@ with st.sidebar:
             
         if st.button("📋 模型清單", use_container_width=True):
             pass
-        
         st.divider()
         st.markdown(
             "**資料庫管理**", 
-            help="您可以下載目前的百科資料庫備份。未來若雲端伺服器重置，可將此 JSON 檔案上傳至 GitHub 以恢復所有珍貴資料。"
+            help="您可以下載目前的百科資料庫與雷達名單備份。未來若雲端伺服器重置，可將這些 JSON 檔案上傳至 GitHub 以恢復所有珍貴資料。"
         )
+        
+        # 1. 百科資料庫下載
+        if os.path.exists("industry_db.json"):
+            with open("industry_db.json", "r", encoding="utf-8") as f:
+                st.download_button(
+                    "📥 下載百科資料庫 (industry_db)", 
+                    f.read(), 
+                    "industry_db.json", 
+                    "application/json", 
+                    use_container_width=True,
+                    help="下載完整的 AI 產業百科內容。若要保留 AI 生成的產業分析與查證網址，請備份此檔案。"
+                )
+        
+        # 2. 雷達名單下載 (💥 新增功能)
+        if os.path.exists("stock_dict.json"):
+            with open("stock_dict.json", "r", encoding="utf-8") as f:
+                st.download_button(
+                    "📥 下載雷達名單 (stock_dict)", 
+                    f.read(), 
+                    "stock_dict.json", 
+                    "application/json", 
+                    use_container_width=True,
+                    help="下載您的自選股雷達名單。將此檔案上傳至 GitHub 後，背景掃描器 (auto_scan.py) 才能偵測到新加入的股票。"
+                )
         if os.path.exists(INDUSTRY_DB_FILE):
             with open(INDUSTRY_DB_FILE, "r", encoding="utf-8") as f:
                 st.download_button("📥 下載 JSON 資料庫", f.read(), "industry_db.json", "application/json", use_container_width=True)
