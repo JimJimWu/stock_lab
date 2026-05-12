@@ -698,7 +698,10 @@ with st.sidebar:
     st.sidebar.divider()
 
 # 4. 🏢 AI 產業百科 (離線優先，維持戰略深度)
-    st.sidebar.markdown("### 🏢 AI 產業百科")
+    st.sidebar.markdown(
+        "### 🏢 AI 產業百科", 
+        help="這裡展示由 AI 深度生成的企業基本面、價值鏈與競爭對手分析。若發現資料過舊，可點擊下方按鈕更新。"
+    )
     db = load_industry_db()
     target_sid_str = str(target_sid).strip()
     stock_info = db.get(target_sid_str)
@@ -750,7 +753,7 @@ with st.sidebar:
         # ==========================================
 
         # 💥 視覺強化版 1：有資料時的「更新按鈕」
-        if st.sidebar.button("🔄 更新這檔百科", key=f"re_up_{target_sid_str}", use_container_width=True):
+        if st.sidebar.button("🔄 更新這檔百科", key=f"re_up_{target_sid_str}", use_container_width=True, help="點擊後將連網抓取最新動態並重寫百科資料，會消耗一次 API 額度。"):
             with st.sidebar.status(f"🚀 正在重塑 {target_sid_str} 產業百科...", expanded=True) as status:
                 prog_bar = st.progress(0, text="準備發動 AI 引擎...")
                 
@@ -774,7 +777,7 @@ with st.sidebar:
     else:
         st.sidebar.warning(f"⚠️ 庫存中無 {target_sid_str} 的資料")
         
-        if st.sidebar.button(f"🎯 消耗額度生成百科", key=f"init_{target_sid_str}", use_container_width=True):
+        if st.sidebar.button(f"🎯 消耗額度生成百科", key=f"init_{target_sid_str}", use_container_width=True,help="這檔股票目前尚無百科。點擊將啟動 AI 連網搜尋並建立全新資料庫，會消耗一次 API 額度。"):
             with st.sidebar.status(f"🤖 正在為 {target_sid_str} 建立全新百科...", expanded=True) as status:
                 prog_bar = st.progress(0, text="準備發動 AI 引擎...")
                 
@@ -806,7 +809,10 @@ with st.sidebar:
             pass
         
         st.divider()
-        st.markdown("**資料庫管理**")
+        st.markdown(
+            "**資料庫管理**", 
+            help="您可以下載目前的百科資料庫備份。未來若雲端伺服器重置，可將此 JSON 檔案上傳至 GitHub 以恢復所有珍貴資料。"
+        )
         if os.path.exists(INDUSTRY_DB_FILE):
             with open(INDUSTRY_DB_FILE, "r", encoding="utf-8") as f:
                 st.download_button("📥 下載 JSON 資料庫", f.read(), "industry_db.json", "application/json", use_container_width=True)
@@ -814,11 +820,11 @@ with st.sidebar:
 # 6. ➕ 擴建雷達
     st.sidebar.divider()
     st.sidebar.markdown("### ➕ 擴建雷達-新增股票")
-    new_sid = st.sidebar.text_input("輸入股票代號", help="例如 1815")
-    new_name = st.sidebar.text_input("輸入股票名稱", help="例如 富喬")
+    new_sid = st.sidebar.text_input("輸入股票代號", help="資料請核對正確，例如 2330")
+    new_name = st.sidebar.text_input("輸入股票名稱", help="資料請核對正確，例如 台積電")
     
     # 💥 捨棄 with col_add 排版，直接使用全寬按鈕
-    if st.sidebar.button("⚡ 新增百科標的", use_container_width=True):
+    if st.sidebar.button("⚡ 新增百科標的", use_container_width=True, help="輸入上方的代號與名稱後點擊此按鈕，系統會將其加入您的觀察清單，並立刻發動 AI 連網生成該公司的專屬百科。"):
         if new_sid and new_name:
             with st.sidebar.status("🤖 正在處理新增請求...", expanded=True) as status:
                 prog_bar = st.progress(0, text="準備開始...")
