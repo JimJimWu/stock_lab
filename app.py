@@ -1003,19 +1003,17 @@ if df is not None and not df.empty:
             
             if is_above_ma5 and (is_strong_rsi or inst_percent > 15):
                 vol_diag_msg = "💎 大戶惜售 / 籌碼鎖定"
-                st.warning("💤 【量能明顯萎縮】")  
-                # 💥 【V41.0 去標籤化】完全使用 \n 與 CSS pre-line 特性，徹底拔除 <b>、<br>、<ul>、<li> 標籤！
+                # 💥 刪除原有的 st.warning，避免視覺混淆
                 custom_diagnostic_card(
                     "💤 【量能明顯萎縮】",
                     "💎 診斷：【大戶惜售 / 籌碼鎖定】\n\n"
                     "• 現狀分析：量能大幅萎縮，但價格頑強守在 MA5 防線之上，顯示籌碼已被莊家大戶鎖死，散戶賣壓基本出盡。\n"
                     "• 戰術提示：此處的突破有 90% 以上為「洗盤後的真突破」。建議沿著 MA5 / MA10 移動停利，偏多看待。",
-                    "warning"
+                    "warning" # 這裡的 warning 會渲染成漂亮的琥珀黃邊框
                 )
             else:
                 vol_diag_msg = "🥶 人氣退潮"
                 st.warning("💤 【量能明顯萎縮】")  
-                # 💥 【V41.0 去標籤化】完全使用 \n 與 CSS pre-line 特性，徹底拔除 <b>、<br>、<ul>、<li> 標籤！
                 custom_diagnostic_card(
                     "💤 【量能明顯萎縮】",
                     "🥶 診斷：【人氣退潮 / 無人關注】\n\n"
