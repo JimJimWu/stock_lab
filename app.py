@@ -1182,11 +1182,16 @@ if df is not None and not df.empty:
             use_container_width=True,
             help="手動測試網頁與您的 Discord 頻道是否成功對接。"
         ):
+# 💥 強制鎖定台灣時間 (UTC+8)
+            import datetime
+            tz_tw = datetime.timezone(datetime.timedelta(hours=8))
+            test_time = datetime.datetime.now(tz_tw).strftime('%Y-%m-%d %H:%M:%S')
+            
             test_embed = {
                 "title": "✅ 秉諺的黑馬雷達連線測試",
                 "description": "網頁主端控制台發送成功！手動推播管道運作良好。",
                 "color": 3447003,
-                "footer": {"text": "測試時間: " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+                "footer": {"text": f"測試時間: {test_time}"}
             }
             success, msg = send_discord_webhook(DEFAULT_DISCORD_WEBHOOK, test_embed)
             if success: st.success("✅ " + msg)
