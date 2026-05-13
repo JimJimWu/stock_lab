@@ -140,6 +140,22 @@ def get_analysis_data(sid):
                 }
         except: continue
     return None
+ # 💥 【V32.0 新增：主力籌碼動能估算引擎】
+def get_institutional_chips(df):
+    status = "⚖️ 法人溫和觀望"
+    if df is not None and not df.empty and len(df) >= 10:
+        df_temp = df.copy()
+        df_temp['Price_Diff'] = df_temp['Close'].diff()
+        df_temp['Net_Force_Vol'] = df_temp.apply(
+            lambda r: r['Volume'] if r['Price_Diff'] > 0 else (-r['Volume'] if r['Price_Diff'] < 0 else 0.0), axis=1
+        )
+        net_5d = round(df_temp['Net_Force_Vol'].tail(5).sum(), 1)
+        
+        if net_5d > 500:
+            status = f"🚀 主力強烈鎖碼進貨 (+{net_5d}張)"
+        elif net_5d < -500:
+            status = f"⚠️ 主力高檔調節倒貨 ({net_5d}張)"
+    return status   
 
 # 發送 Discord Webhook
 def send_discord_webhook(webhook_url, embed_data):
@@ -207,7 +223,9 @@ def scan_and_notify(sid, sname, webhook_url):
         ma_status = "🔥 強勢多頭 (5 > 10 > 20MA)"
     else:
         ma_status = "💤 區間整理 / 走勢平緩"
-
+# 💥 加入籌碼透視判定
+    chip_flow_status = get_institutional_chips(df_scan)
+    
     # 3. 核心主力訊號判定 (僅限大訊號才推播！)
     status_msg = "⚖️ 區間溫和"
     signals_triggered = False 
@@ -229,13 +247,15 @@ def scan_and_notify(sid, sname, webhook_url):
     if last['K'] > last['D'] and prev['K'] <= prev['D'] and last['K'] < 40:
         sub_signals.append("🟡 KD 低檔交叉")
 
-    # 5. 發送高規格 Discord 卡片
+   # 5. 發送高規格 Discord 卡片
     if signals_triggered:
-        now_time = datetime.datetime.now().strftime('%m/%d %H:%M')
+# 💥 強制鎖定台灣時間 (UTC+8)
+        tz_tw = datetime.timezone(datetime.timedelta(hours=8))
+        now_time = datetime.datetime.now(tz_tw).strftime('%m/%d %H:%M')
         
         embed = {
             "title": f"🚨 黑馬雷達警戒：{sname} ({sid})",
-            "description": f"**主力狀態**：**`{status_msg}`**",
+            "description": f"**表面型態**：**`{status_msg}`**",
             "color": color_hex,
             "fields": [
                 {
@@ -254,8 +274,8 @@ def scan_and_notify(sid, sname, webhook_url):
                     "inline": False
                 },
                 {
-                    "name": "📈 趨勢與附屬指標", 
-                    "value": f"趨勢狀態：`{ma_status}`\n技術指標：`{', '.join(sub_signals) if sub_signals else '指標走勢平緩'}`", 
+                    "name": "📈 趨勢與內部籌碼真相", 
+                    "value": f"技術趨勢：`{ma_status}`\n資金流向：`{chip_flow_status}`", # 💥 讓 Discord 直接顯示主力倒貨真相
                     "inline": False
                 },
                 {
