@@ -327,7 +327,7 @@ def save_stock_dict(data):
         return False
 		
 # 💥 【必須補上：量化回測自動記錄器】
-def log_signal_to_csv(sid, sname, price, "signal_msg"):# ⬅️ 這裡必須是變數名稱
+def log_signal_to_csv(sid, sname, price, signal_msg):# ⬅️ 這裡必須是變數名稱
     log_file = "signal_history.csv"
     import datetime
     tz_tw = datetime.timezone(datetime.timedelta(hours=8))
