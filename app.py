@@ -1216,20 +1216,22 @@ if df is not None and not df.empty:
         fig.update_layout(height=800, template="plotly_dark", xaxis_rangeslider_visible=False)
         st.plotly_chart(fig, use_container_width=True)
 
-        # 戰情推播控制台
+# ==========================================
+# 戰情推播控制台
+# ==========================================
         st.divider()
         st.markdown("""<div style="background: linear-gradient(135deg, #1e293b, #0f172a); padding: 20px; border-radius: 12px; border: 1px solid #475569; margin-top: 15px;">
-            <h3 style="color: #60a5fa; margin: 0 0 10px 0; font-size: 20px; display: flex; align-items: center; gap: 8px;">📢 戰情推播控制台</h3>
+            <h3 style="color: #60a5fa; margin: 0 0 10px 0; font-size: 20px; display: flex; align-items: center; gap: 8px;">📡 戰情推播控制台</h3>
             <p style="color: #94a3b8; font-size: 13px; margin: 0 0 15px 0;">在此手動觸發連線測試，或對您清單上的所有標的進行一鍵即時雷達掃描與 Discord 推播。</p>
         </div>""", unsafe_allow_html=True)
 
-# 💥 捨棄 col_dc_action 排版，改為直列全寬，更具控制台氣勢
+        # 💥 保留直列全寬，更具控制台氣勢
         if st.button(
             "🔗 發送 Discord 測試訊息", 
             use_container_width=True,
             help="手動測試網頁與您的 Discord 頻道是否成功對接。"
         ):
-# 💥 強制鎖定台灣時間 (UTC+8)
+            # 強制鎖定台灣時間 (UTC+8)
             import datetime
             tz_tw = datetime.timezone(datetime.timedelta(hours=8))
             test_time = datetime.datetime.now(tz_tw).strftime('%Y-%m-%d %H:%M:%S')
@@ -1244,28 +1246,28 @@ if df is not None and not df.empty:
             if success: st.success("✅ " + msg)
             else: st.error("❌ " + msg)
 
-            if st.button(
-                "🔍 執行全體雷達大掃描", 
-                use_container_width=True,
-                help="立即對您自選清單裡的所有股票進行技術與籌碼訊號的全面掃描。"
-            ):
-                with st.spinner("🚀 雷達深度掃描中..."):
-                    results = []
-                    current_scan_dict = load_stock_dict()
-                    for sid, sname in current_scan_dict.items():
-                        res = run_single_scan_signal(sid, sname, DEFAULT_DISCORD_WEBHOOK)
-                        if res: results.append(res)
-                        
-                        import time
-                        time.sleep(0.2)
-                        
-                    if results:
-                        st.success(f"🎉 掃描完成！共推播了 {len(results)} 檔。")
-                        st.toast(f"✅ 成功推送 {len(results)} 檔黑馬至 Discord！", icon="🚀")
-                        st.balloons()
-                    else:
-                        st.info("💡 目前所有標的指標平穩，未達警報標準。")
-                        st.toast("💤 掃描完畢，目前無異常訊號。", icon="☕")
-
+        # 💥 關鍵修正：將掃描按鈕「向左退一格」，與測試按鈕處於同一個層級
+        if st.button(
+            "🔍 執行全體雷達大掃描", 
+            use_container_width=True,
+            help="立即對您自選清單裡的所有股票進行技術與籌碼訊號的全面掃描。"
+        ):
+            with st.spinner("🚀 雷達深度掃描中..."):
+                results = []
+                current_scan_dict = load_stock_dict()
+                for sid, sname in current_scan_dict.items():
+                    res = run_single_scan_signal(sid, sname, DEFAULT_DISCORD_WEBHOOK)
+                    if res: results.append(res)
+                    
+                    import time
+                    time.sleep(0.2)
+                    
+                if results:
+                    st.success(f"🎉 掃描完成！共推播了 {len(results)} 檔。")
+                    st.toast(f"✅ 成功推送 {len(results)} 檔黑馬至 Discord！", icon="🚀")
+                    st.balloons()
+                else:
+                    st.info("💡 目前所有標的指標平穩，未達警報標準。")
+                    st.toast("💤 掃描完畢，目前無異常訊號。", icon="☕")
 else:
     st.error(f"❌ 暫時無法加載 {target_sid} 的技術數據，請在側邊欄進行重置或確認代號是否正確。")
