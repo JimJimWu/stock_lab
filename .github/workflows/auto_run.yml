@@ -49,7 +49,7 @@ jobs:
                   if git diff --cached --quiet; then
                       echo "今日暫無新訊號，無需更新日誌。"
                   else
-                      git commit -m "📈 自動更新回測日誌: $(date +'%Y-%m-%d %H:%M') [skip ci]"
+                      git commit -m "📈 自動更新回測日誌: $(TZ='Asia/Taipei' date +'%Y-%m-%d %H:%M') [skip ci]"
                       git push
                       echo "✅ 成功將最新的黑馬訊號同步回 GitHub 倉庫！"
                   fi
