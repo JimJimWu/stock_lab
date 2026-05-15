@@ -327,7 +327,7 @@ def save_stock_dict(data):
         return False
 		
 # 💥 【必須補上：量化回測自動記錄器】
-def log_signal_to_csv(sid, sname, price, signal_msg):
+def log_signal_to_csv(sid, sname, price, "signal_msg"):# ⬅️ 這裡必須是變數名稱
     log_file = "signal_history.csv"
     import datetime
     tz_tw = datetime.timezone(datetime.timedelta(hours=8))
@@ -652,7 +652,8 @@ def run_single_scan_signal(sid, sname, webhook_url):
         }
         send_discord_webhook(webhook_url, embed)
 		# 💥 放在推播成功的正下方，return 的正上方
-        log_signal_to_csv(sid, sname, current_price, status_msg)
+		# ⬅️ 這裡把「雷達警報觸發」這個字串傳給上面的 signal_msg 投幣孔
+        log_signal_to_csv(sid, sname, current_price, "雷達警報觸發")
         return f"{sname} ({sid}) 觸發推播"
     return None
 
