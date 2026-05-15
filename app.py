@@ -796,24 +796,38 @@ with st.sidebar:
                     prog_bar.error("⚠️ 生成過程發生中斷")
                     st.write(f"系統回報: {msg}")
                     status.update(label="❌ 生成失敗", state="error")
-    # 5. 🩺 系統檢修區
+# 5. 🩺 系統檢修區
     st.sidebar.divider()
     with st.sidebar.expander("🛠️ 系統後勤工具", expanded=False):
-        st.markdown("**AI 連線測試**")
         
-        # 💥 捨棄 col_test 排版，改用滿版按鈕
+        # --- 區塊 1：保留您原本的 AI 連線測試 ---
+        st.markdown("**AI 連線測試**")
         if st.button("🔍 版本測試", use_container_width=True):
             st.toast("正在測試...")
             
         if st.button("📋 模型清單", use_container_width=True):
             pass
+        
+        # --- 區塊 2：💥 新增的系統記憶體管理 (清除快取) ---
+        st.divider()
+        st.markdown(
+            "**系統記憶體管理**", 
+            help="當某檔股票卡住（例如出現紅底白字）或一直抓不到最新報價時，使用此功能強制清空暫存。"
+        )
+        if st.button("🧹 強制清除系統快取", use_container_width=True, help="點擊後將清空所有 Yahoo 報價與 API 的歷史暫存，並重新載入網頁。"):
+            st.cache_data.clear()
+            st.success("✅ 系統快取已完美清除！")
+            import time
+            time.sleep(1)
+            st.rerun()
+            
+        # --- 區塊 3：保留完整的雙資料庫下載功能 ---
         st.divider()
         st.markdown(
             "**資料庫管理**", 
             help="您可以下載目前的百科資料庫與雷達名單備份。未來若雲端伺服器重置，可將這些 JSON 檔案上傳至 GitHub 以恢復所有珍貴資料。"
         )
         
-        # 1. 百科資料庫下載
         if os.path.exists("industry_db.json"):
             with open("industry_db.json", "r", encoding="utf-8") as f:
                 st.download_button(
@@ -824,9 +838,8 @@ with st.sidebar:
                     use_container_width=True,
                     help="下載完整的 AI 產業百科內容。若要保留 AI 生成的產業分析與查證網址，請備份此檔案。"
                 )
-        
-        # 2. 雷達名單下載 (💥 新增功能)
-        if os.path.exists("stock_dict.json"):
+                
+        if os.path.exists(stock_dict.json"):
             with open("stock_dict.json", "r", encoding="utf-8") as f:
                 st.download_button(
                     "📥 下載雷達名單 (stock_dict)", 
