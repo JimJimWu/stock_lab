@@ -870,10 +870,11 @@ with st.sidebar:
                     help="下載您的自選股雷達名單。將此檔案上傳至 GitHub 後，背景掃描器 (auto_scan.py) 才能偵測到新加入的股票。"
                 )
                 
-        # 3. 💥 策略回測日誌下載 (加上狀態提示)
+        # 3. 💥 策略回測日誌下載 (修正為二進位讀取，保護 Excel 不亂碼)
         st.markdown("**策略回測分析**")
         if os.path.exists("signal_history.csv"):
-            with open("signal_history.csv", "r", encoding="utf-8-sig") as f:
+			# 💥 將 "r" 改為 "rb" (二進位模式)，直接把帶有 BOM 的原始檔案原封不動送出
+            with open("signal_history.csv", "rb", encoding="utf-8-sig") as f:
                 st.download_button(
                     "📥 下載策略回測日誌 (CSV)", 
                     f.read(), 
@@ -1267,6 +1268,10 @@ if df is not None and not df.empty:
                     st.success(f"🎉 掃描完成！共推播了 {len(results)} 檔。")
                     st.toast(f"✅ 成功推送 {len(results)} 檔黑馬至 Discord！", icon="🚀")
                     st.balloons()
+					# 💥 補上這三行：讓氣球飛完後，網頁自動刷新，把側邊欄按鈕叫出來
+                    import time
+                    time.sleep(2.5) # 給氣球 2.5 秒的表演時間
+                    st.rerun()      # 強制重新載入網頁更新 UI
                 else:
                     st.info("💡 目前所有標的指標平穩，未達警報標準。")
                     st.toast("💤 掃描完畢，目前無異常訊號。", icon="☕")
