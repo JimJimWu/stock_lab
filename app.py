@@ -326,8 +326,8 @@ def save_stock_dict(data):
         print(f"儲存 stock_dict.json 失敗: {e}")
         return False
 		
-# 💥 【V34.0 升級：富文本量化回測記錄器】
-def log_signal_to_csv(sid, sname, price, embed): # ⬅️ 這裡的參數改成接收 embed 整包卡片
+# 💥 【V34.1 升級：富文本量化回測記錄器 (名稱淨化版)】
+def log_signal_to_csv(sid, sname, price, embed):
     log_file = "signal_history.csv"
     import datetime
     tz_tw = datetime.timezone(datetime.timedelta(hours=8))
@@ -336,31 +336,33 @@ def log_signal_to_csv(sid, sname, price, embed): # ⬅️ 這裡的參數改成�
     file_exists = os.path.isfile(log_file)
     
     try:
-        # 1. 從 Discord 卡片中萃取精華數據，並去除 Markdown 符號 (** 與 `)
+        # 💥 1. 名稱淨化：將 "3163 (波若威)" 洗成純淨的 "波若威"
+        pure_sname = sname
+        if "(" in sname and ")" in sname:
+            pure_sname = sname.split("(")[1].split(")")[0]
+            
+        # 2. 從 Discord 卡片中萃取精華數據
         desc = embed.get("description", "").replace("*", "").replace("`", "")
         tech_vol = ""
         trend_chip = ""
         
-        # 遍歷卡片中的各個欄位，抓取我們要的技術與籌碼數據
         for field in embed.get("fields", []):
             if "技術" in field.get("name", ""):
-                # 將換行符號取代為直線，方便 Excel 閱讀
                 tech_vol = field.get("value", "").replace("\n", " | ").replace("`", "")
             if "趨勢" in field.get("name", ""):
                 trend_chip = field.get("value", "").replace("\n", " | ").replace("`", "")
         
-        # 2. 寫入 CSV
+        # 3. 寫入 CSV
         with open(log_file, mode='a', encoding='utf-8-sig', newline='') as f:
             if not file_exists:
-                # 💥 擴充 Excel 表頭，加入兩大新欄位
                 f.write("日期時間,股票代號,股票名稱,觸發價格,核心訊號,技術與量能,趨勢與籌碼\n")
             
-            # 清洗逗號，防止 CSV 欄位錯亂
             clean_desc = desc.replace(',', '，')
             clean_tech = tech_vol.replace(',', '，')
             clean_trend = trend_chip.replace(',', '，')
             
-            f.write(f"{now_time},{sid},{sname},{price},{clean_desc},{clean_tech},{clean_trend}\n")
+            # 💥 這裡改用洗乾淨的 pure_sname 寫入檔案
+            f.write(f"{now_time},{sid},{pure_sname},{price},{clean_desc},{clean_tech},{clean_trend}\n")
     except Exception as e:
         print(f"寫入 CSV 失敗: {e}")
 		
@@ -890,11 +892,9 @@ with st.sidebar:
                     use_container_width=True,
                     help="下載您的自選股雷達名單。將此檔案上傳至 GitHub 後，背景掃描器 (auto_scan.py) 才能偵測到新加入的股票。"
                 )
-                
-        # 3. 💥 策略回測日誌下載 (修正為二進位讀取，保護 Excel 不亂碼)
+# 3. 策略回測日誌下載與管理
         st.markdown("**策略回測分析**")
         if os.path.exists("signal_history.csv"):
-			# 💥 將 "r" 改為 "rb" (二進位模式)，直接把帶有 BOM 的原始檔案原封不動送出
             with open("signal_history.csv", "rb") as f:
                 st.download_button(
                     "📥 下載策略回測日誌 (CSV)", 
@@ -904,6 +904,26 @@ with st.sidebar:
                     use_container_width=True,
                     help="下載由 Discord 哨兵自動記錄的推播歷史，可直接用 Excel 開啟進行勝率回測分析。"
                 )
+                
+            # 💥 捨棄危險的核彈按鈕，改為業界標準的「上傳覆蓋」機制
+            st.markdown("<span style='font-size: 13px; color: #94a3b8;'>🔄 **維護與還原 (覆蓋現有日誌)**</span>", unsafe_allow_html=True)
+            uploaded_csv = st.file_uploader(
+                "上傳您在 Excel 整理好的乾淨 CSV：", 
+                type=["csv"], 
+                label_visibility="collapsed"
+            )
+            
+            if uploaded_csv is not None:
+                try:
+                    # 收到上傳檔案後，直接以二進位模式覆蓋原有的 signal_history.csv
+                    with open("signal_history.csv", "wb") as f:
+                        f.write(uploaded_csv.getbuffer())
+                    st.success("✅ 乾淨的回測日誌已成功覆蓋上傳！")
+                    import time
+                    time.sleep(1.5)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"上傳失敗: {e}")
         else:
             st.info("💡 雲端尚未生成回測紀錄 (signal_history.csv)。一旦掃描觸發大戶或主力訊號，此處即會出現下載按鈕。")
 			
