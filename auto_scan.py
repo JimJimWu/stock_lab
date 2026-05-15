@@ -16,6 +16,31 @@ DICT_FILE = "stock_dict.json"
 # ==============================================================================
 DEFAULT_DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK") or ""
 
+# 💥 【V33.0 新增：量化回測自動記錄器】
+def log_signal_to_csv(sid, sname, price, signal_msg):
+    log_file = "signal_history.csv"
+    # 鎖定台灣時間
+    import datetime
+    tz_tw = datetime.timezone(datetime.timedelta(hours=8))
+    now_time = datetime.datetime.now(tz_tw).strftime('%Y-%m-%d %H:%M:%S')
+    
+    # 檢查檔案是否存在
+    import os
+    file_exists = os.path.isfile(log_file)
+    
+    try:
+        # 使用 utf-8-sig 確保您未來用 Excel 打開時絕對不會出現中文亂碼
+        with open(log_file, mode='a', encoding='utf-8-sig', newline='') as f:
+            if not file_exists:
+                # 第一次執行時，自動建立表頭
+                f.write("日期時間,股票代號,股票名稱,觸發價格,核心訊號\n")
+            
+            # 替換掉訊號文字中的逗號與換行，保護 CSV 格式不跑位
+            clean_signal = str(signal_msg).replace(',', '，').replace('\n', ' ')
+            f.write(f"{now_time},{sid},{sname},{price},{clean_signal}\n")
+    except Exception as e:
+        print(f"寫入 CSV 失敗: {e}")
+
 # 載入股票名單
 def load_stock_dict():
     if os.path.exists(DICT_FILE):
@@ -288,6 +313,9 @@ def scan_and_notify(sid, sname, webhook_url):
         }
         send_discord_webhook(webhook_url, embed)
         print(f"[{datetime.datetime.now()}] {sname} ({sid}) 滿足主力條件，已成功推送 Discord！")
+
+        # 💥 觸發後立刻寫入回測日誌
+        log_signal_to_csv(sid, sname, current_price, status_msg)
 
 # 執行全體自選股掃描
 def run_all_scan():
