@@ -874,7 +874,7 @@ with st.sidebar:
         st.markdown("**策略回測分析**")
         if os.path.exists("signal_history.csv"):
 			# 💥 將 "r" 改為 "rb" (二進位模式)，直接把帶有 BOM 的原始檔案原封不動送出
-            with open("signal_history.csv", "rb", encoding="utf-8-sig") as f:
+            with open("signal_history.csv", "rb") as f:
                 st.download_button(
                     "📥 下載策略回測日誌 (CSV)", 
                     f.read(), 
