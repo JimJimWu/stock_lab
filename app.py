@@ -839,7 +839,7 @@ with st.sidebar:
                     help="下載完整的 AI 產業百科內容。若要保留 AI 生成的產業分析與查證網址，請備份此檔案。"
                 )
                 
-        if os.path.exists(stock_dict.json"):
+        if os.path.exists("stock_dict.json"):
             with open("stock_dict.json", "r", encoding="utf-8") as f:
                 st.download_button(
                     "📥 下載雷達名單 (stock_dict)", 
