@@ -326,20 +326,41 @@ def save_stock_dict(data):
         print(f"儲存 stock_dict.json 失敗: {e}")
         return False
 		
-# 💥 【必須補上：量化回測自動記錄器】
-def log_signal_to_csv(sid, sname, price, signal_msg):# ⬅️ 這裡必須是變數名稱
+# 💥 【V34.0 升級：富文本量化回測記錄器】
+def log_signal_to_csv(sid, sname, price, embed): # ⬅️ 這裡的參數改成接收 embed 整包卡片
     log_file = "signal_history.csv"
     import datetime
     tz_tw = datetime.timezone(datetime.timedelta(hours=8))
     now_time = datetime.datetime.now(tz_tw).strftime('%Y-%m-%d %H:%M:%S')
     import os
     file_exists = os.path.isfile(log_file)
+    
     try:
+        # 1. 從 Discord 卡片中萃取精華數據，並去除 Markdown 符號 (** 與 `)
+        desc = embed.get("description", "").replace("*", "").replace("`", "")
+        tech_vol = ""
+        trend_chip = ""
+        
+        # 遍歷卡片中的各個欄位，抓取我們要的技術與籌碼數據
+        for field in embed.get("fields", []):
+            if "技術" in field.get("name", ""):
+                # 將換行符號取代為直線，方便 Excel 閱讀
+                tech_vol = field.get("value", "").replace("\n", " | ").replace("`", "")
+            if "趨勢" in field.get("name", ""):
+                trend_chip = field.get("value", "").replace("\n", " | ").replace("`", "")
+        
+        # 2. 寫入 CSV
         with open(log_file, mode='a', encoding='utf-8-sig', newline='') as f:
             if not file_exists:
-                f.write("日期時間,股票代號,股票名稱,觸發價格,核心訊號\n")
-            clean_signal = str(signal_msg).replace(',', '，').replace('\n', ' ')
-            f.write(f"{now_time},{sid},{sname},{price},{clean_signal}\n")
+                # 💥 擴充 Excel 表頭，加入兩大新欄位
+                f.write("日期時間,股票代號,股票名稱,觸發價格,核心訊號,技術與量能,趨勢與籌碼\n")
+            
+            # 清洗逗號，防止 CSV 欄位錯亂
+            clean_desc = desc.replace(',', '，')
+            clean_tech = tech_vol.replace(',', '，')
+            clean_trend = trend_chip.replace(',', '，')
+            
+            f.write(f"{now_time},{sid},{sname},{price},{clean_desc},{clean_tech},{clean_trend}\n")
     except Exception as e:
         print(f"寫入 CSV 失敗: {e}")
 		
@@ -652,8 +673,8 @@ def run_single_scan_signal(sid, sname, webhook_url):
         }
         send_discord_webhook(webhook_url, embed)
 		# 💥 放在推播成功的正下方，return 的正上方
-		# ⬅️ 這裡把「雷達警報觸發」這個字串傳給上面的 signal_msg 投幣孔
-        log_signal_to_csv(sid, sname, current_price, "雷達警報觸發")
+		# 💥 傳入 embed，讓 Excel 直接拷貝 Discord 的豐富數據
+        log_signal_to_csv(sid, sname, current_price, embed)
         return f"{sname} ({sid}) 觸發推播"
     return None
 
