@@ -1,31 +1,55 @@
 name: Stock Auto Scan
 
 on:
-  schedule:
-    # 設定為台股開盤時間：週一至週五，台灣時間 09:00 - 15:00 (含興櫃完整交易時段)
-    # 台灣時間 09:00 = UTC 01:00，台灣時間 15:00 = UTC 07:00
-    - cron: '*/30 1-7 * * 1-5' # 每 30 分鐘定時啟動
-  workflow_dispatch: # 允許手動隨時在網頁按下 Run workflow 測試
+    schedule:
+        # 設定為台股開盤時間：週一至週五，台灣時間 09:00 - 15:00 (含興櫃完整交易時段)
+        # 台灣時間 09:00 = UTC 01:00，台灣時間 15:00 = UTC 07:00
+        - cron: '*/30 1-7 * * 1-5'
+    workflow_dispatch: # 允許手動隨時在網頁按下 Run workflow 測試
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: 檢出程式碼
-        uses: actions/checkout@v4
+    build:
+        runs-on: ubuntu-latest
+        
+        # 💥 【必須新增：賦予機器人寫入倉庫的權限】
+        permissions:
+            contents: write
+            
+        steps:
+            - name: 檢出程式碼
+              uses: actions/checkout@v4
 
-      - name: 設定 Python 環境
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
+            - name: 設定 Python 環境
+              uses: actions/setup-python@v5
+              with:
+                  python-version: '3.10'
 
-      - name: 安裝安全連線與必要套件
-        run: |
-          pip install --upgrade pip
-          pip install yfinance pandas requests curl_cffi lxml
+            - name: 安裝安全連線與必要套件
+              run: |
+                  pip install --upgrade pip
+                  pip install yfinance pandas requests curl_cffi lxml
 
-      - name: 執行黑馬掃描 (V19.3 雲端安全鎖版)
-        env:
-          # 從 GitHub Secrets 保險箱中自動讀取 Webhook URL 並注入程式中，網路完全看不見！
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-        run: python auto_scan.py
+            - name: 執行黑馬掃描 (V19.3 雲端安全鎖版)
+              env:
+                  DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+              run: |
+                  python auto_scan.py
+
+            # 💥 【V35.0 升級：GitHub 資料自動同步引擎，放在最後一步】
+            - name: 自動提交並更新回測日誌
+              run: |
+                  # 1. 設定 Git 使用者身份（使用 GitHub Actions 官方機器人帳號）
+                  git config --local user.email "github-actions[bot]@users.noreply.github.com"
+                  git config --local user.name "github-actions[bot]"
+                  
+                  # 2. 檢查是否有檔案更新，避免無意義的提交
+                  git add signal_history.csv
+                  
+                  # 3. 執行提交並加上 [skip ci] 標籤，防止觸發無限迴圈
+                  if git diff --cached --quiet; then
+                      echo "今日暫無新訊號，無需更新日誌。"
+                  else
+                      git commit -m "📈 自動更新回測日誌: $(date +'%Y-%m-%d %H:%M') [skip ci]"
+                      git push
+                      echo "✅ 成功將最新的黑馬訊號同步回 GitHub 倉庫！"
+                  fi
