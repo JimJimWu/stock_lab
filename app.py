@@ -1133,7 +1133,7 @@ if df is not None and not df.empty:
         if a_data:
             eps_val = a_data.get('EPS', 'N/A')
             roe_val = a_data.get('ROE', 'N/A')
-            pe_val = a_data.get('本益比', 'N/A')
+            pe_val = a_data.get('本益比', 'N/A')	
             debt_val = a_data.get('負債比')
             inst_hold = a_data.get('法人持股')
             
@@ -1243,26 +1243,24 @@ if df is not None and not df.empty:
             success, msg = send_discord_webhook(DEFAULT_DISCORD_WEBHOOK, test_embed)
             if success: st.success("✅ " + msg)
             else: st.error("❌ " + msg)
-                
-        if st.button(
-            "🔍 執行全體雷達大掃描", 
-            use_container_width=True,
-            help="立即對您自選清單裡的所有股票進行技術與籌碼訊號的全面掃描。"
-        ):
-			with st.spinner("🚀 雷達深度掃描中..."):
+
+            if st.button(
+                "🔍 執行全體雷達大掃描", 
+                use_container_width=True,
+                help="立即對您自選清單裡的所有股票進行技術與籌碼訊號的全面掃描。"
+            ):
+                with st.spinner("🚀 雷達深度掃描中..."):
                     results = []
                     current_scan_dict = load_stock_dict()
                     for sid, sname in current_scan_dict.items():
                         res = run_single_scan_signal(sid, sname, DEFAULT_DISCORD_WEBHOOK)
                         if res: results.append(res)
                         
-                        # 💥 刻意放慢 0.2 秒，讓 UI 進度圈有時間顯示，增加掃描真實感
                         import time
                         time.sleep(0.2)
                         
                     if results:
                         st.success(f"🎉 掃描完成！共推播了 {len(results)} 檔。")
-                        # 💥 彈出右下角浮動通知與全螢幕氣球，保證絕對有感！
                         st.toast(f"✅ 成功推送 {len(results)} 檔黑馬至 Discord！", icon="🚀")
                         st.balloons()
                     else:
