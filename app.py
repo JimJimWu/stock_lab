@@ -920,8 +920,7 @@ with st.sidebar:
                         f.write(uploaded_csv.getbuffer())
                     st.success("✅ 乾淨的回測日誌已成功覆蓋上傳！")
                     import time
-                    time.sleep(1.5)
-                    st.rerun()
+                    # 💥 已經將 time.sleep 與 st.rerun() 刪除，打破無限迴圈
                 except Exception as e:
                     st.error(f"上傳失敗: {e}")
         else:
