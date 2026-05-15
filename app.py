@@ -325,6 +325,49 @@ def save_stock_dict(data):
     except Exception as e:
         print(f"儲存 stock_dict.json 失敗: {e}")
         return False
+def save_stock_dict(data):
+    try:
+        with open(DICT_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+        return True
+    except Exception as e:
+        print(f"儲存 stock_dict.json 失敗: {e}")
+        return False
+		
+# 💥 【新增：量化回測自動記錄器】 (放在這裡非常完美)
+def log_signal_to_csv(sid, sname, price, signal_msg):
+    log_file = "signal_history.csv"
+    import datetime
+    tz_tw = datetime.timezone(datetime.timedelta(hours=8))
+    now_time = datetime.datetime.now(tz_tw).strftime('%Y-%m-%d %H:%M:%S')
+    import os
+    file_exists = os.path.isfile(log_file)
+    try:
+        with open(log_file, mode='a', encoding='utf-8-sig', newline='') as f:
+            if not file_exists:
+                f.write("日期時間,股票代號,股票名稱,觸發價格,核心訊號\n")
+            clean_signal = str(signal_msg).replace(',', '，').replace('\n', ' ')
+            f.write(f"{now_time},{sid},{sname},{price},{clean_signal}\n")
+    except Exception as e:
+        print(f"寫入 CSV 失敗: {e}")
+
+# 💥 【新增：量化回測自動記錄器】 (放在這裡非常完美)
+def log_signal_to_csv(sid, sname, price, signal_msg):
+    log_file = "signal_history.csv"
+    import datetime
+    tz_tw = datetime.timezone(datetime.timedelta(hours=8))
+    now_time = datetime.datetime.now(tz_tw).strftime('%Y-%m-%d %H:%M:%S')
+    import os
+    file_exists = os.path.isfile(log_file)
+    try:
+        with open(log_file, mode='a', encoding='utf-8-sig', newline='') as f:
+            if not file_exists:
+                f.write("日期時間,股票代號,股票名稱,觸發價格,核心訊號\n")
+            clean_signal = str(signal_msg).replace(',', '，').replace('\n', ' ')
+            f.write(f"{now_time},{sid},{sname},{price},{clean_signal}\n")
+    except Exception as e:
+        print(f"寫入 CSV 失敗: {e}")
+
 
 def load_industry_db():
     """
@@ -634,6 +677,8 @@ def run_single_scan_signal(sid, sname, webhook_url):
             "footer": {"text": f"秉諺的黑馬雷達 V41.0"}
         }
         send_discord_webhook(webhook_url, embed)
+		# 💥 放在推播成功的正下方，return 的正上方
+        log_signal_to_csv(sid, sname, current_price, status_msg)
         return f"{sname} ({sid}) 觸發推播"
     return None
 
@@ -821,7 +866,7 @@ with st.sidebar:
             time.sleep(1)
             st.rerun()
             
-        # --- 區塊 3：保留完整的雙資料庫下載功能 ---
+# --- 區塊 3：保留完整的雙資料庫下載功能 ---
         st.divider()
         st.markdown(
             "**資料庫管理**", 
@@ -849,9 +894,10 @@ with st.sidebar:
                     use_container_width=True,
                     help="下載您的自選股雷達名單。將此檔案上傳至 GitHub 後，背景掃描器 (auto_scan.py) 才能偵測到新加入的股票。"
                 )
-				# 3. 💥 新增：策略回測日誌下載 (CSV)
+                
+        # 3. 💥 策略回測日誌下載 (加上狀態提示)
+        st.markdown("**策略回測分析**")
         if os.path.exists("signal_history.csv"):
-            # 注意這裡同樣使用 utf-8-sig 讀取，確保下載後 Excel 繁體中文完美顯示
             with open("signal_history.csv", "r", encoding="utf-8-sig") as f:
                 st.download_button(
                     "📥 下載策略回測日誌 (CSV)", 
@@ -861,7 +907,9 @@ with st.sidebar:
                     use_container_width=True,
                     help="下載由 Discord 哨兵自動記錄的推播歷史，可直接用 Excel 開啟進行勝率回測分析。"
                 )
-
+        else:
+            st.info("💡 雲端尚未生成回測紀錄 (signal_history.csv)。一旦掃描觸發大戶或主力訊號，此處即會出現下載按鈕。")
+			
 # 6. ➕ 擴建雷達
     st.sidebar.divider()
     st.sidebar.markdown("### ➕ 擴建雷達-新增股票")
