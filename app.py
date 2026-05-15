@@ -849,6 +849,18 @@ with st.sidebar:
                     use_container_width=True,
                     help="下載您的自選股雷達名單。將此檔案上傳至 GitHub 後，背景掃描器 (auto_scan.py) 才能偵測到新加入的股票。"
                 )
+				# 3. 💥 新增：策略回測日誌下載 (CSV)
+        if os.path.exists("signal_history.csv"):
+            # 注意這裡同樣使用 utf-8-sig 讀取，確保下載後 Excel 繁體中文完美顯示
+            with open("signal_history.csv", "r", encoding="utf-8-sig") as f:
+                st.download_button(
+                    "📥 下載策略回測日誌 (CSV)", 
+                    f.read(), 
+                    "signal_history.csv", 
+                    "text/csv", 
+                    use_container_width=True,
+                    help="下載由 Discord 哨兵自動記錄的推播歷史，可直接用 Excel 開啟進行勝率回測分析。"
+                )
 
 # 6. ➕ 擴建雷達
     st.sidebar.divider()
