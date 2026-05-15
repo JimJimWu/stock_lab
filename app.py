@@ -326,7 +326,7 @@ def save_stock_dict(data):
         print(f"儲存 stock_dict.json 失敗: {e}")
         return False
 		
-# 💥 【V34.1 升級：富文本量化回測記錄器 (名稱淨化版)】
+# 💥 【V34.2 升級：富文本量化回測記錄器 (精準對齊版)】
 def log_signal_to_csv(sid, sname, price, embed):
     log_file = "signal_history.csv"
     import datetime
@@ -336,33 +336,31 @@ def log_signal_to_csv(sid, sname, price, embed):
     file_exists = os.path.isfile(log_file)
     
     try:
-        # 💥 1. 名稱淨化：將 "3163 (波若威)" 洗成純淨的 "波若威"
+        # 名稱淨化
         pure_sname = sname
         if "(" in sname and ")" in sname:
             pure_sname = sname.split("(")[1].split(")")[0]
             
-        # 2. 從 Discord 卡片中萃取精華數據
+        # 萃取數據 (移除幽靈趨勢欄位)
         desc = embed.get("description", "").replace("*", "").replace("`", "")
         tech_vol = ""
-        trend_chip = ""
         
+        # 只抓取 Discord 實際有發送的「技術」欄位
         for field in embed.get("fields", []):
             if "技術" in field.get("name", ""):
                 tech_vol = field.get("value", "").replace("\n", " | ").replace("`", "")
-            if "趨勢" in field.get("name", ""):
-                trend_chip = field.get("value", "").replace("\n", " | ").replace("`", "")
         
-        # 3. 寫入 CSV
+        # 寫入 CSV
         with open(log_file, mode='a', encoding='utf-8-sig', newline='') as f:
             if not file_exists:
-                f.write("日期時間,股票代號,股票名稱,觸發價格,核心訊號,技術與量能,趨勢與籌碼\n")
+                # 💥 修正表頭，對齊實際存在的 6 個欄位
+                f.write("日期時間,股票代號,股票名稱,觸發價格,核心訊號,技術與量能\n")
             
             clean_desc = desc.replace(',', '，')
             clean_tech = tech_vol.replace(',', '，')
-            clean_trend = trend_chip.replace(',', '，')
             
-            # 💥 這裡改用洗乾淨的 pure_sname 寫入檔案
-            f.write(f"{now_time},{sid},{pure_sname},{price},{clean_desc},{clean_tech},{clean_trend}\n")
+            # 💥 寫入 6 個完美對齊的數據
+            f.write(f"{now_time},{sid},{pure_sname},{price},{clean_desc},{clean_tech}\n")
     except Exception as e:
         print(f"寫入 CSV 失敗: {e}")
 		
