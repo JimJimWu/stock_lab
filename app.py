@@ -325,16 +325,8 @@ def save_stock_dict(data):
     except Exception as e:
         print(f"儲存 stock_dict.json 失敗: {e}")
         return False
-def save_stock_dict(data):
-    try:
-        with open(DICT_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
-        return True
-    except Exception as e:
-        print(f"儲存 stock_dict.json 失敗: {e}")
-        return False
 		
-# 💥 【新增：量化回測自動記錄器】 (放在這裡非常完美)
+# 💥 【必須補上：量化回測自動記錄器】
 def log_signal_to_csv(sid, sname, price, signal_msg):
     log_file = "signal_history.csv"
     import datetime
@@ -350,25 +342,7 @@ def log_signal_to_csv(sid, sname, price, signal_msg):
             f.write(f"{now_time},{sid},{sname},{price},{clean_signal}\n")
     except Exception as e:
         print(f"寫入 CSV 失敗: {e}")
-
-# 💥 【新增：量化回測自動記錄器】 (放在這裡非常完美)
-def log_signal_to_csv(sid, sname, price, signal_msg):
-    log_file = "signal_history.csv"
-    import datetime
-    tz_tw = datetime.timezone(datetime.timedelta(hours=8))
-    now_time = datetime.datetime.now(tz_tw).strftime('%Y-%m-%d %H:%M:%S')
-    import os
-    file_exists = os.path.isfile(log_file)
-    try:
-        with open(log_file, mode='a', encoding='utf-8-sig', newline='') as f:
-            if not file_exists:
-                f.write("日期時間,股票代號,股票名稱,觸發價格,核心訊號\n")
-            clean_signal = str(signal_msg).replace(',', '，').replace('\n', ' ')
-            f.write(f"{now_time},{sid},{sname},{price},{clean_signal}\n")
-    except Exception as e:
-        print(f"寫入 CSV 失敗: {e}")
-
-
+		
 def load_industry_db():
     """
     從 JSON 檔案載入產業百科資料庫 (清潔完工版)
@@ -1275,15 +1249,25 @@ if df is not None and not df.empty:
             use_container_width=True,
             help="立即對您自選清單裡的所有股票進行技術與籌碼訊號的全面掃描。"
         ):
-            with st.spinner("正在掃描..."):
-                results = []
-                current_scan_dict = load_stock_dict()
-                for sid, sname in current_scan_dict.items():
-                    res = run_single_scan_signal(sid, sname, DEFAULT_DISCORD_WEBHOOK)
-                    if res: results.append(res)
-                if results:
-                    st.success(f"🎉 掃描完成！共推播了 {len(results)} 檔。")
-                else:
-                    st.info("💡 目前所有標的指標平穩，未達警報標準。")
+			with st.spinner("🚀 雷達深度掃描中..."):
+                    results = []
+                    current_scan_dict = load_stock_dict()
+                    for sid, sname in current_scan_dict.items():
+                        res = run_single_scan_signal(sid, sname, DEFAULT_DISCORD_WEBHOOK)
+                        if res: results.append(res)
+                        
+                        # 💥 刻意放慢 0.2 秒，讓 UI 進度圈有時間顯示，增加掃描真實感
+                        import time
+                        time.sleep(0.2)
+                        
+                    if results:
+                        st.success(f"🎉 掃描完成！共推播了 {len(results)} 檔。")
+                        # 💥 彈出右下角浮動通知與全螢幕氣球，保證絕對有感！
+                        st.toast(f"✅ 成功推送 {len(results)} 檔黑馬至 Discord！", icon="🚀")
+                        st.balloons()
+                    else:
+                        st.info("💡 目前所有標的指標平穩，未達警報標準。")
+                        st.toast("💤 掃描完畢，目前無異常訊號。", icon="☕")
+
 else:
     st.error(f"❌ 暫時無法加載 {target_sid} 的技術數據，請在側邊欄進行重置或確認代號是否正確。")
