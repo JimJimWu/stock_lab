@@ -1256,15 +1256,15 @@ if df is not None and not df.empty:
         fig.update_layout(height=800, template="plotly_dark", xaxis_rangeslider_visible=False)
 		# 💥 增量優化：專業看盤軟體視覺升級包
         
-        # 1. 統一懸浮資訊框與圖例頂部水平化
+        # 1. 統一懸浮資訊框與圖例頂部水平化 (解決右上角工具列撞車問題)
         fig.update_layout(
-            hovermode="x unified",  # 將所有數據整合在同一條垂直線的資訊框內
+            hovermode="x unified",  
             legend=dict(
-                orientation="h",    # 圖例改為水平排列
+                orientation="h",    
                 yanchor="bottom", y=1.02, 
-                xanchor="right", x=1
+                xanchor="left", x=0       # 💥 關鍵修改：改為靠「左」對齊
             ),
-            margin=dict(l=10, r=10, t=40, b=10) # 縮減無效邊距，放大圖表實體
+            margin=dict(l=10, r=10, t=65, b=10) # 💥 關鍵修改：天花板高度從 40 挑高到 65
         )
         
         # 2. 開啟十字游標準星 (Crosshair)
