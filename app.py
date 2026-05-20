@@ -24,98 +24,6 @@ if not GEMINI_API_KEY:
 else:
     genai.configure(api_key=GEMINI_API_KEY)
 
-# ==========================================
-# 📈 獨立擴充模組：戰情室動態技術指標視覺化
-# ==========================================
-def display_radar_technical_charts(stock_id):
-    """
-    完全獨立的圖表渲染引擎。根據傳入的股票代號，自動抓取日 K 線數據，
-    並即時繪製專業看盤軟體等級的連動圖表 (K線 + 20MA + MACD 柱狀圖)。
-    """
-    import yfinance as yf
-    import pandas as pd
-    import plotly.graph_objects as go
-    from plotly.subplots import make_subplots
-    import streamlit as st
-
-    # 自動修正台股後綴格式
-    ticker_id = f"{stock_id}.TW" if not stock_id.endswith(('.TW', '.TWO')) else stock_id
-
-    try:
-        # 安全抓取最近 3 個月的日 K 線數據
-        df = yf.download(ticker_id, period="3mo", progress=False)
-        
-        if df.empty:
-            st.info("💡 暫無該標的之歷史 K 線數據，系統自動跳過圖表渲染。")
-            return
-
-        # 1. 計算 20 MA 均線
-        df['MA20'] = df['Close'].rolling(window=20).mean()
-        
-        # 2. 計算 MACD 指標 (12, 26, 9)
-        exp1 = df['Close'].ewm(span=12, adjust=False).mean()
-        exp2 = df['Close'].ewm(span=26, adjust=False).mean()
-        df['DIF'] = exp1 - exp2
-        df['MACD_Signal'] = df['DIF'].ewm(span=9, adjust=False).mean()
-        df['MACD_Hist'] = df['DIF'] - df['MACD_Signal']
-        
-        # 3. 建立上下雙層子圖 (K線圖佔 70%，MACD佔 30%，共用橫軸)
-        fig = make_subplots(
-            rows=2, cols=1, 
-            shared_xaxes=True, 
-            vertical_spacing=0.04, 
-            row_heights=[0.7, 0.3]
-        )
-        
-        # 【主圖：專業日 K 線】
-        fig.add_trace(go.Candlestick(
-            x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'],
-            name="日K線", 
-            increasing_line_color='#ef4444', increasing_fillcolor='#ef4444', # 紅漲
-            decreasing_line_color='#22c55e', decreasing_fillcolor='#22c55e'  # 綠跌
-        ), row=1, col=1)
-        
-        # 【主圖：20 MA 生命線】
-        fig.add_trace(go.Scatter(
-            x=df.index, y=df['MA20'], 
-            mode='lines', name='20 MA',
-            line=dict(color='#eab308', width=1.5) # 黃色均線
-        ), row=1, col=1)
-        
-        # 【副圖：MACD 紅綠柱狀圖】
-        hist_colors = ['#ef4444' if val >= 0 else '#22c55e' for val in df['MACD_Hist']]
-        fig.add_trace(go.Bar(
-            x=df.index, y=df['MACD_Hist'], 
-            name='MACD 柱狀圖',
-            marker_color=hist_colors
-        ), row=2, col=1)
-        
-        # 【副圖：DIF 快線與 MACD 慢線】
-        fig.add_trace(go.Scatter(x=df.index, y=df['DIF'], mode='lines', name='DIF 快線', line=dict(color='#3b82f6', width=1.2)), row=2, col=1)
-        fig.add_trace(go.Scatter(x=df.index, y=df['MACD_Signal'], mode='lines', name='MACD 慢線', line=dict(color='#f43f5e', width=1.2)), row=2, col=1)
-        
-        # 4. 戰情室專屬暗色調版面美化
-        fig.update_layout(
-            margin=dict(l=10, r=10, t=5, b=5),
-            xaxis_rangeslider_visible=False, # 隱藏冗餘的滑桿
-            paper_bgcolor='rgba(0,0,0,0)',   # 透明背景，完美融入原有網頁
-            plot_bgcolor='rgba(0,0,0,0)',
-            showlegend=True,
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            height=480
-        )
-        
-        # 設定網格顏色對齊深色模式
-        fig.update_xaxes(showgrid=True, gridcolor='#334155', zeroline=False)
-        fig.update_yaxes(showgrid=True, gridcolor='#334155', zeroline=False)
-        
-        # 丟回 Streamlit 網頁渲染
-        st.plotly_chart(fig, use_container_width=True)
-        
-    except Exception as e:
-        # 防禦性設計：即便圖表出錯，也絕不卡死網頁其他功能
-        st.error(f"📈 互動圖表暫時無法加載: {e}")
-
 def generate_ai_insights(company_name, summary):
     """透過 AI 一次性產出分析，具備「雙引擎容錯」與「連網搜尋」功能"""
     import re
@@ -1098,8 +1006,6 @@ df = get_stock_df(target_sid)
 a_data = get_analysis_data(target_sid)
 bid_p, ask_p, bid_s, ask_s = get_realtime_order(target_sid)
 
-# 💥 增量插入：即時聯動技術線圖 (掛載於資料集結完畢後)
-display_radar_technical_charts(target_sid)
 # ==============================================================================
 # 💥 【V41.0 物理對齊：極致對稱的排版層級結構，徹底告別縮排與語法地雷】
 # ==============================================================================
@@ -1348,6 +1254,26 @@ if df is not None and not df.empty:
         fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['D'], name="D值", line=dict(color='yellow')), row=4, col=1)
         
         fig.update_layout(height=800, template="plotly_dark", xaxis_rangeslider_visible=False)
+		# 💥 增量優化：專業看盤軟體視覺升級包
+        
+        # 1. 統一懸浮資訊框與圖例頂部水平化
+        fig.update_layout(
+            hovermode="x unified",  # 將所有數據整合在同一條垂直線的資訊框內
+            legend=dict(
+                orientation="h",    # 圖例改為水平排列
+                yanchor="bottom", y=1.02, 
+                xanchor="right", x=1
+            ),
+            margin=dict(l=10, r=10, t=40, b=10) # 縮減無效邊距，放大圖表實體
+        )
+        
+        # 2. 開啟十字游標準星 (Crosshair)
+        fig.update_xaxes(showspikes=True, spikecolor="gray", spikesnap="cursor", spikemode="across")
+        fig.update_yaxes(showspikes=True, spikecolor="gray", spikethickness=1)
+        
+        # 3. 強制喚醒所有隱藏的 X 軸日期標籤
+        for ax in fig.select_xaxes():
+            ax.update(showticklabels=True)
         st.plotly_chart(fig, use_container_width=True)
 
 # ==========================================
