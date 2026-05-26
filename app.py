@@ -763,9 +763,27 @@ with st.sidebar:
 
     st.sidebar.write("") 
 
-    # 💥 全新升級：雙視角導航開關
+# 💥 UI/UX 美化升級：現代化分段切換按鈕
     st.sidebar.markdown("### 🌐 系統視角切換")
-    app_mode = st.sidebar.radio("請選擇操作模式", ["🎯 個股戰情室", "📊 策略回測中心"], label_visibility="collapsed")
+    
+    # 建立記憶體來記住目前按下的按鈕
+    if 'app_mode' not in st.session_state:
+        st.session_state['app_mode'] = "🎯 個股戰情室"
+        
+    # 建立左右兩個等寬的空間
+    col1, col2 = st.sidebar.columns(2)
+    
+    # 運用 type="primary" 讓正在看的那一邊亮起專屬主題色
+    if col1.button("🎯 個股戰情", use_container_width=True, type="primary" if st.session_state['app_mode'] == "🎯 個股戰情室" else "secondary"):
+        st.session_state['app_mode'] = "🎯 個股戰情室"
+        st.rerun()
+        
+    if col2.button("📊 回測中心", use_container_width=True, type="primary" if st.session_state['app_mode'] == "📊 策略回測中心" else "secondary"):
+        st.session_state['app_mode'] = "📊 策略回測中心"
+        st.rerun()
+
+    # 將記憶體狀態交接給主程式去分流畫面
+    app_mode = st.session_state['app_mode']
     st.sidebar.divider()
 
 # 💥 畫面分流魔法 (主程式攔截點)
