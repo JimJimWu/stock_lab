@@ -688,7 +688,9 @@ if 'selected_sid' not in st.session_state:
     # 如果萬一連清單都是空的，最後才會用到 "2330" 這個保險
     st.session_state['selected_sid'] = list(current_stocks_dict.keys())[0] if current_stocks_dict else "2330"
 
-# 1. 將我們剛才寫好的儀表板打包成函式 (放在最外面)
+# ==============================================================================
+# 📊 獨立擴充模組：策略多週期持股勝率模擬分析儀
+# ==============================================================================
 def render_backtest_dashboard():
     import pandas as pd
     import plotly.graph_objects as go
@@ -746,9 +748,10 @@ def render_backtest_dashboard():
         st.info("💡 **分析洞察**：觀察兩條線的交叉點。若『量能爆發』在中後期勝率快速下滑，而『大戶惜售』勝率穩步上升，即完美印證了短跑選手與馬拉松選手的策略差異。")
     except Exception as e:
         st.error(f"儀表板渲染失敗: {e}")
-# ==========================================
-# 側邊欄開始
-# ==========================================
+
+# ==============================================================================
+# 側邊欄與視角切換控制
+# ==============================================================================
 with st.sidebar:
     # 1. 🚀 頂端漸層設計 (Logo 與專屬標示)
     st.sidebar.markdown(f"""
@@ -760,21 +763,23 @@ with st.sidebar:
 
     st.sidebar.write("") 
 
-    # 💥 全新升級：雙視角導航開關 (放在 Logo 與標的選擇之間)
+    # 💥 全新升級：雙視角導航開關
     st.sidebar.markdown("### 🌐 系統視角切換")
     app_mode = st.sidebar.radio("請選擇操作模式", ["🎯 個股戰情室", "📊 策略回測中心"], label_visibility="collapsed")
     st.sidebar.divider()
 
-# 💥 畫面分流魔法 (在側邊欄之外，主程式的最上層)
+# 💥 畫面分流魔法 (主程式攔截點)
 if app_mode == "📊 策略回測中心":
     render_backtest_dashboard()
-    st.stop()  # 系統走到這裡就會完美停住，下方的個股程式碼完全不會被執行！
+    st.stop()  # 系統走到這裡就會完美停住，進入大盤回測模式
 
-# 2. 🎯 核心標的選擇
+# ==============================================================================
+# 🎯 個股戰情室 (當切換至個股模式時，以下才會執行)
+# ==============================================================================
+with st.sidebar:
+    # 2. 🎯 核心標的選擇
     st.sidebar.markdown("### 🎯 戰略目標選擇")
     
-    # 💥 關鍵修改：增加 index 參數，並監聽變化
-    # 先找出目前存好的 sid 在清單中是第幾個
     options_list = list(current_stocks_dict.keys())
     try:
         current_idx = options_list.index(st.session_state['selected_sid'])
@@ -784,42 +789,33 @@ if app_mode == "📊 策略回測中心":
     target_sid = st.sidebar.selectbox(
         "選擇您的掃描標的", 
         options=options_list, 
-        index=current_idx, # 🎯 讓選單釘在您剛選的位置
+        index=current_idx, 
         format_func=lambda sid: current_stocks_dict.get(sid, sid),
         key="target_sid_selectbox",
         help="選擇您清單中要進行深度技術與籌碼分析的股票標的。"
     )
     
-    # 當選單改變時，同步更新記憶
     st.session_state['selected_sid'] = target_sid
-    
-    # 同步更新 label 給右側大看板顯示用
     selected_label = current_stocks_dict.get(target_sid, target_sid)
     
     view_days = st.sidebar.slider(
         "📅 歷史數據追蹤天數", 30, 240, 90,
         help="調整右側 K 線圖展示的交易日長度。"
     )
-    
     st.sidebar.divider()
     
-# 3. 🌐 外部情資鏈結 (滿版按鈕排版)
+    # 3. 🌐 外部情資鏈結
     st.sidebar.link_button("🌐 Yahoo股市", f"https://tw.stock.yahoo.com/quote/{target_sid}", use_container_width=True)
     st.sidebar.link_button("📊 財務數據", f"https://goodinfo.tw/tw/StockDetail.asp?STOCK_ID={target_sid}", use_container_width=True)
-
     st.sidebar.divider()
 
-# 4. 🏢 AI 產業百科 (離線優先，維持戰略深度)
-    st.sidebar.markdown(
-        "### 🏢 AI 產業百科", 
-        help="這裡展示由 AI 深度生成的企業基本面、價值鏈與競爭對手分析。若發現資料過舊，可點擊下方按鈕更新。"
-    )
+    # 4. 🏢 AI 產業百科
+    st.sidebar.markdown("### 🏢 AI 產業百科", help="這裡展示由 AI 深度生成的企業基本面...")
     db = load_industry_db()
     target_sid_str = str(target_sid).strip()
     stock_info = db.get(target_sid_str)
     
     if stock_info:
-        # 💥 終極格式清洗器：專治 AI 亂吐巢狀字典或陣列，自動轉成漂亮條列式
         def format_text(val):
             if isinstance(val, dict):
                 return "\n\n".join([f"🔸 {v}" for k, v in val.items()])
@@ -829,13 +825,10 @@ if app_mode == "📊 策略回測中心":
 
         with st.sidebar.expander("🎯 個股主要業務", expanded=True):
             st.info(format_text(stock_info.get("company_brief", "資料載入中...")))
-        
         with st.sidebar.expander("📍 產業市場規模", expanded=False):
             st.info(format_text(stock_info.get("overview", "資料載入中...")))
-        
         with st.sidebar.expander("🔗 產業價值鏈", expanded=False):
             st.info(format_text(stock_info.get("value_chain", "資料載入中...")))
-        
         with st.sidebar.expander("🔗 相關競爭對手", expanded=False):
             comp_data = stock_info.get("competitors", [])
             if isinstance(comp_data, list):
@@ -844,15 +837,11 @@ if app_mode == "📊 策略回測中心":
                 st.markdown("\n".join([f"- **{v}**" for k, v in comp_data.items()]))
             else:
                 st.markdown(str(comp_data))
-        
         with st.sidebar.expander("📈 產業驅動因子", expanded=False):
             st.info(format_text(stock_info.get("drivers", "資料載入中...")))
             
         st.sidebar.caption(f"✨ 百科更新時間：{stock_info.get('last_updated', '歷史資料')}")
         
-        # ==========================================
-        # 🎯 絕對強制顯示版：資料來源網址導流按鈕 (這段在更新按鈕上方)
-        # ==========================================
         s_url = stock_info.get("source_url", "")
         if not s_url:
             c_name = stock_info.get("name", target_sid_str)
@@ -862,21 +851,16 @@ if app_mode == "📊 策略回測中心":
                    f'<a href="{s_url}" target="_blank" style="color: #60a5fa; text-decoration: none; font-size: 13px; font-weight: 600;">' + \
                    '🔍 查看 AI 參考來源網頁 →</a></div>'
         st.sidebar.markdown(html_btn, unsafe_allow_html=True)
-        # ==========================================
 
-        # 💥 視覺強化版 1：有資料時的「更新按鈕」
-        if st.sidebar.button("🔄 更新這檔百科", key=f"re_up_{target_sid_str}", use_container_width=True, help="點擊後將連網抓取最新動態並重寫百科資料，會消耗一次 API 額度。"):
+        if st.sidebar.button("🔄 更新這檔百科", key=f"re_up_{target_sid_str}", use_container_width=True):
             with st.sidebar.status(f"🚀 正在重塑 {target_sid_str} 產業百科...", expanded=True) as status:
                 prog_bar = st.progress(0, text="準備發動 AI 引擎...")
-                
                 prog_bar.progress(30, text="🌐 正在連網搜尋最新產業動態...")
                 success, msg = auto_update_industry_db(target_sid_str)
-                
                 if success:
                     prog_bar.progress(80, text="💾 正在將新資料寫入 JSON 資料庫...")
                     import time
                     time.sleep(0.5) 
-                    
                     prog_bar.progress(100, text="✅ 百科更新成功！")
                     status.update(label="✅ 百科更新成功！", state="complete", expanded=False)
                     st.rerun()
@@ -884,23 +868,17 @@ if app_mode == "📊 策略回測中心":
                     prog_bar.error("⚠️ 更新過程發生中斷")
                     st.write(f"系統回報: {msg}")
                     status.update(label="❌ 更新失敗", state="error")
-
-    # 💥 視覺強化版 2：無資料時的「首次生成按鈕」
     else:
         st.sidebar.warning(f"⚠️ 庫存中無 {target_sid_str} 的資料")
-        
-        if st.sidebar.button(f"🎯 消耗額度生成百科", key=f"init_{target_sid_str}", use_container_width=True,help="這檔股票目前尚無百科。點擊將啟動 AI 連網搜尋並建立全新資料庫，會消耗一次 API 額度。"):
+        if st.sidebar.button(f"🎯 消耗額度生成百科", key=f"init_{target_sid_str}", use_container_width=True):
             with st.sidebar.status(f"🤖 正在為 {target_sid_str} 建立全新百科...", expanded=True) as status:
                 prog_bar = st.progress(0, text="準備發動 AI 引擎...")
-                
                 prog_bar.progress(30, text="🌐 AI 正在連網深度檢索...")
                 success, msg = auto_update_industry_db(target_sid_str)
-                
                 if success:
                     prog_bar.progress(80, text="💾 正在建檔寫入資料庫...")
                     import time
                     time.sleep(0.5)
-                    
                     prog_bar.progress(100, text="✅ 全新百科建立完成！")
                     status.update(label="🎉 百科建檔成功！", state="complete", expanded=False)
                     st.rerun()
@@ -908,112 +886,68 @@ if app_mode == "📊 策略回測中心":
                     prog_bar.error("⚠️ 生成過程發生中斷")
                     st.write(f"系統回報: {msg}")
                     status.update(label="❌ 生成失敗", state="error")
-# 5. 🩺 系統檢修區
+
+    # 5. 🩺 系統檢修區
     st.sidebar.divider()
     with st.sidebar.expander("🛠️ 系統後勤工具", expanded=False):
-        
-        # --- 區塊 1：保留您原本的 AI 連線測試 ---
         st.markdown("**AI 連線測試**")
         if st.button("🔍 版本測試", use_container_width=True):
             st.toast("正在測試...")
-            
         if st.button("📋 模型清單", use_container_width=True):
             pass
         
-        # --- 區塊 2：💥 新增的系統記憶體管理 (清除快取) ---
         st.divider()
-        st.markdown(
-            "**系統記憶體管理**", 
-            help="當某檔股票卡住（例如出現紅底白字）或一直抓不到最新報價時，使用此功能強制清空暫存。"
-        )
-        if st.button("🧹 強制清除系統快取", use_container_width=True, help="點擊後將清空所有 Yahoo 報價與 API 的歷史暫存，並重新載入網頁。"):
+        st.markdown("**系統記憶體管理**")
+        if st.button("🧹 強制清除系統快取", use_container_width=True):
             st.cache_data.clear()
             st.success("✅ 系統快取已完美清除！")
             import time
             time.sleep(1)
             st.rerun()
             
-# --- 區塊 3：保留完整的雙資料庫下載功能 ---
         st.divider()
-        st.markdown(
-            "**資料庫管理**", 
-            help="您可以下載目前的百科資料庫與雷達名單備份。未來若雲端伺服器重置，可將這些 JSON 檔案上傳至 GitHub 以恢復所有珍貴資料。"
-        )
-        
+        st.markdown("**資料庫管理**")
         if os.path.exists("industry_db.json"):
             with open("industry_db.json", "r", encoding="utf-8") as f:
-                st.download_button(
-                    "📥 下載百科資料庫 (industry_db)", 
-                    f.read(), 
-                    "industry_db.json", 
-                    "application/json", 
-                    use_container_width=True,
-                    help="下載完整的 AI 產業百科內容。若要保留 AI 生成的產業分析與查證網址，請備份此檔案。"
-                )
-                
+                st.download_button("📥 下載百科資料庫", f.read(), "industry_db.json", "application/json", use_container_width=True)
         if os.path.exists("stock_dict.json"):
             with open("stock_dict.json", "r", encoding="utf-8") as f:
-                st.download_button(
-                    "📥 下載雷達名單 (stock_dict)", 
-                    f.read(), 
-                    "stock_dict.json", 
-                    "application/json", 
-                    use_container_width=True,
-                    help="下載您的自選股雷達名單。將此檔案上傳至 GitHub 後，背景掃描器 (auto_scan.py) 才能偵測到新加入的股票。"
-                )
-# 3. 策略回測日誌下載與管理
+                st.download_button("📥 下載雷達名單", f.read(), "stock_dict.json", "application/json", use_container_width=True)
+
         st.markdown("**策略回測分析**")
         if os.path.exists("signal_history.csv"):
             with open("signal_history.csv", "rb") as f:
-                st.download_button(
-                    "📥 下載策略回測日誌 (CSV)", 
-                    f.read(), 
-                    "signal_history.csv", 
-                    "text/csv", 
-                    use_container_width=True,
-                    help="下載由 Discord 哨兵自動記錄的推播歷史，可直接用 Excel 開啟進行勝率回測分析。"
-                )
-                
-            # 💥 捨棄危險的核彈按鈕，改為業界標準的「上傳覆蓋」機制
-            st.markdown("<span style='font-size: 13px; color: #94a3b8;'>🔄 **維護與還原 (覆蓋現有日誌)**</span>", unsafe_allow_html=True)
-            uploaded_csv = st.file_uploader(
-                "上傳您在 Excel 整理好的乾淨 CSV：", 
-                type=["csv"], 
-                label_visibility="collapsed"
-            )
+                st.download_button("📥 下載策略回測日誌", f.read(), "signal_history.csv", "text/csv", use_container_width=True)
             
+            st.markdown("<span style='font-size: 13px; color: #94a3b8;'>🔄 **維護與還原 (覆蓋現有日誌)**</span>", unsafe_allow_html=True)
+            uploaded_csv = st.file_uploader("上傳 CSV", type=["csv"], label_visibility="collapsed")
             if uploaded_csv is not None:
                 try:
-                    # 收到上傳檔案後，直接以二進位模式覆蓋原有的 signal_history.csv
                     with open("signal_history.csv", "wb") as f:
                         f.write(uploaded_csv.getbuffer())
                     st.success("✅ 乾淨的回測日誌已成功覆蓋上傳！")
-                    import time
-                    # 💥 已經將 time.sleep 與 st.rerun() 刪除，打破無限迴圈
                 except Exception as e:
                     st.error(f"上傳失敗: {e}")
         else:
-            st.info("💡 雲端尚未生成回測紀錄 (signal_history.csv)。一旦掃描觸發大戶或主力訊號，此處即會出現下載按鈕。")
-			
-# 6. ➕ 擴建雷達
+            st.info("💡 雲端尚未生成回測紀錄。")
+            
+    # 6. ➕ 擴建雷達
     st.sidebar.divider()
     st.sidebar.markdown("### ➕ 擴建雷達-新增股票")
     new_sid = st.sidebar.text_input("輸入股票代號", help="資料請核對正確，例如 2330")
     new_name = st.sidebar.text_input("輸入股票名稱", help="資料請核對正確，例如 台積電")
     
-    # 💥 捨棄 with col_add 排版，直接使用全寬按鈕
-    if st.sidebar.button("⚡ 新增百科標的", use_container_width=True, help="輸入上方的代號與名稱後點擊此按鈕，系統會將其加入您的觀察清單，並立刻發動 AI 連網生成該公司的專屬百科。"):
+    if st.sidebar.button("⚡ 新增百科標的", use_container_width=True):
         if new_sid and new_name:
             with st.sidebar.status("🤖 正在處理新增請求...", expanded=True) as status:
                 prog_bar = st.progress(0, text="準備開始...")
-                
                 prog_bar.progress(20, text="📝 正在寫入預設名單...")
                 current_stocks = load_stock_dict()
                 current_stocks[new_sid] = f"{new_sid} ({new_name})"
                 save_stock_dict(current_stocks)
                 st.session_state['STOCK_DICT'] = current_stocks
                 
-                prog_bar.progress(50, text="🌐 AI 正在連網搜尋最新資料 (這可能需要 5-10 秒)...")
+                prog_bar.progress(50, text="🌐 AI 正在連網搜尋最新資料...")
                 try:
                     success, msg = auto_update_industry_db(new_sid)
                     if success:
@@ -1027,27 +961,22 @@ if app_mode == "📊 策略回測中心":
                     prog_bar.error("❌ 發生未知錯誤")
                     st.write(f"系統訊息: {str(e)}")
                     status.update(label="❌ 百科生成失敗", state="error")
-            
             import time
             time.sleep(1.2)
             st.rerun()
         else:
             st.sidebar.error("❌ 請輸入完整的代號與名稱")
                 
-    # 💥 捨棄 with col_clean 排版，直接使用全寬按鈕
-    if st.sidebar.button("🧹 百科智慧補全", use_container_width=True, help="僅針對尚未有資料的股票進行 AI 生成"):
+    if st.sidebar.button("🧹 百科智慧補全", use_container_width=True):
         st.session_state['confirm_reset'] = True
 
     if st.session_state.get('confirm_reset'):
         st.sidebar.warning("⚠️ 系統將掃描清單，僅更新「無資料」的標的。")
-        
-        # 💥 捨棄 col_yes, col_no，直接使用全寬按鈕
         if st.sidebar.button("✅ 開始補百科資料", use_container_width=True):
             db = load_industry_db() 
             current_stocks = load_stock_dict()
             all_sids = list(current_stocks.keys())
             total = len(all_sids)
-            
             progress_bar = st.sidebar.progress(0, text="🤖 檢查資料庫狀態...")
             
             for i, sid in enumerate(all_sids):
@@ -1072,7 +1001,9 @@ if app_mode == "📊 策略回測中心":
             st.session_state['confirm_reset'] = False
             st.rerun()
 
+# ==============================================================================
 # --- 數據加載線 (外掛 - 必須靠最左邊) ---
+# ==============================================================================
 df = get_stock_df(target_sid)
 a_data = get_analysis_data(target_sid)
 bid_p, ask_p, bid_s, ask_s = get_realtime_order(target_sid)
