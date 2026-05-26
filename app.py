@@ -687,7 +687,68 @@ if 'selected_sid' not in st.session_state:
     # list(current_stocks_dict.keys())[0] 會自動抓取您清單中的第一個代號 (現在是 2330)
     # 如果萬一連清單都是空的，最後才會用到 "2330" 這個保險
     st.session_state['selected_sid'] = list(current_stocks_dict.keys())[0] if current_stocks_dict else "2330"
-# 側邊欄
+
+# 1. 將我們剛才寫好的儀表板打包成函式 (放在最外面)
+def render_backtest_dashboard():
+    import pandas as pd
+    import plotly.graph_objects as go
+    import os
+    
+    st.markdown("---")
+    st.markdown("## 📈 策略多週期持股勝率模擬分析儀")
+    
+    file_path = "signal_history_backtest.csv"
+    if not os.path.exists(file_path):
+        st.warning(f"尚未偵測到 {file_path}，請確認回測引擎是否已執行完畢。")
+        return
+        
+    try:
+        df = pd.read_csv(file_path, encoding="utf-8-sig")
+        signal_col = "核心訊號" if "核心訊號" in df.columns else ("訊號" if "訊號" in df.columns else None)
+        
+        if not signal_col:
+            st.error("CSV 中找不到『核心訊號』欄位，無法進行分組分析。")
+            return
+            
+        periods = ["T+1", "T+3", "T+5", "T+10", "T+20"]
+        fig = go.Figure()
+        colors = ["#FF4B4B", "#00CC96", "#AB63FA", "#FFA15A"]
+        
+        grouped = df.groupby(signal_col)
+        for i, (signal_name, group_df) in enumerate(grouped):
+            win_rates = []
+            for p in periods:
+                col_name = f"{p} 報酬率(%)"
+                if col_name in group_df.columns:
+                    valid_data = group_df[group_df[col_name] != 0.0]
+                    if len(valid_data) > 0:
+                        win_rate = (len(valid_data[valid_data[col_name] > 0]) / len(valid_data)) * 100
+                    else:
+                        win_rate = 0
+                    win_rates.append(win_rate)
+                else:
+                    win_rates.append(0)
+                    
+            fig.add_trace(go.Scatter(
+                x=periods, y=win_rates, mode='lines+markers+text',
+                name=signal_name, text=[f"{val:.1f}%" for val in win_rates],
+                textposition="top center", line=dict(width=3, color=colors[i % len(colors)]),
+                marker=dict(size=10)
+            ))
+            
+        fig.update_layout(
+            title="不同訊號之多週期勝率演變交叉圖", xaxis_title="持有週期", yaxis_title="勝率 (%)",
+            yaxis=dict(range=[0, 110]), hovermode="x unified",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+            margin=dict(l=20, r=20, t=60, b=20)
+        )
+        st.plotly_chart(fig, use_container_width=True)
+        st.info("💡 **分析洞察**：觀察兩條線的交叉點。若『量能爆發』在中後期勝率快速下滑，而『大戶惜售』勝率穩步上升，即完美印證了短跑選手與馬拉松選手的策略差異。")
+    except Exception as e:
+        st.error(f"儀表板渲染失敗: {e}")
+# ==========================================
+# 側邊欄開始
+# ==========================================
 with st.sidebar:
     # 1. 🚀 頂端漸層設計 (Logo 與專屬標示)
     st.sidebar.markdown(f"""
@@ -698,6 +759,16 @@ with st.sidebar:
         """, unsafe_allow_html=True)
 
     st.sidebar.write("") 
+
+    # 💥 全新升級：雙視角導航開關 (放在 Logo 與標的選擇之間)
+    st.sidebar.markdown("### 🌐 系統視角切換")
+    app_mode = st.sidebar.radio("請選擇操作模式", ["🎯 個股戰情室", "📊 策略回測中心"], label_visibility="collapsed")
+    st.sidebar.divider()
+
+# 💥 畫面分流魔法 (在側邊欄之外，主程式的最上層)
+if app_mode == "📊 策略回測中心":
+    render_backtest_dashboard()
+    st.stop()  # 系統走到這裡就會完美停住，下方的個股程式碼完全不會被執行！
 
 # 2. 🎯 核心標的選擇
     st.sidebar.markdown("### 🎯 戰略目標選擇")
