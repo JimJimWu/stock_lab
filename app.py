@@ -763,7 +763,7 @@ with st.sidebar:
 
     st.sidebar.write("") 
 
-# 💥 UI/UX 美化升級：現代化分段切換按鈕
+    # 💥 UI/UX 美化升級：現代化分段切換按鈕
     st.sidebar.markdown("### 🌐 系統視角切換")
     
     # 建立記憶體來記住目前按下的按鈕
@@ -786,11 +786,60 @@ with st.sidebar:
     app_mode = st.session_state['app_mode']
     st.sidebar.divider()
 
+    # ==========================================
+    # 🌪️ 系統擴充：大盤宏觀天氣預報 (避震器)
+    # ==========================================
+    import yfinance as yf
+    import pandas as pd
+    
+    @st.cache_data(ttl=3600) # 快取 1 小時，避免頻繁抓取浪費效能
+    def get_market_weather():
+        try:
+            # 抓取台股加權指數 (^TWII)
+            twii = yf.download("^TWII", period="2mo", progress=False)
+            if twii.empty:
+                return "UNKNOWN", 0, 0
+                
+            if isinstance(twii.columns, pd.MultiIndex):
+                twii.columns = twii.columns.get_level_values(0)
+                
+            twii['20MA'] = twii['Close'].rolling(window=20).mean()
+            
+            latest_close = float(twii['Close'].iloc[-1])
+            latest_20ma = float(twii['20MA'].iloc[-1])
+            prev_close = float(twii['Close'].iloc[-2])
+            
+            # 計算單日跌幅
+            daily_drop = ((latest_close - prev_close) / prev_close) * 100
+            
+            # 判定邏輯：單日重挫 > 2.5% 或 跌破月線
+            if daily_drop <= -2.5 or latest_close < latest_20ma:
+                return "DANGER", daily_drop, latest_close
+            elif latest_close > latest_20ma and daily_drop > 0:
+                return "SAFE", daily_drop, latest_close
+            else:
+                return "WARNING", daily_drop, latest_close
+        except:
+            return "UNKNOWN", 0, 0
+
+    st.sidebar.markdown("### 🌪️ 宏觀環境監控")
+    status, drop_pct, close_idx = get_market_weather()
+    
+    if status == "DANGER":
+        st.sidebar.error(f"🔴 **極端警戒 (破月線/重挫)**\n\n大盤: {close_idx:,.0f} 點 ({drop_pct:.2f}%)\n\n系統建議：流動性枯竭風險極高，暫停所有【量能爆發突破】追價策略，提高現金水位。")
+    elif status == "WARNING":
+        st.sidebar.warning(f"🟡 **震盪整理 (測試支撐)**\n\n大盤: {close_idx:,.0f} 點 ({drop_pct:.2f}%)\n\n系統建議：大盤動能放緩，可縮小部位，優先關注【大戶惜售】之抗跌標的。")
+    elif status == "SAFE":
+        st.sidebar.success(f"🟢 **多頭防護網開啟**\n\n大盤: {close_idx:,.0f} 點 (+{drop_pct:.2f}%)\n\n系統建議：月線之上安全運行，雙核心策略可正常執行。")
+    else:
+        st.sidebar.info("大盤監控連線中...")
+        
+    st.sidebar.divider()
+
 # 💥 畫面分流魔法 (主程式攔截點)
 if app_mode == "📊 策略回測中心":
     render_backtest_dashboard()
     st.stop()  # 系統走到這裡就會完美停住，進入大盤回測模式
-
 # ==============================================================================
 # 🎯 個股戰情室 (當切換至個股模式時，以下才會執行)
 # ==============================================================================
