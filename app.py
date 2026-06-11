@@ -503,8 +503,8 @@ def get_stock_df(sid):
                 df['MA5'] = df['Close'].rolling(5).mean()
                 df['MA10'] = df['Close'].rolling(10).mean()
                 df['MA20'] = df['Close'].rolling(20).mean()
-				df['MA60'] = df['Close'].rolling(60).mean()   # 💥 新增：60日季線 (長線防守區)
-				df['MA240'] = df['Close'].rolling(240).mean() # 💥 新增：240日年線 (牛熊分界線)
+                df['MA60'] = df['Close'].rolling(60).mean()
+                df['MA240'] = df['Close'].rolling(240).mean()
                 df['Vol_MA5'] = df['Volume'].rolling(5).mean()
                 
                 exp1 = df['Close'].ewm(span=12, adjust=False).mean()
