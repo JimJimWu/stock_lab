@@ -272,8 +272,8 @@ def scan_and_notify(sid, sname, webhook_url):
             status_msg = "💎【大戶惜售 / 籌碼鎖定】"
             signals_triggered = True
 
-    # ==============================================================================
-    # 🐉 3.5 新增策略：深水區潛龍雷達 (測試期寬鬆參數)
+# ==============================================================================
+    # 🐉 3.5 新增策略：深水區潛龍雷達 (實戰嚴苛版 + 籌碼防護罩)
     # ==============================================================================
     try:
         ma60 = last.get('MA60', 0)
@@ -283,9 +283,10 @@ def scan_and_notify(sid, sname, webhook_url):
         
         # 確保資料長度足夠算出長線均線
         if pd.notna(ma60) and pd.notna(ma240) and pd.notna(vol_ma20):
-            SUPPORT_TOLERANCE = 0.08  # 測試放寬：乖離率 8% 以內
-            VOLUME_RATIO = 0.50       # 測試放寬：窒息量小於均量的 50%
-            RSI_THRESHOLD = 40        # 測試放寬：RSI 跌破 40
+            # ⚖️ 實戰黃金參數 (收緊濾網，只抓極品)
+            SUPPORT_TOLERANCE = 0.05  # 乖離率收緊：5% 以內精準打擊
+            VOLUME_RATIO = 0.40       # 窒息量收緊：均量的 40% 以下
+            RSI_THRESHOLD = 35        # RSI 收緊：35 以下的絕對冰凍區
             
             is_near_ma60 = abs(current_price - ma60) / ma60 <= SUPPORT_TOLERANCE
             is_near_ma240 = abs(current_price - ma240) / ma240 <= SUPPORT_TOLERANCE
@@ -294,11 +295,19 @@ def scan_and_notify(sid, sname, webhook_url):
             is_volume_dead = today_volume < (vol_ma20 * VOLUME_RATIO)
             is_rsi_bottom = latest_rsi <= RSI_THRESHOLD
             
-            if support_test and is_volume_dead and is_rsi_bottom:
+            # 🛡️ 終極防護罩：一票否決機制
+            # 檢查前方的 chip_flow_status 是否包含「倒貨」字眼
+            is_chip_safe = "倒貨" not in chip_flow_status
+            
+            # 只有在技術面達標【且】籌碼安全時，才觸發警報
+            if support_test and is_volume_dead and is_rsi_bottom and is_chip_safe:
                 support_type = "年線(240MA)" if is_near_ma240 else "季線(60MA)"
-                # 覆寫狀態訊息並觸發警報，完美搭上現有 Discord 發送列車
-                status_msg = f"🐉【深水區潛龍浮現】測試 {support_type} 支撐！"
+                status_msg = f"🐉【深水區潛龍】測 {support_type} (籌碼安全)！"
                 signals_triggered = True
+                
+            # 如果技術面達標但主力在倒貨，在終端機印出攔截紀錄，但不發 Discord
+            elif support_test and is_volume_dead and is_rsi_bottom and not is_chip_safe:
+                print(f"🛑 [防呆攔截] {sname} ({sid}) 技術面達標，但主力高檔倒貨中，已取消推播！")
     except Exception as e:
         pass # 容錯處理，確保雷達不影響主程式運行
 
