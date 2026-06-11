@@ -1,5 +1,5 @@
 # ==============================================================================
-# 秉諺的黑馬雷達 - 背景自動無人值守掃描器 (auto_scan.py V31.0 - facts事實還原、單位精準對齊版)
+# 秉諺的黑馬雷達 - 背景自動無人值守掃描器 (auto_scan.py V32.0 - 視覺分級與潛龍升級版)
 # ==============================================================================
 import os
 import json
@@ -94,8 +94,8 @@ def get_stock_df(sid):
                 df['MA5'] = df['Close'].rolling(5).mean()
                 df['MA10'] = df['Close'].rolling(10).mean()
                 df['MA20'] = df['Close'].rolling(20).mean()
-                df['MA60'] = df['Close'].rolling(60).mean()   # 💥 新增：供應潛龍雷達季線數據
-                df['MA240'] = df['Close'].rolling(240).mean() # 💥 新增：供應潛龍雷達年線數據
+                df['MA60'] = df['Close'].rolling(60).mean()   # 💥 潛龍雷達專屬：季線
+                df['MA240'] = df['Close'].rolling(240).mean() # 💥 潛龍雷達專屬：年線
                 df['Vol_MA5'] = df['Volume'].rolling(5).mean()
                 
                 # MACD
@@ -172,7 +172,8 @@ def get_analysis_data(sid):
                 }
         except: continue
     return None
- # 💥 【V32.0 新增：主力籌碼動能估算引擎】
+
+# 💥 【V32.0 新增：主力籌碼動能估算引擎 - 視覺強化版】
 def get_institutional_chips(df):
     status = "⚖️ 法人溫和觀望"
     if df is not None and not df.empty and len(df) >= 10:
@@ -184,9 +185,9 @@ def get_institutional_chips(df):
         net_5d = round(df_temp['Net_Force_Vol'].tail(5).sum(), 1)
         
         if net_5d > 500:
-            status = f"🚀 主力強烈鎖碼進貨 (+{net_5d}張)"
+            status = f"🚀 **主力強烈鎖碼進貨 (+{net_5d}張)**"      # 粗體高亮
         elif net_5d < -500:
-            status = f"⚠️ 主力高檔調節倒貨 ({net_5d}張)"
+            status = f"⚠️ __**主力高檔調節倒貨 ({net_5d}張)**__" # 粗體加底線極度警告
     return status   
 
 # 發送 Discord Webhook
@@ -207,7 +208,7 @@ def scan_and_notify(sid, sname, webhook_url):
         
     last, prev = df_scan.iloc[-1], df_scan.iloc[-2]
     
-    # 💥 【100%事實價格還原，山太士回歸 2500元，政美回歸 370元！】
+    # 💥 【100%事實價格還原】
     clean_prices = get_yahoo_web_quote_from_df(sid, df_scan)
     current_price = clean_prices["current"]
     prev_price = clean_prices["prev_close"]
@@ -215,7 +216,7 @@ def scan_and_notify(sid, sname, webhook_url):
     price_change = round(current_price - prev_price, 2)
     change_pct = round((price_change / prev_price) * 100, 2)
     change_sign = "▲" if price_change > 0 else ("▼" if price_change < 0 else " ")
-    color_hex = 15158332 if price_change >= 0 else 3066993  # 紅漲綠跌邊條色
+    color_hex = 15158332 if price_change >= 0 else 3066993  # 預設紅漲綠跌邊條色
     
     # 成交量
     today_volume = last['Volume']
@@ -255,24 +256,33 @@ def scan_and_notify(sid, sname, webhook_url):
         ma_status = "🔥 強勢多頭 (5 > 10 > 20MA)"
     else:
         ma_status = "💤 區間整理 / 走勢平緩"
-# 💥 加入籌碼透視判定
+
+    # 💥 加入籌碼透視判定
     chip_flow_status = get_institutional_chips(df_scan)
     
-# 3. 核心主力訊號判定 (僅限大訊號才推播！)
+    # 3. 核心主力訊號判定 (視覺動態覆寫)
     status_msg = "⚖️ 區間溫和"
     signals_triggered = False 
 
     if vol_ratio >= 1.3:
-        status_msg = "⚡【量能爆發突破】"
-        signals_triggered = True
+        if "倒貨" in chip_flow_status:
+            status_msg = "💀【出貨陷阱】爆量但主力高檔倒貨！"
+            color_hex = 7368816 # 黯淡灰
+            signals_triggered = True
+        else:
+            status_msg = "🚨【強勢突破】量能爆發且籌碼健康！"
+            color_hex = 16711680 # 警示鮮紅
+            signals_triggered = True
+            
     elif vol_ratio < 0.7:
         is_above_ma5 = current_price >= last['MA5']
         is_strong_rsi = last['RSI'] >= 50
         if is_above_ma5 and (is_strong_rsi or inst_val > 15):
-            status_msg = "💎【大戶惜售 / 籌碼鎖定】"
+            status_msg = "💎【大戶惜售】量縮鎖碼，籌碼穩定"
+            color_hex = 3447003 # 科技藍
             signals_triggered = True
 
-# ==============================================================================
+    # ==============================================================================
     # 🐉 3.5 新增策略：深水區潛龍雷達 (實戰嚴苛版 + 籌碼防護罩)
     # ==============================================================================
     try:
@@ -281,12 +291,10 @@ def scan_and_notify(sid, sname, webhook_url):
         vol_ma20 = df_scan['Volume'].rolling(20).mean().iloc[-1]
         latest_rsi = last['RSI']
         
-        # 確保資料長度足夠算出長線均線
         if pd.notna(ma60) and pd.notna(ma240) and pd.notna(vol_ma20):
-            # ⚖️ 實戰黃金參數 (收緊濾網，只抓極品)
-            SUPPORT_TOLERANCE = 0.05  # 乖離率收緊：5% 以內精準打擊
-            VOLUME_RATIO = 0.40       # 窒息量收緊：均量的 40% 以下
-            RSI_THRESHOLD = 35        # RSI 收緊：35 以下的絕對冰凍區
+            SUPPORT_TOLERANCE = 0.05
+            VOLUME_RATIO = 0.40
+            RSI_THRESHOLD = 35
             
             is_near_ma60 = abs(current_price - ma60) / ma60 <= SUPPORT_TOLERANCE
             is_near_ma240 = abs(current_price - ma240) / ma240 <= SUPPORT_TOLERANCE
@@ -294,22 +302,18 @@ def scan_and_notify(sid, sname, webhook_url):
             
             is_volume_dead = today_volume < (vol_ma20 * VOLUME_RATIO)
             is_rsi_bottom = latest_rsi <= RSI_THRESHOLD
-            
-            # 🛡️ 終極防護罩：一票否決機制
-            # 檢查前方的 chip_flow_status 是否包含「倒貨」字眼
             is_chip_safe = "倒貨" not in chip_flow_status
             
-            # 只有在技術面達標【且】籌碼安全時，才觸發警報
             if support_test and is_volume_dead and is_rsi_bottom and is_chip_safe:
                 support_type = "年線(240MA)" if is_near_ma240 else "季線(60MA)"
                 status_msg = f"🐉【深水區潛龍】測 {support_type} (籌碼安全)！"
+                color_hex = 16766720 # 耀眼金
                 signals_triggered = True
                 
-            # 如果技術面達標但主力在倒貨，在終端機印出攔截紀錄，但不發 Discord
             elif support_test and is_volume_dead and is_rsi_bottom and not is_chip_safe:
                 print(f"🛑 [防呆攔截] {sname} ({sid}) 技術面達標，但主力高檔倒貨中，已取消推播！")
     except Exception as e:
-        pass # 容錯處理，確保雷達不影響主程式運行
+        pass
 
     # 4. 附屬指標
     sub_signals = []
@@ -318,9 +322,9 @@ def scan_and_notify(sid, sname, webhook_url):
     if last['K'] > last['D'] and prev['K'] <= prev['D'] and last['K'] < 40:
         sub_signals.append("🟡 KD 低檔交叉")
 
-   # 5. 發送高規格 Discord 卡片
+    # 5. 發送高規格 Discord 卡片
     if signals_triggered:
-# 💥 強制鎖定台灣時間 (UTC+8)
+        # 💥 強制鎖定台灣時間 (UTC+8)
         tz_tw = datetime.timezone(datetime.timedelta(hours=8))
         now_time = datetime.datetime.now(tz_tw).strftime('%m/%d %H:%M')
         
@@ -346,7 +350,7 @@ def scan_and_notify(sid, sname, webhook_url):
                 },
                 {
                     "name": "📈 趨勢與內部籌碼真相", 
-                    "value": f"技術趨勢：`{ma_status}`\n資金流向：`{chip_flow_status}`", # 💥 讓 Discord 直接顯示主力倒貨真相
+                    "value": f"技術趨勢：`{ma_status}`\n資金流向：{chip_flow_status}", # 已移除多餘的 backticks 讓 Markdown 粗體生效
                     "inline": False
                 },
                 {
