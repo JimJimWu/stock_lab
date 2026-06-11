@@ -503,6 +503,8 @@ def get_stock_df(sid):
                 df['MA5'] = df['Close'].rolling(5).mean()
                 df['MA10'] = df['Close'].rolling(10).mean()
                 df['MA20'] = df['Close'].rolling(20).mean()
+				df['MA60'] = df['Close'].rolling(60).mean()   # 💥 新增：60日季線 (長線防守區)
+                df['MA240'] = df['Close'].rolling(240).mean() # 💥 新增：240日年線 (牛熊分界線)
                 df['Vol_MA5'] = df['Volume'].rolling(5).mean()
                 
                 exp1 = df['Close'].ewm(span=12, adjust=False).mean()
@@ -1331,6 +1333,11 @@ if df is not None and not df.empty:
         fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA10'], name="10MA", line=dict(color='#60a5fa', width=1.5)), row=1, col=1)
         fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA20'], name="20MA", line=dict(color='violet', width=1.5)), row=1, col=1)
         
+        # 💥 新增：長線防禦區間 (季線與年線)
+        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA60'], name="60MA (季線)", line=dict(color='#2dd4bf', width=2)), row=1, col=1)
+        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA240'], name="240MA (年線)", line=dict(color='#cbd5e1', width=2, dash='dot')), row=1, col=1)
+
+		
         # 成交量
         fig.add_trace(go.Bar(x=plot_df.index, y=plot_df['Volume'], name="成交量", marker_color='#334155'), row=2, col=1)
         
