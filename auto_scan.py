@@ -94,6 +94,8 @@ def get_stock_df(sid):
                 df['MA5'] = df['Close'].rolling(5).mean()
                 df['MA10'] = df['Close'].rolling(10).mean()
                 df['MA20'] = df['Close'].rolling(20).mean()
+                df['MA60'] = df['Close'].rolling(60).mean()   # 💥 新增：供應潛龍雷達季線數據
+                df['MA240'] = df['Close'].rolling(240).mean() # 💥 新增：供應潛龍雷達年線數據
                 df['Vol_MA5'] = df['Volume'].rolling(5).mean()
                 
                 # MACD
@@ -256,7 +258,7 @@ def scan_and_notify(sid, sname, webhook_url):
 # 💥 加入籌碼透視判定
     chip_flow_status = get_institutional_chips(df_scan)
     
-    # 3. 核心主力訊號判定 (僅限大訊號才推播！)
+# 3. 核心主力訊號判定 (僅限大訊號才推播！)
     status_msg = "⚖️ 區間溫和"
     signals_triggered = False 
 
@@ -269,6 +271,36 @@ def scan_and_notify(sid, sname, webhook_url):
         if is_above_ma5 and (is_strong_rsi or inst_val > 15):
             status_msg = "💎【大戶惜售 / 籌碼鎖定】"
             signals_triggered = True
+
+    # ==============================================================================
+    # 🐉 3.5 新增策略：深水區潛龍雷達 (測試期寬鬆參數)
+    # ==============================================================================
+    try:
+        ma60 = last.get('MA60', 0)
+        ma240 = last.get('MA240', 0)
+        vol_ma20 = df_scan['Volume'].rolling(20).mean().iloc[-1]
+        latest_rsi = last['RSI']
+        
+        # 確保資料長度足夠算出長線均線
+        if pd.notna(ma60) and pd.notna(ma240) and pd.notna(vol_ma20):
+            SUPPORT_TOLERANCE = 0.08  # 測試放寬：乖離率 8% 以內
+            VOLUME_RATIO = 0.50       # 測試放寬：窒息量小於均量的 50%
+            RSI_THRESHOLD = 40        # 測試放寬：RSI 跌破 40
+            
+            is_near_ma60 = abs(current_price - ma60) / ma60 <= SUPPORT_TOLERANCE
+            is_near_ma240 = abs(current_price - ma240) / ma240 <= SUPPORT_TOLERANCE
+            support_test = is_near_ma60 or is_near_ma240
+            
+            is_volume_dead = today_volume < (vol_ma20 * VOLUME_RATIO)
+            is_rsi_bottom = latest_rsi <= RSI_THRESHOLD
+            
+            if support_test and is_volume_dead and is_rsi_bottom:
+                support_type = "年線(240MA)" if is_near_ma240 else "季線(60MA)"
+                # 覆寫狀態訊息並觸發警報，完美搭上現有 Discord 發送列車
+                status_msg = f"🐉【深水區潛龍浮現】測試 {support_type} 支撐！"
+                signals_triggered = True
+    except Exception as e:
+        pass # 容錯處理，確保雷達不影響主程式運行
 
     # 4. 附屬指標
     sub_signals = []
