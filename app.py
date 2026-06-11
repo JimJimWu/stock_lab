@@ -871,9 +871,23 @@ with st.sidebar:
     )
     st.sidebar.divider()
     
-    # 3. 🌐 外部情資鏈結
-    st.sidebar.link_button("🌐 Yahoo股市", f"https://tw.stock.yahoo.com/quote/{target_sid}", use_container_width=True)
-    st.sidebar.link_button("📊 財務數據", f"https://goodinfo.tw/tw/StockDetail.asp?STOCK_ID={target_sid}", use_container_width=True)
+# 3. 🌐 外部情資鏈結 (UI/UX 戰情室美化版)
+    st.sidebar.markdown("### 🌐 外部戰情資料庫")
+    
+    # 第一層：基礎資訊 (雙欄並排，節省空間與提升現代感)
+    link_col1, link_col2 = st.sidebar.columns(2)
+    link_col1.link_button("📈 Yahoo 股市", f"https://tw.stock.yahoo.com/quote/{target_sid}", use_container_width=True)
+    link_col2.link_button("💰 財務報表", f"https://goodinfo.tw/tw/StockDetail.asp?STOCK_ID={target_sid}", use_container_width=True)
+    
+    # 第二層：進階籌碼 (全寬高亮，視覺聚焦，直達資券專頁)
+    st.sidebar.link_button(
+        "🕵️ 主力籌碼與資券變化", 
+        f"https://goodinfo.tw/tw/StockMarginTrading.asp?STOCK_ID={target_sid}", 
+        use_container_width=True, 
+        type="primary",
+        help="跳轉至 Goodinfo 專屬頁面，深度解析融資、融券、券資比與三大法人進出明細。"
+    )
+
     st.sidebar.divider()
 
     # 4. 🏢 AI 產業百科
