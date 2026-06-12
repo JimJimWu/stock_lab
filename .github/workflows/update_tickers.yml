@@ -1,0 +1,36 @@
+name: 🔄 全台股母體名單自動更新
+
+on:
+    workflow_dispatch: # 💥 允許我們從網頁上手動點擊按鈕執行
+    schedule:
+        # 💥 定時排程：設定為每週五晚上 16:00 UTC (台灣時間週六凌晨 00:00) 自動跑一次
+        - cron: '0 16 * * 5'
+
+jobs:
+    fetch-and-update:
+        runs-on: ubuntu-latest
+        
+        steps:
+            - name: 📥 檢出專案程式碼
+              uses: actions/checkout@v4
+              
+            - name: 🐍 設定 Python 3.10 環境
+              uses: actions/setup-python@v4
+              with:
+                  python-version: '3.10'
+                  
+            - name: 📦 安裝必備套件
+              run: |
+                  python -m pip install --upgrade pip
+                  pip install requests
+                  
+            - name: 🚀 執行爬蟲抓取最新名單
+              run: python update_tickers.py
+              
+            - name: 💾 自動 Commit 並推送回專案
+              run: |
+                  git config --global user.name "github-actions[bot]"
+                  git config --global user.email "github-actions[bot]@users.noreply.github.com"
+                  git add stock_dict.json
+                  # 檢查是否有檔案變動，如果有就 Commit 並推回 GitHub (加入 skip ci 避免觸發其他迴圈)
+                  git diff --quiet && git diff --staged --quiet || (git commit -m "🤖 自動更新：全台股母體名單 [skip ci]" && git push)
