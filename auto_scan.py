@@ -1,5 +1,5 @@
 # ==============================================================================
-# 秉諺的黑馬雷達 - 背景自動無人值守掃描器 (auto_scan.py V33.0 - 視覺分級與潛龍升級版)
+# 秉諺的黑馬雷達 - 背景自動無人值守掃描器 (auto_scan.py V34.0 - 加強篩選)
 # ==============================================================================
 import os
 import json
@@ -12,7 +12,7 @@ import pandas as pd
 DICT_FILE = "stock_dict.json"
 
 # ==============================================================================
-# 🔐 【V31.0 終極安全隔離防護】
+# 🔐 【V34.0 終極安全隔離防護】
 # ==============================================================================
 DEFAULT_DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK") or ""
 
@@ -209,29 +209,32 @@ def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
     last, prev = df_scan.iloc[-1], df_scan.iloc[-2]
     
     # ==========================================================================
-# ==========================================================================
-    # 🛡️ 【全母體專屬：高壓前置濾網】(絕對不影響原有資料庫與訊號邏輯)
+    # 🛡️ 【全母體專屬：菁英高壓前置濾網】(絕對不影響原有資料庫與訊號邏輯)
     # ==========================================================================
     if is_full_market:
         try:
-            # 條件一：絕對流動性 (20日均量必須大於 500 張)
+            # 條件一：絕對流動性提升 (20日均量必須大於 800 張，進一步過濾冷門股)
             vol_ma20 = df_scan['Volume'].rolling(20).mean().iloc[-1]
-            if pd.isna(vol_ma20) or vol_ma20 < 500:
-                return # 殭屍股直接剃除，不進入核心運算
+            if pd.isna(vol_ma20) or vol_ma20 < 800:
+                return # 流動性不足，直接剃除
                 
-            # 條件二：長線趨勢保護 (避免接到長線崩壞的無底洞，容許跌破年線10%內)
+            # 條件二：長線多頭鐵律 (季線必須大於年線，且股價站穩年線之上)
+            ma60 = last.get('MA60', 0)
             ma240 = last.get('MA240', 0)
             current_price_fast = float(last['Close'])
-            if pd.notna(ma240) and ma240 > 0:
-                if current_price_fast < (ma240 * 0.90):
-                    return # 跌得太深、趨勢徹底走空的標的直接剃除
+            if pd.notna(ma60) and pd.notna(ma240) and ma240 > 0:
+                if ma60 < ma240 or current_price_fast < ma240:
+                    return # 剔除長線空頭排列或跌破年線的弱勢股
                     
-            # 💥 條件三：大戶認可 (法人持股必須大於 0%)
-            # 透過呼叫現有的 get_analysis_data 來進行基本面快篩
+            # 條件三：基本面與大戶雙重認可 (EPS為正，且法人持股大於 5%)
             a_data = get_analysis_data(sid)
             inst_val = a_data['法人持股'] if (a_data and '法人持股' in a_data) else 0
-            if inst_val <= 0:
-                return # 連三大法人都不買單的股票，直接剃除
+            eps_val = a_data['EPS'] if (a_data and 'EPS' in a_data) else "N/A"
+            
+            if inst_val < 5.0:
+                return # 法人持股太低，籌碼共識不足
+            if eps_val == "N/A" or float(eps_val) <= 0:
+                return # 剔除虧損公司，確保長線抱單的安全性
                 
         except Exception as e:
             pass # 若運算錯誤則放行，交由後方原本邏輯處理
