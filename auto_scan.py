@@ -209,32 +209,40 @@ def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
     last, prev = df_scan.iloc[-1], df_scan.iloc[-2]
     
     # ==========================================================================
-    # 🛡️ 【全母體專屬：菁英高壓前置濾網】(絕對不影響原有資料庫與訊號邏輯)
+    # 🛡️ 【全母體專屬：頂尖 5% 菁英極致濾網】(絕對不影響原有資料庫與訊號邏輯)
     # ==========================================================================
     if is_full_market:
         try:
-            # 條件一：絕對流動性提升 (20日均量必須大於 800 張，進一步過濾冷門股)
+            # 1. 絕對流動性極致：20日均量必須大於 1500 張 (只抓熱門主流股)
             vol_ma20 = df_scan['Volume'].rolling(20).mean().iloc[-1]
-            if pd.isna(vol_ma20) or vol_ma20 < 800:
-                return # 流動性不足，直接剃除
+            if pd.isna(vol_ma20) or vol_ma20 < 1500:
+                return 
                 
-            # 條件二：長線多頭鐵律 (季線必須大於年線，且股價站穩年線之上)
+            # 2. 均線與 MACD 動能共振 (完美多頭排列：20MA > 60MA > 240MA 且股價站上20MA)
+            ma20 = last.get('MA20', 0)
             ma60 = last.get('MA60', 0)
             ma240 = last.get('MA240', 0)
             current_price_fast = float(last['Close'])
-            if pd.notna(ma60) and pd.notna(ma240) and ma240 > 0:
-                if ma60 < ma240 or current_price_fast < ma240:
-                    return # 剔除長線空頭排列或跌破年線的弱勢股
+            macd_hist = last.get('MACD_Hist', 0)
+            
+            if pd.notna(ma20) and pd.notna(ma60) and pd.notna(ma240) and ma240 > 0:
+                if not (current_price_fast > ma20 > ma60 > ma240):
+                    return # 剔除任何非完美多頭排列的標的
+                if pd.notna(macd_hist) and macd_hist < 0:
+                    return # MACD 柱狀圖為負，代表短期動能偏弱，剔除
                     
-            # 條件三：基本面與大戶雙重認可 (EPS為正，且法人持股大於 5%)
+            # 3. 籌碼與基本面雙頂標 (法人持股 > 10% 且 營收成長為正、EPS為正)
             a_data = get_analysis_data(sid)
             inst_val = a_data['法人持股'] if (a_data and '法人持股' in a_data) else 0
             eps_val = a_data['EPS'] if (a_data and 'EPS' in a_data) else "N/A"
+            rev_growth = a_data['營收成長率'] if (a_data and '營收成長率' in a_data) else "N/A"
             
-            if inst_val < 5.0:
-                return # 法人持股太低，籌碼共識不足
+            if inst_val < 10.0:
+                return # 法人持股低於 10%，不具備機構重倉優勢
             if eps_val == "N/A" or float(eps_val) <= 0:
-                return # 剔除虧損公司，確保長線抱單的安全性
+                return # 虧損公司剔除
+            if rev_growth == "N/A" or float(rev_growth) <= 0:
+                return # 營收衰退公司剔除
                 
         except Exception as e:
             pass # 若運算錯誤則放行，交由後方原本邏輯處理
