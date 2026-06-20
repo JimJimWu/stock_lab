@@ -426,5 +426,5 @@ def run_all_scan():
         except Exception as e:
             print(f"掃描 {sid} 發生錯誤: {e}")
     print(f"[{datetime.datetime.now()}] 全體掃描結束。")
-    if __name__ == "__main__":
+if __name__ == "__main__":
     run_all_scan()
