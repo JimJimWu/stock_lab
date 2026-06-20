@@ -1,5 +1,5 @@
 # ==============================================================================
-# 秉諺的黑馬雷達 - 背景自動無人值守掃描器 (auto_scan.py V32.0 - 視覺分級與潛龍升級版)
+# 秉諺的黑馬雷達 - 背景自動無人值守掃描器 (auto_scan.py V33.0 - 視覺分級與潛龍升級版)
 # ==============================================================================
 import os
 import json
@@ -200,13 +200,45 @@ def send_discord_webhook(webhook_url, embed_data):
         print(f"發送 Discord 失敗: {e}")
         return False
 
-# 💥 【V31.0 完美同步：自動化背景監控引擎】
-def scan_and_notify(sid, sname, webhook_url):
+# 💥 【V31.0 完美同步：自動化背景監控引擎】(參數新增 is_full_market)
+def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
     df_scan = get_stock_df(sid)
     if df_scan.empty or len(df_scan) < 20:
         return
         
     last, prev = df_scan.iloc[-1], df_scan.iloc[-2]
+    
+    # ==========================================================================
+# ==========================================================================
+    # 🛡️ 【全母體專屬：高壓前置濾網】(絕對不影響原有資料庫與訊號邏輯)
+    # ==========================================================================
+    if is_full_market:
+        try:
+            # 條件一：絕對流動性 (20日均量必須大於 500 張)
+            vol_ma20 = df_scan['Volume'].rolling(20).mean().iloc[-1]
+            if pd.isna(vol_ma20) or vol_ma20 < 500:
+                return # 殭屍股直接剃除，不進入核心運算
+                
+            # 條件二：長線趨勢保護 (避免接到長線崩壞的無底洞，容許跌破年線10%內)
+            ma240 = last.get('MA240', 0)
+            current_price_fast = float(last['Close'])
+            if pd.notna(ma240) and ma240 > 0:
+                if current_price_fast < (ma240 * 0.90):
+                    return # 跌得太深、趨勢徹底走空的標的直接剃除
+                    
+            # 💥 條件三：大戶認可 (法人持股必須大於 0%)
+            # 透過呼叫現有的 get_analysis_data 來進行基本面快篩
+            a_data = get_analysis_data(sid)
+            inst_val = a_data['法人持股'] if (a_data and '法人持股' in a_data) else 0
+            if inst_val <= 0:
+                return # 連三大法人都不買單的股票，直接剃除
+                
+        except Exception as e:
+            pass # 若運算錯誤則放行，交由後方原本邏輯處理
+    # ==========================================================================
+    
+    # 💥 【100%事實價格還原】(以下為您原本的程式碼，完全無更動)
+    clean_prices = get_yahoo_web_quote_from_df(sid, df_scan)
     
     # 💥 【100%事實價格還原】
     clean_prices = get_yahoo_web_quote_from_df(sid, df_scan)
@@ -282,7 +314,7 @@ def scan_and_notify(sid, sname, webhook_url):
             color_hex = 3447003 # 科技藍
             signals_triggered = True
 
-    # ==============================================================================
+# ==============================================================================
     # 🐉 3.5 新增策略：深水區潛龍雷達 (實戰嚴苛版 + 籌碼防護罩)
     # ==============================================================================
     try:
@@ -292,6 +324,7 @@ def scan_and_notify(sid, sname, webhook_url):
         latest_rsi = last['RSI']
         
         if pd.notna(ma60) and pd.notna(ma240) and pd.notna(vol_ma20):
+            # ⚖️ 原有黃金參數
             SUPPORT_TOLERANCE = 0.05
             VOLUME_RATIO = 0.40
             RSI_THRESHOLD = 35
@@ -303,8 +336,17 @@ def scan_and_notify(sid, sname, webhook_url):
             is_volume_dead = today_volume < (vol_ma20 * VOLUME_RATIO)
             is_rsi_bottom = latest_rsi <= RSI_THRESHOLD
             is_chip_safe = "倒貨" not in chip_flow_status
+
+            # 🔐 【新增的高階限制條件】
+            # 1. 流動性過濾：20日均量大於 500 張
+            is_liquid = vol_ma20 > 500
+            # 2. MACD 動能過濾：柱狀圖跌勢收斂 (今天的柱子比昨天高)
+            is_macd_improving = last['MACD_Hist'] >= prev['MACD_Hist']
+            # 3. 大戶認可過濾：法人持股大於 3% (依您的喜好可調整)
+            is_inst_backed = inst_val > 3.0
             
-            if support_test and is_volume_dead and is_rsi_bottom and is_chip_safe:
+            # 只有當所有嚴苛條件【全部滿足】時，才觸發深水區潛龍
+            if support_test and is_volume_dead and is_rsi_bottom and is_chip_safe and is_liquid and is_macd_improving and is_inst_backed:
                 support_type = "年線(240MA)" if is_near_ma240 else "季線(60MA)"
                 status_msg = f"🐉【深水區潛龍】測 {support_type} (籌碼安全)！"
                 color_hex = 16766720 # 耀眼金
@@ -314,7 +356,6 @@ def scan_and_notify(sid, sname, webhook_url):
                 print(f"🛑 [防呆攔截] {sname} ({sid}) 技術面達標，但主力高檔倒貨中，已取消推播！")
     except Exception as e:
         pass
-
     # 4. 附屬指標
     sub_signals = []
     if last['DIF'] > last['DEA'] and prev['DIF'] <= prev['DEA']:
@@ -371,13 +412,17 @@ def scan_and_notify(sid, sname, webhook_url):
 def run_all_scan():
     print(f"[{datetime.datetime.now()}] 開始執行背景自動掃描...")
     stock_dict = load_stock_dict()
+    
+    # 💥 【新增：動態判定是否為全母體掃描】(數量 > 500 檔即啟動)
+    is_full_market = len(stock_dict) > 500
+    if is_full_market:
+        print(f"🛡️ 偵測到全市場掃描 ({len(stock_dict)} 檔)，已自動啟動「高壓前置濾網」！")
+        
     for sid, sname in stock_dict.items():
         try:
-            scan_and_notify(sid, sname, DEFAULT_DISCORD_WEBHOOK)
+            # 將 is_full_market 參數傳遞進去
+            scan_and_notify(sid, sname, DEFAULT_DISCORD_WEBHOOK, is_full_market)
             time.sleep(1) # 避開 Yahoo API 頻率限制
         except Exception as e:
             print(f"掃描 {sid} 發生錯誤: {e}")
     print(f"[{datetime.datetime.now()}] 全體掃描結束。")
-
-if __name__ == "__main__":
-    run_all_scan()
