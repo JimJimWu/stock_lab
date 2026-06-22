@@ -842,11 +842,16 @@ def render_backtest_dashboard():
                 marker=dict(size=10)
             ))
             
-        fig.update_layout(
-            title="不同訊號之多週期勝率演變交叉圖", xaxis_title="持有週期", yaxis_title="勝率 (%)",
-            yaxis=dict(range=[0, 110]), hovermode="x unified",
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
-            margin=dict(l=20, r=20, t=60, b=20)
+       fig.update_layout(
+            title="不同訊號之多週期勝率演變交叉圖", 
+            xaxis_title="持有週期", 
+            yaxis_title="勝率 (%)",
+            yaxis=dict(range=[0, 110]), 
+            hovermode="x unified",
+            # 💥 完美解法：將圖例的錨點改為 top，並移至圖表正下方 (y=-0.2)，置中對齊
+            legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5),
+            # 💥 同步加大底部邊距 (b=120)，為多行圖例保留絕對充足的呼吸空間
+            margin=dict(l=20, r=20, t=60, b=120)
         )
         st.plotly_chart(fig, use_container_width=True)
         st.info("💡 **分析洞察**：觀察兩條線的交叉點。若『量能爆發』在中後期勝率快速下滑，而『大戶惜售』勝率穩步上升，即完美印證了短跑選手與馬拉松選手的策略差異。")
