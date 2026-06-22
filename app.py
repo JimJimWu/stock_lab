@@ -287,18 +287,42 @@ def custom_diagnostic_card(title, text, card_type="info"):
 def load_stock_dict():
     current_data = DEFAULT_STOCKS.copy()
     
-    # 1. 讀取舊名單，並自動清洗掉「台股代號」這些垃圾字眼
+    # 1. 讀取舊名單，並啟動強制格式化引擎，統一為「代號 (名稱)」
     if os.path.exists(DICT_FILE):
         try:
             with open(DICT_FILE, "r", encoding="utf-8") as f:
                 saved_data = json.load(f)
                 if saved_data and isinstance(saved_data, dict):
                     for k, v in saved_data.items():
-                        # 💥 洗白髒資料
-                        clean_v = v.replace("台股代號 ", "").replace("台股代號", "")
-                        current_data[k] = clean_v
+                        # 💥 萃取出純淨名稱，過濾掉任何可能殘留的舊代號或括號
+                        pure_name = v.replace(str(k), "").replace("台股代號", "").replace("(", "").replace(")", "").strip()
+                        current_data[k] = f"{k} ({pure_name})"
         except Exception as e:
             print(f"讀取 {DICT_FILE} 失敗: {e}")
+            
+    # 💥 【防護升級】：已移除原先強迫將 industry_db 歷史股票倒進來的邏輯，徹底杜絕幽靈股票
+    
+    # 2. 將格式完美統一後的乾淨名單存回實體檔案
+    try:
+        with open(DICT_FILE, "w", encoding="utf-8") as f:
+            json.dump(current_data, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        print(f"建立 {DICT_FILE} 失敗: {e}")
+        
+    # 3. 【雙軌合併】在記憶體中動態加入「雷達菁英」，顯示於儀表板但絕不寫入實體檔案
+    if os.path.exists("radar_elite.json"):
+        try:
+            with open("radar_elite.json", "r", encoding="utf-8") as f:
+                radar_stocks = json.load(f)
+                for sid, sname in radar_stocks.items():
+                    if sid not in current_data:
+                        pure_name = sname.replace(str(sid), "").replace("台股代號", "").replace("(", "").replace(")", "").strip()
+                        # 加上閃電標籤，讓您一眼看出這是雲端抓下來的短線菁英
+                        current_data[sid] = f"{sid} ({pure_name}) (⚡雷達)"
+        except Exception as e:
+            print(f"讀取 radar_elite.json 失敗: {e}")
+            
+    return current_data
             
     # 2. 自動同步 JSON 倉庫 (把富喬、台玻自動加回來)
     try:
