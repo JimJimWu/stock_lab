@@ -764,6 +764,57 @@ def render_backtest_dashboard():
         if not signal_col:
             st.error("CSV 中找不到『核心訊號』欄位，無法進行分組分析。")
             return
+
+        # ==============================================================================
+        # 💥 【新增：戰情室動態數據篩選器】
+        # ==============================================================================
+        # 確保有日期時間欄位才能進行時間篩選
+        if "日期時間" in df.columns:
+            df['日期時間'] = pd.to_datetime(df['日期時間'])
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                import datetime
+                min_date = df['日期時間'].dt.date.min()
+                max_date = df['日期時間'].dt.date.max()
+                # 如果歷史資料不足30天，就取最小日期
+                default_start = max(min_date, max_date - datetime.timedelta(days=30))
+                
+                selected_dates = st.date_input(
+                    "🗓️ 選擇回測區間",
+                    value=[default_start, max_date],
+                    min_value=min_date,
+                    max_value=max_date
+                )
+
+            with col2:
+                available_signals = df[signal_col].dropna().unique().tolist()
+                selected_signals = st.multiselect(
+                    "🎯 選擇欲分析的訊號型態",
+                    options=available_signals,
+                    default=available_signals
+                )
+
+            # 執行 DataFrame 覆寫過濾
+            if len(selected_dates) == 2:
+                start_date, end_date = selected_dates
+                df = df[
+                    (df['日期時間'].dt.date >= start_date) & 
+                    (df['日期時間'].dt.date <= end_date) &
+                    (df[signal_col].isin(selected_signals))
+                ]
+            elif len(selected_dates) == 1:
+                start_date = selected_dates[0]
+                df = df[
+                    (df['日期時間'].dt.date == start_date) &
+                    (df[signal_col].isin(selected_signals))
+                ]
+                
+        # 🛡️ 防呆：如果篩選後沒有任何資料，提早結束避免畫圖報錯
+        if df.empty:
+            st.warning("⚠️ 在目前的篩選條件下，沒有找到任何符合的回測數據。")
+            return
+        # ==============================================================================
             
         periods = ["T+1", "T+3", "T+5", "T+10", "T+20"]
         fig = go.Figure()
