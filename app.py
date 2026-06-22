@@ -291,7 +291,7 @@ def load_stock_dict():
                         clean_v = v.replace("台股代號 ", "").replace("台股代號", "")
                         current_data[k] = clean_v
         except Exception as e:
-            print(f"讀取 stock_dict.json 失敗: {e}")
+            print(f"讀取 {DICT_FILE} 失敗: {e}")
             
     # 2. 自動同步 JSON 倉庫 (把富喬、台玻自動加回來)
     try:
@@ -308,22 +308,42 @@ def load_stock_dict():
     except Exception as e:
         print(f"自動同步選單失敗: {e}")
 
-    # 3. 將乾淨的名單存回檔案
+    # 3. 將乾淨的名單存回檔案 (此時只存手動的永久名單，絕不包含雷達菁英)
     try:
         with open(DICT_FILE, "w", encoding="utf-8") as f:
             json.dump(current_data, f, ensure_ascii=False, indent=4)
     except Exception as e:
-        print(f"建立 stock_dict.json 失敗: {e}")
+        print(f"建立 {DICT_FILE} 失敗: {e}")
         
+    # ==========================================================================
+    # 💥 4. 【雙軌合併】在記憶體中動態加入「雷達菁英」，顯示於儀表板但絕不寫入實體檔案
+    # ==========================================================================
+    if os.path.exists("radar_elite.json"):
+        try:
+            with open("radar_elite.json", "r", encoding="utf-8") as f:
+                radar_stocks = json.load(f)
+                for sid, sname in radar_stocks.items():
+                    # 如果這檔股票已經在您的永久名單中，就不重複加標籤
+                    if sid not in current_data:
+                        current_data[sid] = f"{sname} (⚡雷達)"
+        except Exception as e:
+            print(f"讀取 radar_elite.json 失敗: {e}")
+            
     return current_data
 
 def save_stock_dict(data):
     try:
+        # 💥 【防呆攔截】寫入永久資料庫前，將帶有「(⚡雷達)」標籤的動態名單強制剔除
+        pure_data = {}
+        for k, v in data.items():
+            if "(⚡雷達)" not in v:
+                pure_data[k] = v
+                
         with open(DICT_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
+            json.dump(pure_data, f, ensure_ascii=False, indent=4)
         return True
     except Exception as e:
-        print(f"儲存 stock_dict.json 失敗: {e}")
+        print(f"儲存 {DICT_FILE} 失敗: {e}")
         return False
 		
 # 💥 【V34.2 升級：富文本量化回測記錄器 (精準對齊版)】
