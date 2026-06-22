@@ -418,24 +418,41 @@ def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
 
         # 💥 自動化推播同步記錄至 CSV
         log_signal_to_csv(sid, sname, current_price, embed)
+        # 💥 新增：回報這是一檔過關的菁英標的
+        return True
+        
+    return False # 若沒觸發任何訊號，回報失敗 (包含上方前置濾網提早 return 的情況，預設也會被視為 False)
 
 # 執行全體自選股掃描
 def run_all_scan():
     print(f"[{datetime.datetime.now()}] 開始執行背景自動掃描...")
     stock_dict = load_stock_dict()
     
-    # 💥 【新增：動態判定是否為全母體掃描】(數量 > 500 檔即啟動)
     is_full_market = len(stock_dict) > 500
     if is_full_market:
         print(f"🛡️ 偵測到全市場掃描 ({len(stock_dict)} 檔)，已自動啟動「高壓前置濾網」！")
         
+    # 💥 新增：準備一個空籃子，用來裝今天的菁英
+    elite_dict = {}
+        
     for sid, sname in stock_dict.items():
         try:
-            # 將 is_full_market 參數傳遞進去
-            scan_and_notify(sid, sname, DEFAULT_DISCORD_WEBHOOK, is_full_market)
+            # 💥 接收回傳值，如果是菁英就裝進籃子裡
+            is_elite = scan_and_notify(sid, sname, DEFAULT_DISCORD_WEBHOOK, is_full_market)
+            if is_elite:
+                elite_dict[sid] = sname
+                
             time.sleep(1) # 避開 Yahoo API 頻率限制
         except Exception as e:
             print(f"掃描 {sid} 發生錯誤: {e}")
+            
+    # 💥 新增：掃描結束後，將今天的菁英名單「完全覆寫」到專屬檔案中
+    if is_full_market:
+        try:
+            with open("radar_elite.json", "w", encoding="utf-8") as f:
+                json.dump(elite_dict, f, ensure_ascii=False, indent=4)
+            print(f"📝 今日菁英名單已動態更新至 radar_elite.json (共 {len(elite_dict)} 檔)")
+        except Exception as e:
+            print(f"寫入 radar_elite.json 失敗: {e}")
+            
     print(f"[{datetime.datetime.now()}] 全體掃描結束。")
-if __name__ == "__main__":
-    run_all_scan()
