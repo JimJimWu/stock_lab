@@ -1,7 +1,9 @@
 streamlit
+google-generativeai
 pandas
 yfinance
 plotly
 streamlit-autorefresh
 requests
-google-generativeai
+gspread
+oauth2client
