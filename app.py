@@ -28,6 +28,16 @@ else:
 # ==============================================================================
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+def load_industry_db_from_cloud():
+    try:
+        sheet = get_google_sheet()
+        records = sheet.get_all_records()
+        return {str(row['sid']): json.loads(row['data']) for row in records if row['sid']}
+    except Exception as e:
+        if os.path.exists(INDUSTRY_DB_FILE):
+            with open(INDUSTRY_DB_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        return {}
 
 def get_google_sheet():
     """建立 Google Sheets 連線"""
@@ -451,7 +461,7 @@ if 'STOCK_DICT' not in st.session_state:
 
 if 'INDUSTRY_DB' not in st.session_state:
     # 💥 改用雲端讀取函式
-    st.session_state['INDUSTRY_DB'] = load_industry_db_from_cloud()
+    st.session_state['INDUSTRY_DB'] = load_industry_db()
 
 STOCK_DICT = st.session_state['STOCK_DICT']
 INDUSTRY_DB = st.session_state['INDUSTRY_DB']
