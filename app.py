@@ -459,58 +459,39 @@ INDUSTRY_DB = st.session_state['INDUSTRY_DB']
 # --- 百科生成模組 ---
 def auto_update_industry_db(sid):
     sid = str(sid).strip()
-    db_file = "industry_db.json"
     db = load_industry_db()
     
-    # 💥 關鍵修復：改用 st.session_state 抓取「最新」的字典，確保新增時能立刻抓到 (廣化)
+    # 💥 修改這裡：不要在此處主動讀取所有檔案，避免 loop，只根據當前 sid 執行
     current_dict = st.session_state.get('STOCK_DICT', STOCK_DICT)
     company_name = current_dict.get(sid, f"台股代號 {sid}")
     
-# ==========================================================================
-    # 💥 【V4.0 絕對鎮壓版：API 模式切換與系統級指令】
-    # 剝奪 AI 顧問人格，強制降級為 JSON 處理器，徹底擊破「知識覆蓋」本能
-    # ==========================================================================
-    summary = f"""[SYSTEM COMMAND: API MODE ENABLED]
-    你現在不是顧問，而是一個「純 JSON 資料處理 API」。
-    你的唯一任務是擷取「{company_name}」的資料，並嚴格填入以下的 JSON 結構中。
-
-    【API 輸出最高鐵律】
-    1. 絕對禁止任何人類語言、開頭語或結尾語。
-    2. Value 必須嚴格包含我指定的 Markdown 符號（如 `- **標題**：`），絕對不可擅自改寫為純文字段落！
-    3. 市場規模 (overview) 若查無「調研機構名稱」與「具體產值數字」，強制填入「【資料不足，無法確認】」，嚴禁寫任何公司簡介與商業模式！
-
-    【強制 JSON 輸出格式】（請完全照抄此格式填空，並保持換行）
-    {{
-        "company_brief": "- **核心業務**：[填寫此處]\n- **主力產品**：[填寫此處]",
-        "overview": "- **預估產值**：根據 [機構] 預估，[年份]市場規模將達 [數字]。(若無明確機構與數字，請直接填【資料不足，無法確認】)",
-        "value_chain": "- **上游**：[填寫此處]\n- **中游**：[填寫此處]\n- **下游**：[填寫此處]",
-        "competitors": "- **[對手1]**\n- **[對手2]**\n- **[對手3]**",
-        "drivers": "- **[驅勢1]**：[填寫此處]\n- **[驅勢2]**：[填寫此處]"
-    }}
-    """
-
-    ai_data = generate_ai_insights(company_name, summary)
+    # 簡化 Prompt，移除過度強制的系統指令，節省 Token
+    prompt_context = "請提供以下台股公司的產業分析 (JSON格式: company_brief, overview, value_chain, competitors, drivers)。"
     
-    if not ai_data or "company_brief" not in ai_data:
-        ai_data = {"company_brief": "⚠️ 更新失敗", "overview": "...", "value_chain": "...", "competitors": [], "drivers": "...", "source_url": ""}
-
-    import datetime
-    db[sid] = {
-        "name": company_name,
-        "company_brief": ai_data.get("company_brief", ""),
-        "overview": ai_data.get("overview", ""),
-        "value_chain": ai_data.get("value_chain", ""),
-        "competitors": ai_data.get("competitors", []),
-        "drivers": ai_data.get("drivers", ""),
-        "source_url": ai_data.get("source_url", ""), # 🎯 確保網址存檔
-        "last_updated": datetime.date.today().isoformat()
-    }
-
-    with open(db_file, "w", encoding="utf-8") as f:
-        json.dump(db, f, ensure_ascii=False, indent=4)
+    ai_data = generate_ai_insights(company_name, prompt_context)
     
-    st.session_state['INDUSTRY_DB'] = db
-    return True, f"✅ 成功更新 {company_name}"
+    if ai_data:
+        db[sid] = {
+            "name": company_name,
+            "company_brief": ai_data.get("company_brief", ""),
+            "overview": ai_data.get("overview", ""),
+            "value_chain": ai_data.get("value_chain", ""),
+            "competitors": ai_data.get("competitors", []),
+            "drivers": ai_data.get("drivers", ""),
+            "source_url": ai_data.get("source_url", ""),
+            "last_updated": datetime.date.today().isoformat()
+        }
+        
+        # 寫回雲端 (使用 gspread)
+        sheet = get_google_sheet()
+        # 轉成字串格式寫入
+        sheet.update_cell(len(db) + 1, 1, sid) 
+        sheet.update_cell(len(db) + 1, 2, json.dumps(db[sid], ensure_ascii=False))
+        
+        st.session_state['INDUSTRY_DB'] = db
+        return True, f"✅ {company_name} 更新成功"
+    return False, "AI 解析失敗"
+
 # --- K線獲取與修正清洗防線 ---
 # 盤中快取 300 秒 (5分鐘) 剛好對齊 st_autorefresh
 # 盤後快取 3600 秒 (1小時) 大幅節省伺服器資源
@@ -1076,7 +1057,20 @@ with st.sidebar:
         with st.sidebar.expander("📈 產業驅動因子", expanded=False):
             st.info(format_text(stock_info.get("drivers", "資料載入中...")))
             
-        st.sidebar.caption(f"✨ 百科更新時間：{stock_info.get('last_updated', '歷史資料')}")
+       # --- 💥 增加資料過期檢查邏輯 ---
+        import datetime
+        last_updated_str = stock_info.get('last_updated', '2020-01-01')
+        try:
+            last_updated_date = datetime.date.fromisoformat(last_updated_str)
+            days_old = (datetime.date.today() - last_updated_date).days
+            
+            if days_old > 7:
+                st.sidebar.warning(f"⚠️ 資料已過期 {days_old} 天，建議點擊下方按鈕更新")
+            else:
+                st.sidebar.caption(f"✨ 百科更新時間：{last_updated_str}")
+        except:
+            st.sidebar.caption(f"✨ 百科更新時間：{last_updated_str}")
+        # --------------------------------
         
         s_url = stock_info.get("source_url", "")
         if not s_url:
@@ -1209,42 +1203,7 @@ with st.sidebar:
             time.sleep(1.2)
             st.rerun()
         else:
-            st.sidebar.error("❌ 請輸入完整的代號與名稱")
-                
-    if st.sidebar.button("🧹 百科智慧補全", use_container_width=True):
-        st.session_state['confirm_reset'] = True
-
-    if st.session_state.get('confirm_reset'):
-        st.sidebar.warning("⚠️ 系統將掃描清單，僅更新「無資料」的標的。")
-        if st.sidebar.button("✅ 開始補百科資料", use_container_width=True):
-            db = load_industry_db() 
-            current_stocks = load_stock_dict()
-            all_sids = list(current_stocks.keys())
-            total = len(all_sids)
-            progress_bar = st.sidebar.progress(0, text="🤖 檢查資料庫狀態...")
-            
-            for i, sid in enumerate(all_sids):
-                if str(sid).strip() in db:
-                    pass 
-                else:
-                    try:
-                        auto_update_industry_db(sid)
-                        import time
-                        time.sleep(15) 
-                    except:
-                        pass
-                progress_bar.progress((i + 1) / total, text=f"🔍 檢查中: {i+1}/{total}")
-            
-            st.sidebar.success("✅ 百科補全作業完成！")
-            import time
-            time.sleep(1)
-            st.session_state['confirm_reset'] = False
-            st.rerun()
-        
-        if st.sidebar.button("❌ 取消", use_container_width=True):
-            st.session_state['confirm_reset'] = False
-            st.rerun()
-
+            st.sidebar.error("❌ 請輸入完整的代號與名稱")              
 # ==============================================================================
 # --- 數據加載線 (外掛 - 必須靠最左邊) ---
 # ==============================================================================
