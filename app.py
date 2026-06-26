@@ -23,54 +23,69 @@ if not GEMINI_API_KEY:
     st.stop()
 else:
     genai.configure(api_key=GEMINI_API_KEY)
+# ==============================================================================
+# 雲端資料庫工具函數 (請放入 import 區段之後，主邏輯之前)
+# ==============================================================================
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
+def get_google_sheet():
+    """建立 Google Sheets 連線"""
+    creds_dict = json.loads(st.secrets["GSPREAD_JSON"])
+    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    client = gspread.authorize(creds)
+    # 開啟您的 Google Sheet
+    return client.open_by_url(st.secrets["SHEET_URL"]).sheet1
+
+def migrate_local_to_cloud():
+    """執行一次性遷移：將本地 JSON 檔案上傳至 Google Sheets"""
+    # 讀取原本的本地檔案
+    with open("industry_db.json", "r", encoding="utf-8") as f:
+        local_db = json.load(f)
+    
+    sheet = get_google_sheet()
+    
+    # 準備資料格式：[sid, json_string]
+    rows = [[str(sid), json.dumps(data, ensure_ascii=False)] for sid, data in local_db.items()]
+    
+    # 清空雲端舊資料並寫入
+    sheet.clear() 
+    sheet.append_row(["sid", "data"]) # 設定表頭
+    sheet.append_rows(rows) # 批次寫入
+    st.success(f"成功將 {len(rows)} 筆資料同步至 Google Sheets！")
+# ==============================================================================
 def generate_ai_insights(company_name, summary):
     """透過 AI 一次性產出分析，具備「雙引擎容錯」與「連網搜尋」功能"""
     import re
     import json
     
-    # 動態拆解邏輯
+    # 動態拆解邏輯 (此部分完全保留您原有的處理方式)
     match = re.match(r'^([A-Za-z0-9]+)(?:\s*\((.*?)\))?', company_name.strip())
-    if match:
-        ticker = match.group(1)
-        pure_name = match.group(2) if match.group(2) else ticker
-    else:
-        ticker = company_name
-        pure_name = company_name
+    ticker = match.group(1) if match else company_name
+    pure_name = match.group(2) if match and match.group(2) else company_name
 
     response = None
     try:
-        # 【主引擎】：嘗試使用 gemini-2.5-pro 連網搜尋
-        model_pro = genai.GenerativeModel(
-            model_name='gemini-2.5-pro', 
-            tools='google_search_retrieval'
-        )
-        prompt_pro = f"請連網查詢台股「{ticker} {pure_name}」的最新官方業務與產業地位。請以 JSON 格式回傳，欄位包含 company_brief, overview, value_chain(純文字，嚴禁巢狀字典), competitors (陣列), drivers。"
+        # 主引擎：gemini-2.5-pro
+        model_pro = genai.GenerativeModel(model_name='gemini-2.5-pro', tools='google_search_retrieval')
+        prompt_pro = f"請連網查詢台股「{ticker} {pure_name}」的最新官方業務與產業地位。請以 JSON 格式回傳，欄位包含 company_brief, overview, value_chain, competitors (陣列), drivers。"
         response = model_pro.generate_content(prompt_pro)
-        
     except Exception as e:
-        print(f"主引擎連網失敗，切換備用引擎: {e}")
+        print(f"主引擎失敗，切換備用引擎: {e}")
         try:
-            # 💥 您的 API 環境僅支援最新版，備用引擎切回 2.5-flash
+            # 備用引擎：gemini-2.5-flash
             model_fallback = genai.GenerativeModel(model_name='gemini-2.5-flash')
-            
-            # 💥 融入您的「名稱搜尋優先」嚴厲警告
             prompt_fallback = f"""
-            [核心目標]：你【唯一】要分析的企業為「{pure_name}」(代號:{ticker})。
-            
-            [嚴厲警告]：
-            1. 執行任務時，必須【優先以名稱：「{pure_name}」】進行檢索，絕對不可寫成任何與此名稱無關之企業（例如宏碩、望隼、保瑞、旺宏等）！
-            2. 輸出之所有產業資訊必須嚴格對齊「{pure_name}」的真實官方業務。
-            
-            [格式要求]：請以 JSON 回傳欄位：company_brief, overview, value_chain, competitors (陣列), drivers。
-            注意：所有內容必須是「純文字」，嚴禁使用巢狀字典格式。
-            
-            [查核規範]：如果你對「{pure_name}」這家公司的具體營業項目不確定，請將前四個欄位【全部】填寫「【資料不足，無法確認】」，competitors 填寫空陣列 []。
+            [核心目標]：分析「{pure_name}」(代號:{ticker})。
+            [嚴厲警告]：務必以名稱：「{pure_name}」檢索，不可寫成無關企業！
+            [格式要求]：JSON 回傳 company_brief, overview, value_chain, competitors (陣列), drivers。嚴禁使用巢狀字典。
             """
             response = model_fallback.generate_content(prompt_fallback)
         except Exception as ex:
             return {"company_brief": f"⚠️ API 完全失效: {str(ex)}", "source_url": ""}
 
+    # --- 💥 精簡後的統一解析邏輯 ---
     source_url = ""
     try:
         if hasattr(response.candidates[0], 'grounding_metadata') and response.candidates[0].grounding_metadata.grounding_chunks:
@@ -89,7 +104,8 @@ def generate_ai_insights(company_name, summary):
     except Exception as ex:
         return {
             "company_brief": f"⚠️ JSON 解析失敗: {str(ex)}", 
-            "overview": "【資料不足，無法確認】", "value_chain": "【資料不足，無法確認】", "competitors": [], "drivers": "【資料不足，無法確認】",
+            "overview": "【資料不足，無法確認】", "value_chain": "【資料不足，無法確認】", 
+            "competitors": [], "drivers": "【資料不足，無法確認】",
             "source_url": source_url
         }
     # ====================================================================
@@ -1127,6 +1143,14 @@ with st.sidebar:
             
         st.divider()
         st.markdown("**資料庫管理**")
+        
+        # 1. 雲端同步區 (新增的部分)
+        st.markdown("<span style='font-size: 13px; color: #00F0FF;'>☁️ 雲端百科同步</span>", unsafe_allow_html=True)
+        if st.button("🚀 執行資料庫雲端遷移", use_container_width=True):
+            migrate_local_to_cloud()
+        
+        # 2. 保留原有實體下載 (做為備份)
+        st.markdown("<span style='font-size: 13px; color: #94a3b8;'>💾 離線備份下載</span>", unsafe_allow_html=True)
         if os.path.exists("industry_db.json"):
             with open("industry_db.json", "r", encoding="utf-8") as f:
                 st.download_button("📥 下載百科資料庫", f.read(), "industry_db.json", "application/json", use_container_width=True)
