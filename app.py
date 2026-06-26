@@ -431,27 +431,27 @@ def log_signal_to_csv(sid, sname, price, embed):
     except Exception as e:
         print(f"寫入 CSV 失敗: {e}")
 		
-def load_industry_db():
-    """
-    從 JSON 檔案載入產業百科資料庫 (清潔完工版)
-    """
-    if os.path.exists(INDUSTRY_DB_FILE):
-        try:
+# 1. 這是您已經寫好的雲端讀取函數
+def load_industry_db_from_cloud():
+    try:
+        sheet = get_google_sheet()
+        records = sheet.get_all_records()
+        # 轉換為您原本需要的字典格式
+        return {str(row['sid']): json.loads(row['data']) for row in records if row['sid']}
+    except Exception as e:
+        # 如果雲端失敗，自動回頭讀取本地備份
+        if os.path.exists(INDUSTRY_DB_FILE):
             with open(INDUSTRY_DB_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                # 💥 修正重點：把原本這裡所有的 st.sidebar.write / markdown 內容全部刪除或註解掉
-                return data
-        except Exception as e:
-            # 只保留真正的錯誤報錯即可
-            st.sidebar.error(f"❌ 讀取 JSON 失敗: {e}")
-            return {}
-    return {}
+                return json.load(f)
+        return {}
 
-# 確保 Session State 初始化
+# 2. 確保 Session State 使用新函數
 if 'STOCK_DICT' not in st.session_state:
     st.session_state['STOCK_DICT'] = load_stock_dict()
+
 if 'INDUSTRY_DB' not in st.session_state:
-    st.session_state['INDUSTRY_DB'] = load_industry_db()
+    # 💥 改用雲端讀取函式
+    st.session_state['INDUSTRY_DB'] = load_industry_db_from_cloud()
 
 STOCK_DICT = st.session_state['STOCK_DICT']
 INDUSTRY_DB = st.session_state['INDUSTRY_DB']
