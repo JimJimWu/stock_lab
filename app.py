@@ -65,35 +65,49 @@ def migrate_local_to_cloud():
     sheet.append_rows(rows) # 批次寫入
     st.success(f"成功將 {len(rows)} 筆資料同步至 Google Sheets！")
 # ==============================================================================
-def generate_ai_insights(company_name, summary):
-    """透過 AI 一次性產出分析，具備「雙引擎容錯」與「連網搜尋」功能"""
-    import re
+def generate_ai_insights(company_name, prompt_context=""):
+    """精簡版：使用 flash 模型，透過嚴格的 JSON 模板約束輸出品質"""
     import json
+    import re
     
-    # 動態拆解邏輯 (此部分完全保留您原有的處理方式)
+    # 拆解代號與名稱邏輯保持不變
     match = re.match(r'^([A-Za-z0-9]+)(?:\s*\((.*?)\))?', company_name.strip())
     ticker = match.group(1) if match else company_name
     pure_name = match.group(2) if match and match.group(2) else company_name
 
-    response = None
+    # 強制使用輕量模型 gemini-2.5-flash，不使用 search retrieval
+    model = genai.GenerativeModel(model_name='gemini-2.5-flash')
+    
+    # 建立嚴格的輸出格式模板
+    prompt = f"""
+    分析對象: {ticker} {pure_name}
+    請僅輸出符合以下 JSON 格式的內容，不要包含任何前言、結尾或 Markdown 程式碼區塊符號。
+    {{
+        "company_brief": "請以三句話描述公司核心業務與產業地位",
+        "overview": "公司在市場中的定位與規模，若不確定請填寫【資料不足】",
+        "value_chain": "請以清單方式呈現上中下游",
+        "competitors": ["對手1", "對手2", "對手3"],
+        "drivers": "請條列公司未來成長動能"
+    }}
+    """
+    
     try:
-        # 主引擎：gemini-2.5-pro
-        model_pro = genai.GenerativeModel(model_name='gemini-2.5-pro', tools='google_search_retrieval')
-        prompt_pro = f"請連網查詢台股「{ticker} {pure_name}」的最新官方業務與產業地位。請以 JSON 格式回傳，欄位包含 company_brief, overview, value_chain, competitors (陣列), drivers。"
-        response = model_pro.generate_content(prompt_pro)
+        response = model.generate_content(prompt)
+        # 使用正則表達式提取 JSON，過濾掉任何非 JSON 的雜訊
+        match_json = re.search(r'\{.*\}', response.text, re.DOTALL)
+        if match_json:
+            ai_dict = json.loads(match_json.group(0))
+            # 確保來源網址依然有效，方便您點擊查證
+            ai_dict['source_url'] = f"https://www.google.com/search?q=台股+{ticker}+{pure_name}+產業分析"
+            return ai_dict
     except Exception as e:
-        print(f"主引擎失敗，切換備用引擎: {e}")
-        try:
-            # 備用引擎：gemini-2.5-flash
-            model_fallback = genai.GenerativeModel(model_name='gemini-2.5-flash')
-            prompt_fallback = f"""
-            [核心目標]：分析「{pure_name}」(代號:{ticker})。
-            [嚴厲警告]：務必以名稱：「{pure_name}」檢索，不可寫成無關企業！
-            [格式要求]：JSON 回傳 company_brief, overview, value_chain, competitors (陣列), drivers。嚴禁使用巢狀字典。
-            """
-            response = model_fallback.generate_content(prompt_fallback)
-        except Exception as ex:
-            return {"company_brief": f"⚠️ API 完全失效: {str(ex)}", "source_url": ""}
+        # 發生錯誤時回傳結構化的失敗資訊，防止 UI 渲染崩潰
+        return {
+            "company_brief": f"⚠️ 解析錯誤: {str(e)}", 
+            "overview": "...", "value_chain": "...", "competitors": [], "drivers": "...",
+            "source_url": f"https://www.google.com/search?q=台股+{ticker}+{pure_name}+產業分析"
+        }
+    return None
 
     # --- 💥 精簡後的統一解析邏輯 ---
     source_url = ""
@@ -118,59 +132,6 @@ def generate_ai_insights(company_name, summary):
             "competitors": [], "drivers": "【資料不足，無法確認】",
             "source_url": source_url
         }
-    # ====================================================================
-    # 💥 擷取來源網址與 JSON 輸出
-    # ====================================================================
-    source_url = ""
-    try:
-        # 嘗試從 Google 搜尋結果中抽出真實網址
-        if hasattr(response.candidates[0], 'grounding_metadata') and response.candidates[0].grounding_metadata.grounding_chunks:
-            source_url = response.candidates[0].grounding_metadata.grounding_chunks[0].web.uri
-    except:
-        # 如果沒抓到，就自動生成一個 Google 搜尋的快捷按鈕網址
-        source_url = f"https://www.google.com/search?q=台股+{ticker}+{pure_name}+產業分析"
-
-    try:
-        match_json = re.search(r'\{.*\}', response.text, re.DOTALL)
-        if match_json:
-            ai_dict = json.loads(match_json.group(0))
-            ai_dict['source_url'] = source_url
-            return ai_dict
-        else:
-            raise ValueError("無法提取 JSON")
-    except Exception as ex:
-        return {
-            "company_brief": f"⚠️ JSON 解析失敗: {str(ex)}", 
-            "overview": "...", "value_chain": "...", "competitors": [], "drivers": "...",
-            "source_url": source_url
-        }
-    # ====================================================================
-    # 💥 擷取來源網址與 JSON 輸出
-    # ====================================================================
-    source_url = ""
-    try:
-        # 嘗試從 Google 搜尋結果中抽出真實網址
-        if hasattr(response.candidates[0], 'grounding_metadata') and response.candidates[0].grounding_metadata.grounding_chunks:
-            source_url = response.candidates[0].grounding_metadata.grounding_chunks[0].web.uri
-    except:
-        # 如果沒抓到，就自動生成一個 Google 搜尋的快捷按鈕網址
-        source_url = f"https://www.google.com/search?q=台股+{ticker}+{pure_name}+產業分析"
-
-    try:
-        match_json = re.search(r'\{.*\}', response.text, re.DOTALL)
-        if match_json:
-            ai_dict = json.loads(match_json.group(0))
-            ai_dict['source_url'] = source_url
-            return ai_dict
-        else:
-            raise ValueError("無法提取 JSON")
-    except Exception as ex:
-        return {
-            "company_brief": f"⚠️ JSON 解析失敗: {str(ex)}", 
-            "overview": "...", "value_chain": "...", "competitors": [], "drivers": "...",
-            "source_url": source_url
-        }
-
 # --- 1. 頂部防禦 ---
 st.set_page_config(layout="wide", page_title="秉諺的黑馬雷達 V41.0")
 
