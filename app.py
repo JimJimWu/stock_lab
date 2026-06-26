@@ -432,7 +432,7 @@ def log_signal_to_csv(sid, sname, price, embed):
         print(f"寫入 CSV 失敗: {e}")
 		
 # 1. 這是您已經寫好的雲端讀取函數
-def load_industry_db_from_cloud():
+def load_industry_db():
     try:
         sheet = get_google_sheet()
         records = sheet.get_all_records()
