@@ -1410,12 +1410,12 @@ if df is not None and not df.empty:
                 "warning"
             )
 with col_main:
-        # 1. 安全防禦：確保資料存在才執行
+        # 1. 核心邏輯區：只有有資料才執行計算與渲染
         if df is not None and not df.empty and len(df) > 0:
             last = df.iloc[-1]
             plot_df = df.tail(view_days)
             
-            # --- 數據計算區 ---
+            # --- 數據計算 ---
             rsi_val = round(plot_df['RSI'].dropna().iloc[-1], 2) if not plot_df['RSI'].dropna().empty else 50.0
             inst_val = a_data.get('法人持股', 0) if a_data else 0
             chip_advice = " (大戶鎖碼中)" if inst_val > 25 else " (散戶主導中)"
@@ -1428,7 +1428,7 @@ with col_main:
             today_high = float(last['High'])
             today_low = float(last['Low'])
 
-            # 大看板
+            # --- 大看板渲染 (放入 if 內，確保變數已定義) ---
             st.markdown(f"""<div style="background: linear-gradient(90deg, #111827, #000000); border-left: 10px solid {color}; padding: 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
                 <div style="min-width: 250px;">
                     <p style="color:white; font-size: 32px; font-weight: 900; margin:0;">{selected_label} <span style="font-size: 24px; color: {color};">RSI: {rsi_val}</span></p>
@@ -1439,20 +1439,20 @@ with col_main:
                 <div style="display: flex; gap: 12px; flex-wrap: nowrap;">
                     <div style="background-color: #1e293b; width: 95px; padding: 8px 10px; border-radius: 8px; border: 1px solid #475569; text-align: center;">
                         <p style="color: #94a3b8; font-size: 11px; margin: 0;">開盤</p>
-                        <p style="color: white; font-size: 20px; font-weight: bold; margin: 4px 0 0 0; white-space: nowrap;">{round(today_open, 2)}</p>
+                        <p style="color: white; font-size: 20px; font-weight: bold; margin: 4px 0 0 0;">{round(today_open, 2)}</p>
                     </div>
                     <div style="background-color: #1e293b; width: 95px; padding: 8px 10px; border-radius: 8px; border: 1px solid #ef4444; text-align: center;">
                         <p style="color: #ef4444; font-size: 11px; margin: 0;">最高</p>
-                        <p style="color: white; font-size: 20px; font-weight: bold; margin: 4px 0 0 0; white-space: nowrap;">{round(today_high, 2)}</p>
+                        <p style="color: white; font-size: 20px; font-weight: bold; margin: 4px 0 0 0;">{round(today_high, 2)}</p>
                     </div>
                     <div style="background-color: #1e293b; width: 95px; padding: 8px 10px; border-radius: 8px; border: 1px solid #10b981; text-align: center;">
                         <p style="color: #10b981; font-size: 11px; margin: 0;">最低</p>
-                        <p style="color: white; font-size: 20px; font-weight: bold; margin: 4px 0 0 0; white-space: nowrap;">{round(today_low, 2)}</p>
+                        <p style="color: white; font-size: 20px; font-weight: bold; margin: 4px 0 0 0;">{round(today_low, 2)}</p>
                     </div>
                 </div>
             </div>""", unsafe_allow_html=True)
 
-            fig = make_subplots(rows=4, cols=1, shared_xaxes=True, vertical_spacing=0.04, row_heights=[0.4, 0.1, 0.2, 0.2])
+                        fig = make_subplots(rows=4, cols=1, shared_xaxes=True, vertical_spacing=0.04, row_heights=[0.4, 0.1, 0.2, 0.2])
             
             # K線
             fig.add_trace(go.Candlestick(x=plot_df.index, open=plot_df['Open'], high=plot_df['High'], low=plot_df['Low'], close=plot_df['Close'], name="K線",
@@ -1512,7 +1512,6 @@ with col_main:
                         st.rerun()
                     else:
                         st.info("💡 目前無異常訊號。")
-        
-        # 這是對應 if df is not None 的 else
+        # 2. 只有在真的沒資料時才進入這個 else
         else:
             st.error(f"❌ 暫時無法加載 {selected_label} 的技術數據，請確認代號是否正確。")
