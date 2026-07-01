@@ -1411,23 +1411,22 @@ if df is not None and not df.empty:
             )
 
     with col_main:
-    # 💥 加入防禦層：檢查 df 是否有效
-    if df is not None and not df.empty and len(df) > 0:
-        last = df.iloc[-1]
-        plot_df = df.tail(view_days)
-        
-        # RSI 與 Chip 變數處理
-        rsi_val = round(plot_df['RSI'].dropna().iloc[-1], 2) if not plot_df['RSI'].dropna().empty else 50.0
-        inst_val = a_data.get('法人持股', 0) if a_data else 0
-        chip_advice = " (大戶鎖碼中)" if inst_val > 25 else " (散戶主導中)"
-        
-        # 顏色與訊息邏輯
-        if rsi_val > 80: color, msg = "#ef4444", f"⚠️【高檔過熱：禁止追高{chip_advice}】"
-        elif rsi_val < 40: color, msg = "#10b981", f"✅【低檔安全：留意佈局{chip_advice}】"
-        else: color, msg = "#f59e0b", f"⚖️【區間震盪：觀望趨勢{chip_advice}】"
-        
-        # ... (後續渲染 HTML 與 Plotly 圖表) ...
-        # (這裡放您原本的 st.markdown 和 fig 渲染邏輯)
+        # 這裡必須要縮排！確保這一層的所有程式碼都在 with col_main 之下
+        if df is not None and not df.empty and len(df) > 0:
+            last = df.iloc[-1]
+            plot_df = df.tail(view_days)
+            
+            # --- 您的其他邏輯 ... ---
+            
+            # 渲染大看板 HTML
+            st.markdown(f"""...""", unsafe_allow_html=True)
+            
+            # 渲染圖表
+            st.plotly_chart(fig, use_container_width=True)
+            
+        else:
+            # 如果沒有資料的處理
+            st.warning("⚠️ 目前沒有該股票的有效數據。")
         
     else:
         # 💥 如果抓不到資料，顯示友善提示，而不是拋出崩潰訊息
