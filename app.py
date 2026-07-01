@@ -1411,7 +1411,7 @@ if df is not None and not df.empty:
             )
 with col_main:
         # 1. 安全防禦：確保資料存在才執行
-        if df is not None and not df.empty and len(df) > 0:
+    if df is not None and not df.empty and len(df) > 0:
             last = df.iloc[-1]
             plot_df = df.tail(view_days)
             
