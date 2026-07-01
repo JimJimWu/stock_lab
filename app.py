@@ -1410,9 +1410,9 @@ if df is not None and not df.empty:
                 "warning"
             )
 
-    with col_main:
-        # 這裡必須要縮排！確保這一層的所有程式碼都在 with col_main 之下
-        if df is not None and not df.empty and len(df) > 0:
+with col_main:
+    # 這裡必須要縮排！確保這一層的所有程式碼都在 with col_main 之下
+    if df is not None and not df.empty and len(df) > 0:
             last = df.iloc[-1]
             plot_df = df.tail(view_days)
             
@@ -1424,7 +1424,7 @@ if df is not None and not df.empty:
             # 渲染圖表
             st.plotly_chart(fig, use_container_width=True)
             
-        else:
+    else:
             # 如果沒有資料的處理
             st.warning("⚠️ 目前沒有該股票的有效數據。")
         
