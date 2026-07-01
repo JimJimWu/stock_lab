@@ -931,7 +931,7 @@ with st.sidebar:
         except:
             return "UNKNOWN", 0, 0
 
-   st.sidebar.markdown("### 🌪️ 宏觀環境監控")
+    st.sidebar.markdown("### 🌪️ 宏觀環境監控")
     status, drop_pct, close_idx = get_market_weather()
     
     if status == "DANGER":
