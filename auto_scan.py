@@ -9,7 +9,7 @@ import requests
 import yfinance as yf
 import pandas as pd
 
-DICT_FILE = "stock_dict.json"
+DICT_FILE = "full_market_dict.json"
 
 # ==============================================================================
 # 🔐 【V34.0 終極安全隔離防護】
