@@ -1410,12 +1410,12 @@ if df is not None and not df.empty:
                 "warning"
             )
 with col_main:
-        # 1. 核心邏輯區：只有有資料才執行計算與渲染
+        # 1. 安全防禦：確保資料存在才執行
         if df is not None and not df.empty and len(df) > 0:
             last = df.iloc[-1]
             plot_df = df.tail(view_days)
             
-            # --- 數據計算 ---
+            # --- 數據計算區 ---
             rsi_val = round(plot_df['RSI'].dropna().iloc[-1], 2) if not plot_df['RSI'].dropna().empty else 50.0
             inst_val = a_data.get('法人持股', 0) if a_data else 0
             chip_advice = " (大戶鎖碼中)" if inst_val > 25 else " (散戶主導中)"
@@ -1428,7 +1428,7 @@ with col_main:
             today_high = float(last['High'])
             today_low = float(last['Low'])
 
-            # --- 大看板渲染 (放入 if 內，確保變數已定義) ---
+            # 大看板
             st.markdown(f"""<div style="background: linear-gradient(90deg, #111827, #000000); border-left: 10px solid {color}; padding: 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
                 <div style="min-width: 250px;">
                     <p style="color:white; font-size: 32px; font-weight: 900; margin:0;">{selected_label} <span style="font-size: 24px; color: {color};">RSI: {rsi_val}</span></p>
@@ -1439,22 +1439,21 @@ with col_main:
                 <div style="display: flex; gap: 12px; flex-wrap: nowrap;">
                     <div style="background-color: #1e293b; width: 95px; padding: 8px 10px; border-radius: 8px; border: 1px solid #475569; text-align: center;">
                         <p style="color: #94a3b8; font-size: 11px; margin: 0;">開盤</p>
-                        <p style="color: white; font-size: 20px; font-weight: bold; margin: 4px 0 0 0;">{round(today_open, 2)}</p>
+                        <p style="color: white; font-size: 20px; font-weight: bold; margin: 4px 0 0 0; white-space: nowrap;">{round(today_open, 2)}</p>
                     </div>
                     <div style="background-color: #1e293b; width: 95px; padding: 8px 10px; border-radius: 8px; border: 1px solid #ef4444; text-align: center;">
                         <p style="color: #ef4444; font-size: 11px; margin: 0;">最高</p>
-                        <p style="color: white; font-size: 20px; font-weight: bold; margin: 4px 0 0 0;">{round(today_high, 2)}</p>
+                        <p style="color: white; font-size: 20px; font-weight: bold; margin: 4px 0 0 0; white-space: nowrap;">{round(today_high, 2)}</p>
                     </div>
                     <div style="background-color: #1e293b; width: 95px; padding: 8px 10px; border-radius: 8px; border: 1px solid #10b981; text-align: center;">
                         <p style="color: #10b981; font-size: 11px; margin: 0;">最低</p>
-                        <p style="color: white; font-size: 20px; font-weight: bold; margin: 4px 0 0 0;">{round(today_low, 2)}</p>
+                        <p style="color: white; font-size: 20px; font-weight: bold; margin: 4px 0 0 0; white-space: nowrap;">{round(today_low, 2)}</p>
                     </div>
                 </div>
             </div>""", unsafe_allow_html=True)
-			
-			fig = make_subplots(rows=4, cols=1, shared_xaxes=True, vertical_spacing=0.04, row_heights=[0.4, 0.1, 0.2, 0.2])
-            
-            # K線
+
+            # 圖表繪製
+            fig = make_subplots(rows=4, cols=1, shared_xaxes=True, vertical_spacing=0.04, row_heights=[0.4, 0.1, 0.2, 0.2])
             fig.add_trace(go.Candlestick(x=plot_df.index, open=plot_df['Open'], high=plot_df['High'], low=plot_df['Low'], close=plot_df['Close'], name="K線",
                                        decreasing=dict(fillcolor='#10b981', line=dict(color='#10b981')),
                                        increasing=dict(fillcolor='#ef4444', line=dict(color='#ef4444'))), row=1, col=1)
@@ -1463,17 +1462,12 @@ with col_main:
             fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA20'], name="20MA", line=dict(color='violet', width=1.5)), row=1, col=1)
             fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA60'], name="60MA (季線)", line=dict(color='#2dd4bf', width=2)), row=1, col=1)
             fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA240'], name="240MA (年線)", line=dict(color='#cbd5e1', width=2, dash='dot')), row=1, col=1)
-            
-            # 成交量
             fig.add_trace(go.Bar(x=plot_df.index, y=plot_df['Volume'], name="成交量", marker_color='#334155'), row=2, col=1)
             
-            # MACD
             m_colors = ['#ef4444' if x > 0 else '#10b981' for x in plot_df['MACD_Hist']]
             fig.add_trace(go.Bar(x=plot_df.index, y=plot_df['MACD_Hist'], name="MACD柱", marker_color=m_colors), row=3, col=1)
             fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['DIF'], name="DIF", line=dict(color='cyan')), row=3, col=1)
             fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['DEA'], name="DEA", line=dict(color='yellow')), row=3, col=1)
-            
-            # KD
             fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['K'], name="K值", line=dict(color='white')), row=4, col=1)
             fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['D'], name="D值", line=dict(color='yellow')), row=4, col=1)
             
@@ -1489,29 +1483,26 @@ with col_main:
             st.divider()
             st.markdown("""<div style="background: linear-gradient(135deg, #1e293b, #0f172a); padding: 20px; border-radius: 12px; border: 1px solid #475569; margin-top: 15px;">
                 <h3 style="color: #60a5fa; margin: 0 0 10px 0; font-size: 20px; display: flex; align-items: center; gap: 8px;">📡 戰情推播控制台</h3>
-                <p style="color: #94a3b8; font-size: 13px; margin: 0 0 15px 0;">在此手動觸發連線測試，或對您清單上的所有標的進行一鍵即時雷達掃描與 Discord 推播。</p>
             </div>""", unsafe_allow_html=True)
 
             if st.button("🔗 發送 Discord 測試訊息", use_container_width=True):
                 import datetime
                 tz_tw = datetime.timezone(datetime.timedelta(hours=8))
                 test_time = datetime.datetime.now(tz_tw).strftime('%Y-%m-%d %H:%M:%S')
-                test_embed = {"title": "✅ 秉諺的黑馬雷達連線測試", "description": "網頁主端控制台發送成功！", "color": 3447003, "footer": {"text": f"測試時間: {test_time}"}}
+                test_embed = {"title": "✅ 連線測試", "description": f"測試時間: {test_time}", "color": 3447003}
                 success, msg = send_discord_webhook(DEFAULT_DISCORD_WEBHOOK, test_embed)
                 if success: st.success("✅ " + msg)
                 else: st.error("❌ " + msg)
 
             if st.button("🔍 執行全體雷達大掃描", use_container_width=True):
-                with st.spinner("🚀 雷達深度掃描中..."):
-                    results = []
-                    for sid, sname in load_stock_dict().items():
-                        if run_single_scan_signal(sid, sname, DEFAULT_DISCORD_WEBHOOK): results.append(sid)
-                        time.sleep(0.2)
+                with st.spinner("🚀 掃描中..."):
+                    results = [sid for sid, sname in load_stock_dict().items() if run_single_scan_signal(sid, sname, DEFAULT_DISCORD_WEBHOOK)]
                     if results:
                         st.success(f"🎉 掃描完成！推播了 {len(results)} 檔。")
                         st.rerun()
                     else:
-                        st.info("💡 目前無異常訊號。")
-        # 2. 只有在真的沒資料時才進入這個 else
+                        st.info("💡 無異常訊號。")
+        
+        # 錯誤處理
         else:
-            st.error(f"❌ 暫時無法加載 {selected_label} 的技術數據，請確認代號是否正確。")
+            st.error(f"❌ 暫時無法加載技術數據，請確認標的代號。")
