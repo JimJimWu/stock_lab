@@ -1411,7 +1411,7 @@ if df is not None and not df.empty:
             )
 with col_main:
         # 1. 安全防禦：確保資料存在才執行
-    if df is not None and not df.empty and len(df) > 0:
+        if df is not None and not df.empty and len(df) > 0:
             last = df.iloc[-1]
             plot_df = df.tail(view_days)
             
@@ -1428,137 +1428,91 @@ with col_main:
             today_high = float(last['High'])
             today_low = float(last['Low'])
 
-        # 大看板
-        st.markdown(f"""<div style="background: linear-gradient(90deg, #111827, #000000); border-left: 10px solid {color}; padding: 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
-            <div style="min-width: 250px;">
-                <p style="color:white; font-size: 32px; font-weight: 900; margin:0;">{selected_label} <span style="font-size: 24px; color: {color};">RSI: {rsi_val}</span></p>
-                <p style="color:{color}; font-size: 24px; font-weight: bold; margin-top: 10px; margin-bottom: 0;">
-                    {msg} <span style="color: #60a5fa; font-size: 24px; margin: 0 10px;">|</span> <span style="color: #e2e8f0; font-size: 22px; background-color: #1e293b; padding: 4px 12px; border-radius: 6px; border: 1px solid #475569;">{vol_diag_msg}</span>
-                </p>
-            </div>
-            <div style="display: flex; gap: 12px; flex-wrap: nowrap;">
-                <div style="background-color: #1e293b; width: 95px; padding: 8px 10px; border-radius: 8px; border: 1px solid #475569; text-align: center;">
-                    <p style="color: #94a3b8; font-size: 11px; margin: 0;">開盤</p>
-                    <p style="color: white; font-size: 20px; font-weight: bold; margin: 4px 0 0 0; white-space: nowrap;">{round(today_open, 2)}</p>
+            # 大看板
+            st.markdown(f"""<div style="background: linear-gradient(90deg, #111827, #000000); border-left: 10px solid {color}; padding: 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                <div style="min-width: 250px;">
+                    <p style="color:white; font-size: 32px; font-weight: 900; margin:0;">{selected_label} <span style="font-size: 24px; color: {color};">RSI: {rsi_val}</span></p>
+                    <p style="color:{color}; font-size: 24px; font-weight: bold; margin-top: 10px; margin-bottom: 0;">
+                        {msg} <span style="color: #60a5fa; font-size: 24px; margin: 0 10px;">|</span> <span style="color: #e2e8f0; font-size: 22px; background-color: #1e293b; padding: 4px 12px; border-radius: 6px; border: 1px solid #475569;">{vol_diag_msg}</span>
+                    </p>
                 </div>
-                <div style="background-color: #1e293b; width: 95px; padding: 8px 10px; border-radius: 8px; border: 1px solid #ef4444; text-align: center;">
-                    <p style="color: #ef4444; font-size: 11px; margin: 0;">最高</p>
-                    <p style="color: white; font-size: 20px; font-weight: bold; margin: 4px 0 0 0; white-space: nowrap;">{round(today_high, 2)}</p>
+                <div style="display: flex; gap: 12px; flex-wrap: nowrap;">
+                    <div style="background-color: #1e293b; width: 95px; padding: 8px 10px; border-radius: 8px; border: 1px solid #475569; text-align: center;">
+                        <p style="color: #94a3b8; font-size: 11px; margin: 0;">開盤</p>
+                        <p style="color: white; font-size: 20px; font-weight: bold; margin: 4px 0 0 0; white-space: nowrap;">{round(today_open, 2)}</p>
+                    </div>
+                    <div style="background-color: #1e293b; width: 95px; padding: 8px 10px; border-radius: 8px; border: 1px solid #ef4444; text-align: center;">
+                        <p style="color: #ef4444; font-size: 11px; margin: 0;">最高</p>
+                        <p style="color: white; font-size: 20px; font-weight: bold; margin: 4px 0 0 0; white-space: nowrap;">{round(today_high, 2)}</p>
+                    </div>
+                    <div style="background-color: #1e293b; width: 95px; padding: 8px 10px; border-radius: 8px; border: 1px solid #10b981; text-align: center;">
+                        <p style="color: #10b981; font-size: 11px; margin: 0;">最低</p>
+                        <p style="color: white; font-size: 20px; font-weight: bold; margin: 4px 0 0 0; white-space: nowrap;">{round(today_low, 2)}</p>
+                    </div>
                 </div>
-                <div style="background-color: #1e293b; width: 95px; padding: 8px 10px; border-radius: 8px; border: 1px solid #10b981; text-align: center;">
-                    <p style="color: #10b981; font-size: 11px; margin: 0;">最低</p>
-                    <p style="color: white; font-size: 20px; font-weight: bold; margin: 4px 0 0 0; white-space: nowrap;">{round(today_low, 2)}</p>
-                </div>
-            </div>
-        </div>""", unsafe_allow_html=True)
+            </div>""", unsafe_allow_html=True)
 
-        fig = make_subplots(rows=4, cols=1, shared_xaxes=True, vertical_spacing=0.04, 
-                           row_heights=[0.4, 0.1, 0.2, 0.2])
-        
-        # K線
-        fig.add_trace(go.Candlestick(x=plot_df.index, open=plot_df['Open'], high=plot_df['High'], low=plot_df['Low'], close=plot_df['Close'], name="K線",
-                                     decreasing=dict(fillcolor='#10b981', line=dict(color='#10b981')),
-                                     increasing=dict(fillcolor='#ef4444', line=dict(color='#ef4444'))), row=1, col=1)
-        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA5'], name="5MA", line=dict(color='orange', width=1.5)), row=1, col=1)
-        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA10'], name="10MA", line=dict(color='#60a5fa', width=1.5)), row=1, col=1)
-        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA20'], name="20MA", line=dict(color='violet', width=1.5)), row=1, col=1)
-        
-        # 💥 新增：長線防禦區間 (季線與年線)
-        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA60'], name="60MA (季線)", line=dict(color='#2dd4bf', width=2)), row=1, col=1)
-        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA240'], name="240MA (年線)", line=dict(color='#cbd5e1', width=2, dash='dot')), row=1, col=1)
-
-		
-        # 成交量
-        fig.add_trace(go.Bar(x=plot_df.index, y=plot_df['Volume'], name="成交量", marker_color='#334155'), row=2, col=1)
-        
-        # MACD
-        m_colors = ['#ef4444' if x > 0 else '#10b981' for x in plot_df['MACD_Hist']]
-        fig.add_trace(go.Bar(x=plot_df.index, y=plot_df['MACD_Hist'], name="MACD柱", marker_color=m_colors), row=3, col=1)
-        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['DIF'], name="DIF", line=dict(color='cyan')), row=3, col=1)
-        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['DEA'], name="DEA", line=dict(color='yellow')), row=3, col=1)
-        
-        # KD
-        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['K'], name="K值", line=dict(color='white')), row=4, col=1)
-        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['D'], name="D值", line=dict(color='yellow')), row=4, col=1)
-        
-        fig.update_layout(height=800, template="plotly_dark", xaxis_rangeslider_visible=False)
-		# 💥 增量優化：專業看盤軟體視覺升級包
-        
-        # 1. 統一懸浮資訊框與圖例頂部水平化 (解決右上角工具列撞車問題)
-        fig.update_layout(
-            hovermode="x unified",  
-            legend=dict(
-                orientation="h",    
-                yanchor="bottom", y=1.02, 
-                xanchor="left", x=0       # 💥 關鍵修改：改為靠「左」對齊
-            ),
-            margin=dict(l=10, r=10, t=65, b=10) # 💥 關鍵修改：天花板高度從 40 挑高到 65
-        )
-        
-        # 2. 開啟十字游標準星 (Crosshair)
-        fig.update_xaxes(showspikes=True, spikecolor="gray", spikesnap="cursor", spikemode="across")
-        fig.update_yaxes(showspikes=True, spikecolor="gray", spikethickness=1)
-        
-        # 3. 強制喚醒所有隱藏的 X 軸日期標籤
-        for ax in fig.select_xaxes():
-            ax.update(showticklabels=True)
-        st.plotly_chart(fig, use_container_width=True)
-# ==========================================
-# 戰情推播控制台
-# ==========================================
-        st.divider()
-        st.markdown("""<div style="background: linear-gradient(135deg, #1e293b, #0f172a); padding: 20px; border-radius: 12px; border: 1px solid #475569; margin-top: 15px;">
-            <h3 style="color: #60a5fa; margin: 0 0 10px 0; font-size: 20px; display: flex; align-items: center; gap: 8px;">📡 戰情推播控制台</h3>
-            <p style="color: #94a3b8; font-size: 13px; margin: 0 0 15px 0;">在此手動觸發連線測試，或對您清單上的所有標的進行一鍵即時雷達掃描與 Discord 推播。</p>
-        </div>""", unsafe_allow_html=True)
-
-        # 💥 保留直列全寬，更具控制台氣勢
-        if st.button(
-            "🔗 發送 Discord 測試訊息", 
-            use_container_width=True,
-            help="手動測試網頁與您的 Discord 頻道是否成功對接。"
-        ):
-            # 強制鎖定台灣時間 (UTC+8)
-            import datetime
-            tz_tw = datetime.timezone(datetime.timedelta(hours=8))
-            test_time = datetime.datetime.now(tz_tw).strftime('%Y-%m-%d %H:%M:%S')
+            fig = make_subplots(rows=4, cols=1, shared_xaxes=True, vertical_spacing=0.04, row_heights=[0.4, 0.1, 0.2, 0.2])
             
-            test_embed = {
-                "title": "✅ 秉諺的黑馬雷達連線測試",
-                "description": "網頁主端控制台發送成功！手動推播管道運作良好。",
-                "color": 3447003,
-                "footer": {"text": f"測試時間: {test_time}"}
-            }
-            success, msg = send_discord_webhook(DEFAULT_DISCORD_WEBHOOK, test_embed)
-            if success: st.success("✅ " + msg)
-            else: st.error("❌ " + msg)
+            # K線
+            fig.add_trace(go.Candlestick(x=plot_df.index, open=plot_df['Open'], high=plot_df['High'], low=plot_df['Low'], close=plot_df['Close'], name="K線",
+                                       decreasing=dict(fillcolor='#10b981', line=dict(color='#10b981')),
+                                       increasing=dict(fillcolor='#ef4444', line=dict(color='#ef4444'))), row=1, col=1)
+            fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA5'], name="5MA", line=dict(color='orange', width=1.5)), row=1, col=1)
+            fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA10'], name="10MA", line=dict(color='#60a5fa', width=1.5)), row=1, col=1)
+            fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA20'], name="20MA", line=dict(color='violet', width=1.5)), row=1, col=1)
+            fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA60'], name="60MA (季線)", line=dict(color='#2dd4bf', width=2)), row=1, col=1)
+            fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA240'], name="240MA (年線)", line=dict(color='#cbd5e1', width=2, dash='dot')), row=1, col=1)
+            
+            # 成交量
+            fig.add_trace(go.Bar(x=plot_df.index, y=plot_df['Volume'], name="成交量", marker_color='#334155'), row=2, col=1)
+            
+            # MACD
+            m_colors = ['#ef4444' if x > 0 else '#10b981' for x in plot_df['MACD_Hist']]
+            fig.add_trace(go.Bar(x=plot_df.index, y=plot_df['MACD_Hist'], name="MACD柱", marker_color=m_colors), row=3, col=1)
+            fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['DIF'], name="DIF", line=dict(color='cyan')), row=3, col=1)
+            fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['DEA'], name="DEA", line=dict(color='yellow')), row=3, col=1)
+            
+            # KD
+            fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['K'], name="K值", line=dict(color='white')), row=4, col=1)
+            fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['D'], name="D值", line=dict(color='yellow')), row=4, col=1)
+            
+            fig.update_layout(height=800, template="plotly_dark", xaxis_rangeslider_visible=False, hovermode="x unified",
+                            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+                            margin=dict(l=10, r=10, t=65, b=10))
+            fig.update_xaxes(showspikes=True, spikecolor="gray", spikesnap="cursor", spikemode="across")
+            fig.update_yaxes(showspikes=True, spikecolor="gray", spikethickness=1)
+            for ax in fig.select_xaxes(): ax.update(showticklabels=True)
+            st.plotly_chart(fig, use_container_width=True)
 
-        # 💥 關鍵修正：將掃描按鈕「向左退一格」，與測試按鈕處於同一個層級
-        if st.button(
-            "🔍 執行全體雷達大掃描", 
-            use_container_width=True,
-            help="立即對您自選清單裡的所有股票進行技術與籌碼訊號的全面掃描。"
-        ):
-            with st.spinner("🚀 雷達深度掃描中..."):
-                results = []
-                current_scan_dict = load_stock_dict()
-                for sid, sname in current_scan_dict.items():
-                    res = run_single_scan_signal(sid, sname, DEFAULT_DISCORD_WEBHOOK)
-                    if res: results.append(res)
-                    
-                    import time
-                    time.sleep(0.2)
-                    
-                if results:
-                    st.success(f"🎉 掃描完成！共推播了 {len(results)} 檔。")
-                    st.toast(f"✅ 成功推送 {len(results)} 檔黑馬至 Discord！", icon="🚀")
-                    st.balloons()
-					# 💥 補上這三行：讓氣球飛完後，網頁自動刷新，把側邊欄按鈕叫出來
-                    import time
-                    time.sleep(2.5) # 給氣球 2.5 秒的表演時間
-                    st.rerun()      # 強制重新載入網頁更新 UI
-                else:
-                    st.info("💡 目前所有標的指標平穩，未達警報標準。")
-                    st.toast("💤 掃描完畢，目前無異常訊號。", icon="☕")
-	else:
-			st.error(f"❌ 暫時無法加載 {target_sid} 的技術數據，請在側邊欄進行重置或確認代號是否正確。")
+            # 戰情推播控制台
+            st.divider()
+            st.markdown("""<div style="background: linear-gradient(135deg, #1e293b, #0f172a); padding: 20px; border-radius: 12px; border: 1px solid #475569; margin-top: 15px;">
+                <h3 style="color: #60a5fa; margin: 0 0 10px 0; font-size: 20px; display: flex; align-items: center; gap: 8px;">📡 戰情推播控制台</h3>
+                <p style="color: #94a3b8; font-size: 13px; margin: 0 0 15px 0;">在此手動觸發連線測試，或對您清單上的所有標的進行一鍵即時雷達掃描與 Discord 推播。</p>
+            </div>""", unsafe_allow_html=True)
+
+            if st.button("🔗 發送 Discord 測試訊息", use_container_width=True):
+                import datetime
+                tz_tw = datetime.timezone(datetime.timedelta(hours=8))
+                test_time = datetime.datetime.now(tz_tw).strftime('%Y-%m-%d %H:%M:%S')
+                test_embed = {"title": "✅ 秉諺的黑馬雷達連線測試", "description": "網頁主端控制台發送成功！", "color": 3447003, "footer": {"text": f"測試時間: {test_time}"}}
+                success, msg = send_discord_webhook(DEFAULT_DISCORD_WEBHOOK, test_embed)
+                if success: st.success("✅ " + msg)
+                else: st.error("❌ " + msg)
+
+            if st.button("🔍 執行全體雷達大掃描", use_container_width=True):
+                with st.spinner("🚀 雷達深度掃描中..."):
+                    results = []
+                    for sid, sname in load_stock_dict().items():
+                        if run_single_scan_signal(sid, sname, DEFAULT_DISCORD_WEBHOOK): results.append(sid)
+                        time.sleep(0.2)
+                    if results:
+                        st.success(f"🎉 掃描完成！推播了 {len(results)} 檔。")
+                        st.rerun()
+                    else:
+                        st.info("💡 目前無異常訊號。")
+        
+        # 這是對應 if df is not None 的 else
+        else:
+            st.error(f"❌ 暫時無法加載 {selected_label} 的技術數據，請確認代號是否正確。")
