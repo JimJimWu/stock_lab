@@ -1503,9 +1503,6 @@ with col_main:
         for ax in fig.select_xaxes():
             ax.update(showticklabels=True)
         st.plotly_chart(fig, use_container_width=True)
-        # 必須確保這裡有一個 else，對齊上面的 if
-        else:
-        st.warning(f"⚠️ 無法讀取 {selected_label} 的有效技術數據，請稍後重試。")
 # ==========================================
 # 戰情推播控制台
 # ==========================================
