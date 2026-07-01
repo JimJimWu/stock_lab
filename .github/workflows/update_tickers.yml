@@ -31,6 +31,6 @@ jobs:
               run: |
                   git config --global user.name "github-actions[bot]"
                   git config --global user.email "github-actions[bot]@users.noreply.github.com"
-                  git add stock_dict.json
+                  git add full_market_dict.json
                   # 檢查是否有檔案變動，如果有就 Commit 並推回 GitHub (加入 skip ci 避免觸發其他迴圈)
                   git diff --quiet && git diff --staged --quiet || (git commit -m "🤖 自動更新：全台股母體名單 [skip ci]" && git pull --rebase origin main && git push)
