@@ -953,8 +953,10 @@ if app_mode == "📊 策略回測中心":
 # 🎯 個股戰情室 (當切換至個股模式時，以下才會執行)
 # ==============================================================================
 # --- 請確保在這段程式碼之前，已經呼叫了 load_full_market() ---
-# full_market_data = load_full_market() 
-# (如果找不到全市場檔案，就退回使用自選清單作為保險)
+# 1. 💥 呼叫函式並指派給變數 (這行絕對不能有註解符號)
+full_market_data = load_full_market() 
+
+# 2. 判斷要使用哪個字典
 search_source_dict = full_market_data if full_market_data else current_stocks_dict
 
 with st.sidebar:
