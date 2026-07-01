@@ -270,6 +270,16 @@ def custom_diagnostic_card(title, text, card_type="info"):
     """
     st.markdown(html_str, unsafe_allow_html=True)
 
+# --- 全市場母體資料庫 (供搜尋與新增使用) ---
+def load_full_market():
+    if os.path.exists("full_market_dict.json"):
+        try:
+            with open("full_market_dict.json", "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"讀取 full_market_dict.json 失敗: {e}")
+    return {} # 找不到就回傳空字典防呆
+	
 # --- 永久資料庫讀寫 ---
 def load_stock_dict():
     current_data = DEFAULT_STOCKS.copy()
@@ -942,27 +952,35 @@ if app_mode == "📊 策略回測中心":
 # ==============================================================================
 # 🎯 個股戰情室 (當切換至個股模式時，以下才會執行)
 # ==============================================================================
+# --- 請確保在這段程式碼之前，已經呼叫了 load_full_market() ---
+# full_market_data = load_full_market() 
+# (如果找不到全市場檔案，就退回使用自選清單作為保險)
+search_source_dict = full_market_data if full_market_data else current_stocks_dict
+
 with st.sidebar:
     # 2. 🎯 核心標的選擇
     st.sidebar.markdown("### 🎯 戰略目標選擇")
     
-    options_list = list(current_stocks_dict.keys())
+    # 💥 將選項清單改為讀取「全市場字典」
+    options_list = list(search_source_dict.keys())
     try:
         current_idx = options_list.index(st.session_state['selected_sid'])
     except:
         current_idx = 0
 
     target_sid = st.sidebar.selectbox(
-        "選擇您的掃描標的", 
+        "選擇您的掃描標的 (支援代號/名稱搜尋)", # 稍微修改標題提示使用者可以搜尋
         options=options_list, 
         index=current_idx, 
-        format_func=lambda sid: current_stocks_dict.get(sid, sid),
+        # 💥 這裡的 format_func 也要記得改成讀取 search_source_dict
+        format_func=lambda sid: search_source_dict.get(sid, sid),
         key="target_sid_selectbox",
-        help="選擇您清單中要進行深度技術與籌碼分析的股票標的。"
+        help="選擇您要進行深度技術與籌碼分析的股票標的。支援全台股搜查！"
     )
     
     st.session_state['selected_sid'] = target_sid
-    selected_label = current_stocks_dict.get(target_sid, target_sid)
+    # 💥 同步更新 label 讀取來源
+    selected_label = search_source_dict.get(target_sid, target_sid)
     
     view_days = st.sidebar.slider(
         "📅 歷史數據追蹤天數", 30, 240, 90,
