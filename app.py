@@ -961,34 +961,56 @@ full_market_data = load_full_market()
 search_source_dict = full_market_data if full_market_data else current_stocks_dict
 
 with st.sidebar:
-    # 2. 🎯 核心標的選擇
-    st.sidebar.markdown("### 🎯 戰略目標選擇")
+    # 1. 🎯 每日戰情室 (聚焦核心標的)
+    st.sidebar.markdown("### 🎯 每日戰情室 (已關注)")
+    current_stocks = load_stock_dict() # 確保讀取的是自選名單
     
-    # 💥 將選項清單改為讀取「全市場字典」
-    options_list = list(search_source_dict.keys())
+    # 建立「代號 (名稱)」格式的選項列表
+    options_list = list(current_stocks.keys())
+    
+    # 設定目前的選定指標
     try:
         current_idx = options_list.index(st.session_state['selected_sid'])
     except:
         current_idx = 0
 
     target_sid = st.sidebar.selectbox(
-        "選擇您的掃描標的 (支援代號/名稱搜尋)", # 稍微修改標題提示使用者可以搜尋
+        "選擇每日觀察標的", 
         options=options_list, 
-        index=current_idx, 
-        # 💥 這裡的 format_func 也要記得改成讀取 search_source_dict
-        format_func=lambda sid: search_source_dict.get(sid, sid),
-        key="target_sid_selectbox",
-        help="選擇您要進行深度技術與籌碼分析的股票標的。支援全台股搜查！"
+        index=current_idx,
+        # 強制顯示：代號 (名稱)
+        format_func=lambda sid: f"{sid} ({current_stocks.get(sid, '未知')})",
+        key="target_sid_selectbox"
     )
     
     st.session_state['selected_sid'] = target_sid
-    # 💥 同步更新 label 讀取來源
-    selected_label = search_source_dict.get(target_sid, target_sid)
+    st.sidebar.divider()
     
-    view_days = st.sidebar.slider(
-        "📅 歷史數據追蹤天數", 30, 240, 90,
-        help="調整右側 K 線圖展示的交易日長度。"
-    )
+    # 2. 🔍 探索新標的 (全市場擴建)
+    with st.sidebar.expander("🔍 搜尋全市場並擴建雷達"):
+        full_market = load_full_market() # 讀取那 1,971 檔母體
+        
+        # 建立搜尋用列表：強制統一格式「代號 (名稱)」
+        search_options = [f"{sid} ({name})" for sid, name in full_market.items()]
+        
+        # 使用者搜尋界面
+        new_stock_input = st.selectbox("請輸入代號或名稱搜尋", options=search_options)
+        
+        if st.button("➕ 加入每日戰情室"):
+            # 從字串中切出代號 (例如: "2330 (台積電)" -> "2330")
+            new_sid = new_stock_input.split(" ")[0]
+            
+            if new_sid not in current_stocks:
+                # 寫入邏輯
+                current_stocks[new_sid] = full_market.get(new_sid, "未知公司")
+                save_stock_dict(current_stocks)
+                st.success(f"✅ 已成功加入: {new_sid}")
+                st.rerun() # 立即重整頁面讓戰情室選單更新
+            else:
+                st.warning("⚠️ 此標的已在自選清單中")
+
+    # 3. 📅 歷史數據追蹤
+    view_days = st.sidebar.slider("📅 歷史數據追蹤天數", 30, 240, 90)
     st.sidebar.divider()
     
 # 3. 🌐 外部情資鏈結 (UI/UX 戰情室完整版)
