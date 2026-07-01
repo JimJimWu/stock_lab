@@ -1560,5 +1560,5 @@ with col_main:
                 else:
                     st.info("💡 目前所有標的指標平穩，未達警報標準。")
                     st.toast("💤 掃描完畢，目前無異常訊號。", icon="☕")
-		else:
+	else:
 			st.error(f"❌ 暫時無法加載 {target_sid} 的技術數據，請在側邊欄進行重置或確認代號是否正確。")
