@@ -5,7 +5,7 @@ import json
 import requests
 import datetime
 
-OUTPUT_FILE = "stock_dict.json"
+OUTPUT_FILE = "full_market_dict.json"
 
 # 💥 偽裝成一般使用者的瀏覽器，降低被證交所防火牆阻擋的機率
 HEADERS = {
