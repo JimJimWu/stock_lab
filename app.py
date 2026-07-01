@@ -1409,28 +1409,24 @@ if df is not None and not df.empty:
                 f"⚖️ 企業負債比率： {debt_text}",
                 "warning"
             )
-
 with col_main:
-    # 這裡必須要縮排！確保這一層的所有程式碼都在 with col_main 之下
-    if df is not None and not df.empty and len(df) > 0:
+        # 1. 安全防禦：確保資料存在才執行
+        if df is not None and not df.empty and len(df) > 0:
             last = df.iloc[-1]
             plot_df = df.tail(view_days)
             
-            # --- 您的其他邏輯 ... ---
+            # --- 數據計算區 ---
+            rsi_val = round(plot_df['RSI'].dropna().iloc[-1], 2) if not plot_df['RSI'].dropna().empty else 50.0
+            inst_val = a_data.get('法人持股', 0) if a_data else 0
+            chip_advice = " (大戶鎖碼中)" if inst_val > 25 else " (散戶主導中)"
             
-            # 渲染大看板 HTML
-            st.markdown(f"""...""", unsafe_allow_html=True)
+            if rsi_val > 80: color, msg = "#ef4444", f"⚠️【高檔過熱：禁止追高{chip_advice}】"
+            elif rsi_val < 40: color, msg = "#10b981", f"✅【低檔安全：留意佈局{chip_advice}】"
+            else: color, msg = "#f59e0b", f"⚖️【區間震盪：觀望趨勢{chip_advice}】"
             
-            # 渲染圖表
-            st.plotly_chart(fig, use_container_width=True)
-            
-    else:
-            # 如果沒有資料的處理
-            st.warning("⚠️ 目前沒有該股票的有效數據。")
-        
-    else:
-        # 💥 如果抓不到資料，顯示友善提示，而不是拋出崩潰訊息
-        st.warning(f"⚠️ 無法讀取 {selected_label} 的技術數據，請稍後重試。")
+            today_open = float(last['Open'])
+            today_high = float(last['High'])
+            today_low = float(last['Low'])
 
         # 大看板
         st.markdown(f"""<div style="background: linear-gradient(90deg, #111827, #000000); border-left: 10px solid {color}; padding: 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
@@ -1507,7 +1503,9 @@ with col_main:
         for ax in fig.select_xaxes():
             ax.update(showticklabels=True)
         st.plotly_chart(fig, use_container_width=True)
-
+# 必須確保這裡有一個 else，對齊上面的 if
+    else:
+        st.warning(f"⚠️ 無法讀取 {selected_label} 的有效技術數據，請稍後重試。")
 # ==========================================
 # 戰情推播控制台
 # ==========================================
