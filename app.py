@@ -931,7 +931,7 @@ with st.sidebar:
         except:
             return "UNKNOWN", 0, 0
 
-    st.sidebar.markdown("### 🌪️ 宏觀環境監控")
+   st.sidebar.markdown("### 🌪️ 宏觀環境監控")
     status, drop_pct, close_idx = get_market_weather()
     
     if status == "DANGER":
@@ -941,7 +941,8 @@ with st.sidebar:
     elif status == "SAFE":
         st.sidebar.success(f"🟢 **多頭防護網開啟**\n\n大盤: {close_idx:,.0f} 點 (+{drop_pct:.2f}%)\n\n系統建議：月線之上安全運行，雙核心策略可正常執行。")
     else:
-        st.sidebar.info("大盤監控連線中...")
+        # 💥 將原本的「連線中...」改成誠實的錯誤提示
+        st.sidebar.warning("⚠️ **大盤連線暫時異常**\n\nYahoo API 目前無回應。這不會影響您的個股雷達功能，系統將於稍後自動重試。")
         
     st.sidebar.divider()
 
