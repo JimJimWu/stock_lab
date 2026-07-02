@@ -985,6 +985,9 @@ with st.sidebar:
     )
     
     st.session_state['selected_sid'] = target_sid
+    
+    # 💥 ADD THIS LINE: Define selected_label
+    selected_label = current_stocks.get(target_sid, target_sid) 
     st.sidebar.divider()
     
     # 2. 🔍 探索新標的 (全市場擴建)
