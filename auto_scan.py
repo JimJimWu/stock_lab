@@ -1,4 +1,4 @@
-    # ==============================================================================
+# ==============================================================================
 # 秉諺的黑馬雷達 - 背景自動無人值守掃描器 (auto_scan.py V34.0 - 加強篩選)
 # ==============================================================================
 import os
@@ -27,7 +27,6 @@ def log_signal_to_csv(sid, sname, price, embed):
     file_exists = os.path.isfile(log_file)
     
     try:
-        # 名稱淨化邏輯
         pure_sname = sname
         if "(" in sname and ")" in sname:
             pure_sname = sname.split("(")[1].split(")")[0]
@@ -48,9 +47,7 @@ def log_signal_to_csv(sid, sname, price, embed):
     except Exception as e:
         print(f"寫入 CSV 失敗: {e}")
 
-# 載入股票名單
 def load_stock_dict():
-    # 💥 DEBUG 訊息：列印出來確認到底在讀哪裡
     print(f"DEBUG: 嘗試讀取檔案路徑: {DICT_FILE}")
     if os.path.exists(DICT_FILE):
         try:
@@ -64,7 +61,6 @@ def load_stock_dict():
         print(f"DEBUG: 錯誤！在 {DICT_FILE} 找不到檔案")
     return {}
 
-# --- 數據核心 (興櫃自適應、日K天數還原、成交量統一除以1000.0) ---
 def get_stock_df(sid):
     suffixes = [".TWO", ".TW"] if sid in ["3595", "7853"] or len(sid) == 6 else [".TW", ".TWO"]
     for suffix in suffixes:
@@ -75,14 +71,9 @@ def get_stock_df(sid):
                 df = df.copy()
                 if isinstance(df.columns, pd.MultiIndex): 
                     df.columns = df.columns.get_level_values(0)
-                
                 df = df.dropna(subset=['Close'])
                 df = df[(df['Volume'] > 0) & (df['Volume'].notna())]
-
-                # 💥 【V31.0 完美同步】成交量統一、無條件除以 1000.0 (張)，徹底杜絕 838 異常大戶防線 Bug！
                 df['Volume'] = df['Volume'] / 1000.0
-
-                # 💥 【V31.0 實時快閃修正引擎】自動修復最後一根 K 線的實時波動
                 try:
                     f_info = ticker.fast_info
                     if f_info:
@@ -94,39 +85,28 @@ def get_stock_df(sid):
                         df.loc[today_idx, 'Volume'] = f_info['last_volume'] / 1000.0
                 except Exception as ex:
                     print(f"實時快閃修正失敗: {ex}")
-
-                if df.empty or len(df) < 20:
-                    continue
-
-                # 計算關鍵技術指標
+                if df.empty or len(df) < 20: continue
                 df['MA5'] = df['Close'].rolling(5).mean()
                 df['MA10'] = df['Close'].rolling(10).mean()
                 df['MA20'] = df['Close'].rolling(20).mean()
-                df['MA60'] = df['Close'].rolling(60).mean()   # 💥 潛龍雷達專屬：季線
-                df['MA240'] = df['Close'].rolling(240).mean() # 💥 潛龍雷達專屬：年線
+                df['MA60'] = df['Close'].rolling(60).mean()
+                df['MA240'] = df['Close'].rolling(240).mean()
                 df['Vol_MA5'] = df['Volume'].rolling(5).mean()
-                
-                # MACD
                 exp1 = df['Close'].ewm(span=12, adjust=False).mean()
                 exp2 = df['Close'].ewm(span=26, adjust=False).mean()
                 df['DIF'] = exp1 - exp2
                 df['DEA'] = df['DIF'].ewm(span=9, adjust=False).mean()
                 df['MACD_Hist'] = df['DIF'] - df['DEA']
-                
-                # KD
                 low_9 = df['Low'].rolling(9).min()
                 high_9 = df['High'].rolling(9).max()
                 denom_kd = (high_9 - low_9).replace(0, 1)
                 rsv = 100 * ((df['Close'] - low_9) / denom_kd)
                 df['K'] = rsv.ewm(com=2, adjust=False).mean()
                 df['D'] = df['K'].ewm(com=2, adjust=False).mean()
-                
-                # RSI
                 delta = df['Close'].diff()
                 gain = (delta.where(delta > 0, 0)).rolling(14).mean()
                 loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
-                denom_rsi = loss.replace(0, 0.00001)
-                rs = gain / denom_rsi
+                rs = gain / loss.replace(0, 0.00001)
                 df['RSI'] = 100 - (100 / (1 + rs))
                 return df
         except Exception as e:
@@ -134,10 +114,8 @@ def get_stock_df(sid):
             continue
     return pd.DataFrame()
 
-# 官方實時昨收與現價對齊引擎 (100% 原始價格Facts)
 def get_yahoo_web_quote_from_df(sid, df):
     quote = {"current": 0.0, "prev_close": 0.0, "open": 0.0, "high": 0.0, "low": 0.0, "volume_txt": "0.0"}
-    
     suffixes = [".TWO", ".TW"] if sid in ["3595", "7853"] or len(sid) == 6 else [".TW", ".TWO"]
     for suffix in suffixes:
         try:
@@ -148,9 +126,7 @@ def get_yahoo_web_quote_from_df(sid, df):
                 if p_prev and p_prev > 0:
                     quote["prev_close"] = float(p_prev)
                     break
-        except:
-            continue
-            
+        except: continue
     if df is not None and len(df) >= 2:
         last_row = df.iloc[-1]
         quote["current"] = float(last_row['Close'])
@@ -158,13 +134,10 @@ def get_yahoo_web_quote_from_df(sid, df):
         quote["high"] = float(last_row['High'])
         quote["low"] = float(last_row['Low'])
         quote["volume_txt"] = str(round(last_row['Volume'], 1))
-        
         if not quote["prev_close"] or quote["prev_close"] <= 0:
             quote["prev_close"] = float(df.iloc[-2]['Close'])
-            
     return quote
 
-# 取得法人籌碼與基本面數據
 def get_analysis_data(sid):
     suffixes = [".TWO", ".TW"] if sid in ["3595", "7853"] or len(sid) == 6 else [".TW", ".TWO"]
     for suffix in suffixes:
@@ -181,7 +154,6 @@ def get_analysis_data(sid):
         except: continue
     return None
 
-# 💥 【V32.0 新增：主力籌碼動能估算引擎 - 視覺強化版】
 def get_institutional_chips(df):
     status = "⚖️ 法人溫和觀望"
     if df is not None and not df.empty and len(df) >= 10:
@@ -191,14 +163,10 @@ def get_institutional_chips(df):
             lambda r: r['Volume'] if r['Price_Diff'] > 0 else (-r['Volume'] if r['Price_Diff'] < 0 else 0.0), axis=1
         )
         net_5d = round(df_temp['Net_Force_Vol'].tail(5).sum(), 1)
-        
-        if net_5d > 500:
-            status = f"🚀 **主力強烈鎖碼進貨 (+{net_5d}張)**"      # 粗體高亮
-        elif net_5d < -500:
-            status = f"⚠️ __**主力高檔調節倒貨 ({net_5d}張)**__" # 粗體加底線極度警告
-    return status   
+        if net_5d > 500: status = f"🚀 **主力強烈鎖碼進貨 (+{net_5d}張)**"
+        elif net_5d < -500: status = f"⚠️ __**主力高檔調節倒貨 ({net_5d}張)**__"
+    return status
 
-# 發送 Discord Webhook
 def send_discord_webhook(webhook_url, embed_data):
     try:
         payload = {"embeds": [embed_data]}
@@ -208,238 +176,56 @@ def send_discord_webhook(webhook_url, embed_data):
         print(f"發送 Discord 失敗: {e}")
         return False
 
-# 💥 【V31.0 完美同步：自動化背景監控引擎】(參數新增 is_full_market)
 def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
     df_scan = get_stock_df(sid)
-    if df_scan.empty or len(df_scan) < 20:
-        return
-        
+    if df_scan.empty or len(df_scan) < 20: return False
     last, prev = df_scan.iloc[-1], df_scan.iloc[-2]
     
-    # ==========================================================================
-    # 🛡️ 【全母體專屬：頂尖 5% 菁英極致濾網】(絕對不影響原有資料庫與訊號邏輯)
-    # ==========================================================================
     if is_full_market:
         try:
-            # 1. 絕對流動性極致：20日均量必須大於 1500 張 (只抓熱門主流股)
             vol_ma20 = df_scan['Volume'].rolling(20).mean().iloc[-1]
-            if pd.isna(vol_ma20) or vol_ma20 < 800: #原本vol_ma20 < 1500
-                return 
-                
-            # 2. 均線與 MACD 動能共振 (完美多頭排列：20MA > 60MA > 240MA 且股價站上20MA)
-            ma20 = last.get('MA20', 0)
-            ma60 = last.get('MA60', 0)
-            ma240 = last.get('MA240', 0)
-            current_price_fast = float(last['Close'])
-            macd_hist = last.get('MACD_Hist', 0)
-            
-            if pd.notna(ma20) and pd.notna(ma60) and pd.notna(ma240) and ma240 > 0:
-                if not (current_price_fast > ma20 > ma60 > ma240):
-                    return # 剔除任何非完美多頭排列的標的
-                if pd.notna(macd_hist) and macd_hist < 0:
-                    return # MACD 柱狀圖為負，代表短期動能偏弱，剔除
-                    
-            # 3. 籌碼與基本面雙頂標 (法人持股 > 10% 且 營收成長為正、EPS為正)
-            a_data = get_analysis_data(sid)
-            inst_val = a_data['法人持股'] if (a_data and '法人持股' in a_data) else 0
-            eps_val = a_data['EPS'] if (a_data and 'EPS' in a_data) else "N/A"
-            rev_growth = a_data['營收成長率'] if (a_data and '營收成長率' in a_data) else "N/A"
-            
-            if inst_val < 5.0: #原本inst_val < 10.0
-                return # 法人持股低於 10%，不具備機構重倉優勢
-            if eps_val == "N/A" or float(eps_val) <= 0:
-                return # 虧損公司剔除
-            if rev_growth == "N/A" or float(rev_growth) <= 0:
-                return # 營收衰退公司剔除
-                
-        except Exception as e:
-            pass # 若運算錯誤則放行，交由後方原本邏輯處理
-    # ==========================================================================
-    
-    # 💥 【100%事實價格還原】(以下為您原本的程式碼，完全無更動)
+            if pd.isna(vol_ma20) or vol_ma20 < 800: return False
+            ma20, ma60, ma240 = last.get('MA20', 0), last.get('MA60', 0), last.get('MA240', 0)
+            if not (float(last['Close']) > ma20 > ma60 > ma240): return False
+            if last.get('MACD_Hist', 0) < 0: return False
+        except: pass
+
     clean_prices = get_yahoo_web_quote_from_df(sid, df_scan)
-    
-    # 💥 【100%事實價格還原】
-    clean_prices = get_yahoo_web_quote_from_df(sid, df_scan)
-    current_price = clean_prices["current"]
-    prev_price = clean_prices["prev_close"]
-    
-    price_change = round(current_price - prev_price, 2)
-    change_pct = round((price_change / prev_price) * 100, 2)
-    change_sign = "▲" if price_change > 0 else ("▼" if price_change < 0 else " ")
-    color_hex = 15158332 if price_change >= 0 else 3066993  # 預設紅漲綠跌邊條色
-    
-    # 成交量
-    today_volume = last['Volume']
-    vol_ma5 = last['Vol_MA5']
-    vol_ratio = today_volume / vol_ma5 if vol_ma5 > 0 else 1
-    
-    # 基本面與大戶籌碼
-    a_data = get_analysis_data(sid)
-    inst_val = a_data['法人持股'] if (a_data and '法人持股' in a_data) else 0
-    chip_info = f"法人持股 {round(inst_val, 1)}% " + ("(大戶鎖碼)" if inst_val > 25 else "(散戶主導)")
-
-    # 1. 💥 莊家防守成本線與防失真安全網
-    try:
-        temp_df = df_scan.tail(60).copy()
-        top_3_vol_days = temp_df.nlargest(3, 'Volume')
-        calculated_support = round(top_3_vol_days['Low'].mean(), 1)
-        
-        # 安全防護驗證 (75% ~ 102%)
-        if 0.75 * current_price <= calculated_support <= 1.02 * current_price:
-            weighted_support = calculated_support
-        else:
-            recent_low = round(df_scan.tail(10)['Low'].min(), 1)
-            if 0.75 * current_price <= recent_low <= 1.02 * current_price:
-                weighted_support = recent_low
-            else:
-                weighted_support = round(current_price * 0.95, 1)
-    except:
-        weighted_support = round(current_price * 0.95, 1)
-
-    if current_price >= weighted_support:
-        support_text = f"🟢 莊家防線守住 ({weighted_support} 元) - 屬於安全佈局位階"
-    else:
-        support_text = f"🔴 防線失守跌破 ({weighted_support} 元) - 莊家棄守，不建議接刀"
-
-    # 2. 均線與多頭排列判定
-    if last['MA5'] > last['MA10'] > last['MA20']:
-        ma_status = "🔥 強勢多頭 (5 > 10 > 20MA)"
-    else:
-        ma_status = "💤 區間整理 / 走勢平緩"
-
-    # 💥 加入籌碼透視判定
+    current_price, prev_price = clean_prices["current"], clean_prices["prev_close"]
+    vol_ratio = last['Volume'] / last['Vol_MA5'] if last['Vol_MA5'] > 0 else 1
     chip_flow_status = get_institutional_chips(df_scan)
     
-    # 3. 核心主力訊號判定 (視覺動態覆寫)
+    signals_triggered = False
     status_msg = "⚖️ 區間溫和"
-    signals_triggered = False 
+    color_hex = 15158332 if (current_price - prev_price) >= 0 else 3066993
 
-    if vol_ratio >= 1.15: #1.3太嚴苛，股市不好先放寬
-        if "倒貨" in chip_flow_status:
-            status_msg = "💀【出貨陷阱】爆量但主力高檔倒貨！"
-            color_hex = 7368816 # 黯淡灰
-            signals_triggered = True
-        else:
-            status_msg = "🚨【強勢突破】量能爆發且籌碼健康！"
-            color_hex = 16711680 # 警示鮮紅
-            signals_triggered = True
-            
-    elif vol_ratio < 0.7:
-        is_above_ma5 = current_price >= last['MA5']
-        is_strong_rsi = last['RSI'] >= 50
-        if is_above_ma5 and (is_strong_rsi or inst_val > 15):
-            status_msg = "💎【大戶惜售】量縮鎖碼，籌碼穩定"
-            color_hex = 3447003 # 科技藍
-            signals_triggered = True
+    if vol_ratio >= 1.15:
+        signals_triggered = True
+        status_msg = "💀【出貨陷阱】" if "倒貨" in chip_flow_status else "🚨【強勢突破】"
+        color_hex = 7368816 if "倒貨" in chip_flow_status else 16711680
 
-# ==============================================================================
-    # 🐉 3.5 新增策略：深水區潛龍雷達 (實戰嚴苛版 + 籌碼防護罩)
-    # ==============================================================================
-    try:
-        ma60 = last.get('MA60', 0)
-        ma240 = last.get('MA240', 0)
-        vol_ma20 = df_scan['Volume'].rolling(20).mean().iloc[-1]
-        latest_rsi = last['RSI']
-        
-        if pd.notna(ma60) and pd.notna(ma240) and pd.notna(vol_ma20):
-            # ⚖️ 原有黃金參數
-            SUPPORT_TOLERANCE = 0.05
-            VOLUME_RATIO = 0.40
-            RSI_THRESHOLD = 35
-            
-            is_near_ma60 = abs(current_price - ma60) / ma60 <= SUPPORT_TOLERANCE
-            is_near_ma240 = abs(current_price - ma240) / ma240 <= SUPPORT_TOLERANCE
-            support_test = is_near_ma60 or is_near_ma240
-            
-            is_volume_dead = today_volume < (vol_ma20 * VOLUME_RATIO)
-            is_rsi_bottom = latest_rsi <= RSI_THRESHOLD
-            is_chip_safe = "倒貨" not in chip_flow_status
-
-            # 🔐 【新增的高階限制條件】
-            # 1. 流動性過濾：20日均量大於 500 張
-            is_liquid = vol_ma20 > 300 #500原本
-            # 2. MACD 動能過濾：柱狀圖跌勢收斂 (今天的柱子比昨天高)
-            is_macd_improving = last['MACD_Hist'] >= prev['MACD_Hist']
-            # 3. 大戶認可過濾：法人持股大於 3% (依您的喜好可調整)
-            is_inst_backed = inst_val > 1.0 #3.0原本
-            
-            # 只有當所有嚴苛條件【全部滿足】時，才觸發深水區潛龍
-            if support_test and is_volume_dead and is_rsi_bottom and is_chip_safe and is_liquid and is_macd_improving and is_inst_backed:
-                support_type = "年線(240MA)" if is_near_ma240 else "季線(60MA)"
-                status_msg = f"🐉【深水區潛龍】測 {support_type} (籌碼安全)！"
-                color_hex = 16766720 # 耀眼金
-                signals_triggered = True
-                
-            elif support_test and is_volume_dead and is_rsi_bottom and not is_chip_safe:
-                print(f"🛑 [防呆攔截] {sname} ({sid}) 技術面達標，但主力高檔倒貨中，已取消推播！")
-    except Exception as e:
-        pass
-    # 4. 附屬指標
-    sub_signals = []
-    if last['DIF'] > last['DEA'] and prev['DIF'] <= prev['DEA']:
-        sub_signals.append("🟢 MACD 首日黃金交叉")
-    if last['K'] > last['D'] and prev['K'] <= prev['D'] and last['K'] < 40:
-        sub_signals.append("🟡 KD 低檔交叉")
-
-    # 5. 發送高規格 Discord 卡片
     if signals_triggered:
-        # 💥 強制鎖定台灣時間 (UTC+8)
-        tz_tw = datetime.timezone(datetime.timedelta(hours=8))
-        now_time = datetime.datetime.now(tz_tw).strftime('%m/%d %H:%M')
-        
-        embed = {
-            "title": f"🚨 黑馬雷達警戒：{sname} ({sid})",
-            "description": f"**表面型態**：**`{status_msg}`**",
-            "color": color_hex,
-            "fields": [
-                {
-                    "name": "💰 實時報價 fakta", 
-                    "value": f"現價：**`{round(current_price, 2)}`** 元\n漲跌：**`{change_sign} {abs(price_change)}`** ({change_pct}%)", 
-                    "inline": True
-                },
-                {
-                    "name": "📊 技術與成交量能", 
-                    "value": f"RSI 指標：`{round(last['RSI'], 2)}`\n成交量比：`{round(vol_ratio, 2)}x` (`{round(today_volume, 1)}`張/`{round(vol_ma5, 1)}`張)", 
-                    "inline": True
-                },
-                {
-                    "name": "🛡️ 莊家大戶防守成本線", 
-                    "value": f"`{support_text}`", 
-                    "inline": False
-                },
-                {
-                    "name": "📈 趨勢與內部籌碼真相", 
-                    "value": f"技術趨勢：`{ma_status}`\n資金流向：{chip_flow_status}", # 已移除多餘的 backticks 讓 Markdown 粗體生效
-                    "inline": False
-                },
-                {
-                    "name": "👥 法人籌碼動態", 
-                    "value": f"`{chip_info}`", 
-                    "inline": False
-                }
-            ],
-            "footer": {"text": f"秉諺的黑馬自動監控引擎 • 偵測時間: {now_time}"}
-        }
+        embed = {"title": f"🚨 {sname} ({sid})", "description": status_msg, "color": color_hex}
         send_discord_webhook(webhook_url, embed)
-        print(f"[{datetime.datetime.now()}] {sname} ({sid}) 滿足主力條件，已成功推送 Discord！")
-
-        # 💥 自動化推播同步記錄至 CSV
         log_signal_to_csv(sid, sname, current_price, embed)
-        # 💥 新增：回報這是一檔過關的菁英標的
         return True
-        
-    return False # 若沒觸發任何訊號，回報失敗 (包含上方前置濾網提早 return 的情況，預設也會被視為 False)
-# 請將原本的 run_all_scan() 呼叫改為這樣
-print("DEBUG: 程式已啟動，準備進入 run_all_scan...") 
+    return False
 
-try:
-    # 💥 強制執行，暫時關閉所有時間與條件限制
-    print("DEBUG: 開始執行 run_all_scan...")
-    run_all_scan()
-    print("DEBUG: run_all_scan 執行結束。")
-except Exception as e:
-    print(f"DEBUG: 發生嚴重錯誤: {e}")
+def run_all_scan():
+    print(f"[{datetime.datetime.now()}] 開始執行自動掃描...")
+    stock_dict = load_stock_dict()
+    for sid, sname in stock_dict.items():
+        print(f"DEBUG: 正在檢查 {sid} {sname}")
+        scan_and_notify(sid, sname, DEFAULT_DISCORD_WEBHOOK, is_full_market=True)
+    print("掃描結束")
+
+if __name__ == "__main__":
+    print("DEBUG: 程式已啟動，準備進入 run_all_scan...") 
+    try:
+        run_all_scan()
+        print("DEBUG: run_all_scan 執行結束。")
+    except Exception as e:
+        print(f"DEBUG: 發生嚴重錯誤: {e}")
 # 執行全體自選股掃描
 #def run_all_scan():
  #   print(f"[{datetime.datetime.now()}] 開始執行背景自動掃描...")
