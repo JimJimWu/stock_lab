@@ -7,6 +7,7 @@ import time
 import datetime
 import requests
 import yfinance as yf
+yf.shared._ERRORS = {} # 💥 加入這行：強制屏蔽 Yahoo 找不到股票的錯誤訊息
 import pandas as pd
 
 # 取得當前腳本所在的目錄
@@ -368,7 +369,7 @@ def run_all_scan():
                 elite_dict[sid] = sname
                 print(f"✅ {sname} 過關！分數：{result['score']}")
                 
-            time.sleep(1) 
+            time.sleep(0.2) 
         except Exception as e:
             print(f"掃描 {sid} 發生錯誤: {e}")
 
