@@ -61,10 +61,8 @@ def load_stock_dict():
     return {}
 
 def get_stock_df(sid):
-    suffixes = [".TWO", ".TW"] if sid in ["3595", "7853"] or len(sid) == 6 else [".TW", ".TWO"]
-    for suffix in suffixes:
         try:
-            ticker = yf.Ticker(f"{sid}{suffix}")
+            ticker = yf.Ticker(sid)
             df = ticker.history(period="2y", auto_adjust=True, timeout=2.0)
             if df is not None and not df.empty and len(df) > 20:
                 df = df.copy()
@@ -349,11 +347,22 @@ def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
 # 執行全體自選股/全市場掃描
 def run_all_scan():
     print(f"[{datetime.datetime.now()}] 開始執行背景自動掃描...")
+    
+    # 💥 測試模式開關：設為 True 時只會掃前 5 檔，設為 False 則全掃
+    TEST_MODE = True  
+    
     stock_dict = load_stock_dict()
     
     if not stock_dict:
         print("名單為空，停止掃描。")
         return
+
+    # 如果在測試模式下，強制將 stock_dict 縮減為前 5 檔
+    if TEST_MODE:
+        print("⚠️ [測試模式開啟]：只掃描前 5 檔，不執行全體掃描。")
+        # 將 dict 轉成 list 切片後再轉回 dict
+        items = list(stock_dict.items())[:5]
+        stock_dict = dict(items)
 
     is_full_market = len(stock_dict) > 500
     daily_candidates = []  
