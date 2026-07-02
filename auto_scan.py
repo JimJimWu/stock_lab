@@ -9,7 +9,9 @@ import requests
 import yfinance as yf
 import pandas as pd
 
-DICT_FILE = "full_market_dict.json"
+# 取得當前腳本所在的目錄，確保不論 GitHub 怎麼跑，都能找到 JSON
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DICT_FILE = os.path.join(BASE_DIR, "full_market_dict.json")
 
 # ==============================================================================
 # 🔐 【V34.0 終極安全隔離防護】
@@ -48,29 +50,18 @@ def log_signal_to_csv(sid, sname, price, embed):
 
 # 載入股票名單
 def load_stock_dict():
-    import os
-    import json
-    
-    # 💥 加入強力偵錯訊息
-    print("========== 系統偵錯日誌 ==========")
-    print(f"DEBUG: 當前程式執行路徑: {os.getcwd()}")
-    print(f"DEBUG: 準備讀取的檔案名稱: {DICT_FILE}")
-    print(f"DEBUG: 該檔案是否存在? {os.path.exists(DICT_FILE)}")
-    
+    # 💥 DEBUG 訊息：列印出來確認到底在讀哪裡
+    print(f"DEBUG: 嘗試讀取檔案路徑: {DICT_FILE}")
     if os.path.exists(DICT_FILE):
         try:
             with open(DICT_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                print(f"DEBUG: 🎉 成功讀取 JSON！共載入 {len(data)} 檔股票。")
-                print("==================================")
+                print(f"DEBUG: 檔案載入成功，共 {len(data)} 檔")
                 return data
         except Exception as e:
-            print(f"DEBUG: ❌ 檔案存在，但 JSON 解析失敗: {e}")
-            print("==================================")
+            print(f"DEBUG: JSON 解析錯誤: {e}")
     else:
-        print("DEBUG: ❌ 嚴重錯誤：在此路徑下完全找不到檔案！")
-        print("==================================")
-        
+        print(f"DEBUG: 錯誤！在 {DICT_FILE} 找不到檔案")
     return {}
 
 # --- 數據核心 (興櫃自適應、日K天數還原、成交量統一除以1000.0) ---
