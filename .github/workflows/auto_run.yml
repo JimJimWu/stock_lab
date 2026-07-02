@@ -33,7 +33,10 @@ jobs:
               env:
                   DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
               run: |
-                  python auto_scan.py
+                  # 檢查當前路徑下有哪些檔案，確認 full_market_dict.json 是否真的在對應位置
+                  ls -R 
+                  # 使用 -u 強制輸出 log，並且加上路徑防禦
+                  python -u auto_scan.py
 
             # 💥 【V35.0 升級：GitHub 資料自動同步引擎，放在最後一步】
             - name: 自動提交並更新回測日誌
