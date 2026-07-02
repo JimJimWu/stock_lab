@@ -204,7 +204,16 @@ def send_discord_webhook(webhook_url, embed_data):
     except Exception as e:
         print(f"發送 Discord 失敗: {e}")
         return False
+# 💥 【V34.1 新增：綜合爆發力評分引擎 (籌碼 60% / 量能 40%)】
+def calculate_composite_score(net_5d, volume_ratio):
+    # 防呆機制：若有缺漏值則設為保守預設值
+    if net_5d is None: net_5d = 0
+    if volume_ratio is None: volume_ratio = 1.0
 
+    chip_score = min(max((net_5d / 3000.0) * 100, 0), 100)
+    vol_score = min(max((volume_ratio - 1.15) / (3.0 - 1.15) * 100, 0), 100)
+    total_score = (chip_score * 0.6) + (vol_score * 0.4)
+    return round(total_score, 2)
 # 💥 【V31.0 完美同步：自動化背景監控引擎】(參數新增 is_full_market)
 def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
     df_scan = get_stock_df(sid)
@@ -410,8 +419,35 @@ def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
             ],
             "footer": {"text": f"秉諺的黑馬自動監控引擎 • 偵測時間: {now_time}"}
         }
-        send_discord_webhook(webhook_url, embed)
-        print(f"[{datetime.datetime.now()}] {sname} ({sid}) 滿足主力條件，已成功推送 Discord！")
+            # === 請在 scan_and_notify 內部，準備發送 Discord 的地方進行修改 ===
+
+    # 1. 呼叫上方的新引擎計算分數 (請確保您的程式碼中有 net_5d 與 volume_ratio 變數)
+    score = calculate_composite_score(net_5d, volume_ratio)
+
+    # 2. 將分數與超連結加入敘述的最上方
+    alert_description = f"# 🔥 綜合火力評分：{score} 分\n\n"
+    alert_description += f"🔗 [點擊前往 Yahoo 股市查看 {sname} K線](https://tw.stock.yahoo.com/quote/{sid})\n\n"
+    alert_description += "🎯 **核心主力訊號觸發！**\n"
+
+    # 3. 組合 Embed 字典 (這裡保留您原本設定顏色與欄位的邏輯)
+    embed_data = {
+        "title": f"🚨 黑馬雷達：{sname} ({sid})",
+        "description": alert_description,
+        "color": alert_color, # 延續您的紅灰判定
+        "fields": [
+            # ... 保留您原本的 fields 設定 ...
+        ]
+    }
+
+    # 🚨【關鍵修改】不要在這裡推播！將成功過關的資料與分數「回傳」給外層
+    return {
+        "sid": sid,
+        "sname": sname,
+        "score": score,
+        "embed": embed_data
+    }
+        #send_discord_webhook(webhook_url, embed)
+        #print(f"[{datetime.datetime.now()}] {sname} ({sid}) 滿足主力條件，已成功推送 Discord！")
 
         # 💥 自動化推播同步記錄至 CSV
         log_signal_to_csv(sid, sname, current_price, embed)
@@ -424,39 +460,43 @@ def run_all_scan():
     print(f"[{datetime.datetime.now()}] 開始執行背景自動掃描...")
     stock_dict = load_stock_dict()
     
+    if not stock_dict:
+        print("名單為空，停止掃描。")
+        return
+
     is_full_market = len(stock_dict) > 500
-    if is_full_market:
-        print(f"🛡️ 偵測到全市場掃描 ({len(stock_dict)} 檔)，已自動啟動「高壓前置濾網」！")
-        
-    # 準備裝載今日菁英
-    elite_dict = {}
-        
+    daily_candidates = []  # 建立一個空籃子，用來收集所有過關的股票
+
+    # 第一階段：全體地毯式掃描，只收集不推播
     for sid, sname in stock_dict.items():
-        print(f"DEBUG: 正在檢查 {sid} {sname}")
+        print(f"掃描中: {sid} {sname}...")
         try:
-            is_elite = scan_and_notify(sid, sname, DEFAULT_DISCORD_WEBHOOK, is_full_market)
-            if is_elite:
-                elite_dict[sid] = sname
+            # 取得掃描結果 (若過關會拿到包含 score 的字典，若被淘汰則拿回 False/None)
+            result = scan_and_notify(sid, sname, DEFAULT_DISCORD_WEBHOOK, is_full_market)
+            
+            if isinstance(result, dict):
+                daily_candidates.append(result)
+                print(f"✅ {sname} 過關！分數：{result['score']}")
                 
-            time.sleep(1) # 避開 Yahoo API 頻率限制
+            time.sleep(1) # 維持 API 禮貌性延遲
         except Exception as e:
             print(f"掃描 {sid} 發生錯誤: {e}")
-            
-    # 掃描結束後，將菁英名單覆寫
-    if is_full_market:
-        try:
-            with open("radar_elite.json", "w", encoding="utf-8") as f:
-                json.dump(elite_dict, f, ensure_ascii=False, indent=4)
-            print(f"📝 今日菁英名單已動態更新至 radar_elite.json (共 {len(elite_dict)} 檔)")
-        except Exception as e:
-            print(f"寫入 radar_elite.json 失敗: {e}")
-            
-    print(f"[{datetime.datetime.now()}] 全體掃描結束。")
 
-if __name__ == "__main__":
-    print("DEBUG: 程式已啟動，準備進入 run_all_scan...") 
-    try:
-        run_all_scan()
-        print("DEBUG: run_all_scan 執行結束。")
-    except Exception as e:
-        print(f"DEBUG: 發生嚴重錯誤: {e}")
+    # 第二階段：擇優排序與 Top 10 推播截斷
+    if daily_candidates:
+        # 依照 score 由高到低排序
+        daily_candidates.sort(key=lambda x: x['score'], reverse=True)
+        
+        # 擷取火力最強的前 10 名
+        top_10 = daily_candidates[:10]
+        print(f"\n🏆 掃描完畢！共 {len(daily_candidates)} 檔觸發，準備推播火力最強的 Top {len(top_10)}...")
+
+        # 真正執行 Discord 推播
+        for stock in top_10:
+            send_discord_webhook(DEFAULT_DISCORD_WEBHOOK, stock['embed'])
+            # 若您要記錄至 CSV，可在此呼叫 log_signal_to_csv (帶入正確的價格變數)
+            time.sleep(1)
+            
+        print("✅ 今日精華推播任務完成！")
+    else:
+        print("今日盤勢無任何標的符合嚴格條件。")
