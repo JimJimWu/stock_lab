@@ -1,4 +1,4 @@
-name: Stock Auto Scan
+name: 全股市黑馬掃描雷達
 
 on:
     schedule:
