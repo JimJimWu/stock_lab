@@ -1,4 +1,4 @@
-# ==============================================================================
+    # ==============================================================================
 # 秉諺的黑馬雷達 - 背景自動無人值守掃描器 (auto_scan.py V34.0 - 加強篩選)
 # ==============================================================================
 import os
@@ -48,12 +48,29 @@ def log_signal_to_csv(sid, sname, price, embed):
 
 # 載入股票名單
 def load_stock_dict():
+    import os
+    import json
+    
+    # 💥 加入強力偵錯訊息
+    print("========== 系統偵錯日誌 ==========")
+    print(f"DEBUG: 當前程式執行路徑: {os.getcwd()}")
+    print(f"DEBUG: 準備讀取的檔案名稱: {DICT_FILE}")
+    print(f"DEBUG: 該檔案是否存在? {os.path.exists(DICT_FILE)}")
+    
     if os.path.exists(DICT_FILE):
         try:
             with open(DICT_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
+                print(f"DEBUG: 🎉 成功讀取 JSON！共載入 {len(data)} 檔股票。")
+                print("==================================")
+                return data
         except Exception as e:
-            print(f"讀取 stock_dict.json 失敗: {e}")
+            print(f"DEBUG: ❌ 檔案存在，但 JSON 解析失敗: {e}")
+            print("==================================")
+    else:
+        print("DEBUG: ❌ 嚴重錯誤：在此路徑下完全找不到檔案！")
+        print("==================================")
+        
     return {}
 
 # --- 數據核心 (興櫃自適應、日K天數還原、成交量統一除以1000.0) ---
