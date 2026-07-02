@@ -215,7 +215,7 @@ def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
         try:
             # 1. 絕對流動性極致：20日均量必須大於 1500 張 (只抓熱門主流股)
             vol_ma20 = df_scan['Volume'].rolling(20).mean().iloc[-1]
-            if pd.isna(vol_ma20) or vol_ma20 < 1500:
+            if pd.isna(vol_ma20) or vol_ma20 < 800: #原本vol_ma20 < 1500
                 return 
                 
             # 2. 均線與 MACD 動能共振 (完美多頭排列：20MA > 60MA > 240MA 且股價站上20MA)
@@ -237,7 +237,7 @@ def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
             eps_val = a_data['EPS'] if (a_data and 'EPS' in a_data) else "N/A"
             rev_growth = a_data['營收成長率'] if (a_data and '營收成長率' in a_data) else "N/A"
             
-            if inst_val < 10.0:
+            if inst_val < 5.0: #原本inst_val < 10.0
                 return # 法人持股低於 10%，不具備機構重倉優勢
             if eps_val == "N/A" or float(eps_val) <= 0:
                 return # 虧損公司剔除
@@ -307,7 +307,7 @@ def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
     status_msg = "⚖️ 區間溫和"
     signals_triggered = False 
 
-    if vol_ratio >= 1.3:
+    if vol_ratio >= 1.15: #1.3太嚴苛，股市不好先放寬
         if "倒貨" in chip_flow_status:
             status_msg = "💀【出貨陷阱】爆量但主力高檔倒貨！"
             color_hex = 7368816 # 黯淡灰
@@ -350,11 +350,11 @@ def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
 
             # 🔐 【新增的高階限制條件】
             # 1. 流動性過濾：20日均量大於 500 張
-            is_liquid = vol_ma20 > 500
+            is_liquid = vol_ma20 > 300 #500原本
             # 2. MACD 動能過濾：柱狀圖跌勢收斂 (今天的柱子比昨天高)
             is_macd_improving = last['MACD_Hist'] >= prev['MACD_Hist']
             # 3. 大戶認可過濾：法人持股大於 3% (依您的喜好可調整)
-            is_inst_backed = inst_val > 3.0
+            is_inst_backed = inst_val > 1.0 #3.0原本
             
             # 只有當所有嚴苛條件【全部滿足】時，才觸發深水區潛龍
             if support_test and is_volume_dead and is_rsi_bottom and is_chip_safe and is_liquid and is_macd_improving and is_inst_backed:
@@ -436,6 +436,7 @@ def run_all_scan():
     elite_dict = {}
         
     for sid, sname in stock_dict.items():
+        print(f"DEBUG: 正在檢查 {sid} {sname}")
         try:
             # 💥 接收回傳值，如果是菁英就裝進籃子裡
             is_elite = scan_and_notify(sid, sname, DEFAULT_DISCORD_WEBHOOK, is_full_market)
