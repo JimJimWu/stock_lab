@@ -343,7 +343,7 @@ def run_all_scan():
     print(f"[{datetime.datetime.now()}] 開始執行背景自動掃描...")
     
     # 💥 測試模式開關：設為 True 時只會掃前 5 檔，設為 False 則全掃
-    TEST_MODE = True  
+    TEST_MODE = False  
     
     stock_dict = load_stock_dict()
     
