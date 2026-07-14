@@ -759,9 +759,8 @@ def render_backtest_dashboard():
     file_path = "signal_history_backtest.csv"
     if not os.path.exists(file_path):
         st.warning(f"尚未偵測到 {file_path}，請確認回測引擎是否已執行完畢。")
-        return
-        
-   try:
+        return    
+    try:
         # 強制讀取並忽略可能的解析錯誤
         df = pd.read_csv(file_path, encoding="utf-8-sig", on_bad_lines='skip')
         
