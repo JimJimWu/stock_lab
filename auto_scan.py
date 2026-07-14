@@ -1,4 +1,4 @@
-# ==============================================================================
+    # ==============================================================================
 # 秉諺的黑馬雷達 - 背景自動無人值守掃描器 (auto_scan.py V35.1 - 綜合火力 Top10 版)
 # ==============================================================================
 import os
@@ -25,11 +25,15 @@ def log_signal_to_csv(sid, sname, price, embed):
     file_exists = os.path.isfile(log_file)
     
     try:
+        # 名稱淨化
         pure_sname = sname
         if "(" in sname and ")" in sname:
             pure_sname = sname.split("(")[1].split(")")[0]
             
-        desc = embed.get("description", "").replace("*", "").replace("`", "")
+        # 💥 關鍵修復：為 description 加上 .replace("\n", " | ") 防止 CSV 跑版
+        desc = embed.get("description", "").replace("*", "").replace("`", "").replace("\n", " | ")
+        
+        # 保留您原本的技術指標萃取邏輯
         tech_vol = ""
         for field in embed.get("fields", []):
             if "技術" in field.get("name", ""):
