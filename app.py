@@ -761,33 +761,32 @@ def render_backtest_dashboard():
         st.warning(f"尚未偵測到 {file_path}，請確認回測引擎是否已執行完畢。")
         return
         
-    try:
-        df = pd.read_csv(file_path, encoding="utf-8-sig")
-        signal_col = "核心訊號" if "核心訊號" in df.columns else ("訊號" if "訊號" in df.columns else None)
+   try:
+        # 強制讀取並忽略可能的解析錯誤
+        df = pd.read_csv(file_path, encoding="utf-8-sig", on_bad_lines='skip')
         
+        # 自動找到訊號欄位
+        signal_col = "核心訊號" if "核心訊號" in df.columns else ("訊號" if "訊號" in df.columns else None)
         if not signal_col:
-            st.error("CSV 中找不到『核心訊號』欄位，無法進行分組分析。")
+            st.error(f"找不到『核心訊號』欄位。目前欄位: {df.columns.tolist()}")
             return
-# ==============================================================================
-            # 💥 【抓鬼偵探版分類器】
-            # ==============================================================================
-            def clean_signal(x):
-                x = str(x)
-                # 簡單抓取最核心的標籤字串
-                if "強勢突破" in x: return "🚨 強勢突破"
-                if "大戶惜售" in x: return "💎 大戶惜售"
-                if "出貨陷阱" in x: return "💀 出貨陷阱"
-                if "深水區潛龍" in x: return "🐉 深水區潛龍"
-                return x # 暫時不濾掉，直接把原始名稱回傳
 
-            df[signal_col] = df[signal_col].apply(clean_signal)
-            
-            # 💥 這裡印出所有的標籤類別，讓我們看看圖例到底為什麼那麼多條線
-            st.write("---")
-            st.write("🔍 目前圖表中的所有策略標籤清單 (請看這裡檢查是否有雜質):")
-            st.write(df[signal_col].unique().tolist())
-            st.write("---")
-            # ==============================================================================
+        # ==============================================================================
+        # 💥 【絕對過濾器】
+        # 這段代碼強制將所有資料內容轉成純文字，並重新進行嚴格分類
+        # ==============================================================================
+        def force_clean(x):
+            s = str(x)
+            if "強勢突破" in s: return "🚨【強勢突破】"
+            if "大戶惜售" in s: return "💎【大戶惜售】"
+            if "出貨陷阱" in s: return "💀【出貨陷阱】"
+            if "深水區潛龍" in s: return "🐉【深水區潛龍】"
+            return "⚖️ 區間溫和"
+
+        df[signal_col] = df[signal_col].apply(force_clean)
+        
+        # 顯示一下過濾後的結果，檢查是否只剩下我們定義的那四種
+        st.write("✅ 成功篩選出的策略類別:", df[signal_col].unique().tolist())
         # ==============================================================================
         # 💥 【新增：戰情室動態數據篩選器】
         # ==============================================================================
