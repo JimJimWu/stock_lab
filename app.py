@@ -839,8 +839,11 @@ def render_backtest_dashboard():
             
         periods = ["T+1", "T+3", "T+5", "T+10", "T+20"]
         fig = go.Figure()
-        colors = ["#FF4B4B", "#00CC96", "#AB63FA", "#FFA15A"]
-        
+        colors = ["#FF4B4B", "#00CC96", "#AB63FA", "#FFA15A"]	
+        # 💥 僅調整此處：在分組前將 DataFrame 篩選為僅保留訊號與報酬率欄位
+        # 這樣 groupby 就不會因為每一列的其他欄位（如連結、價格）不同而拆分成多條線
+        reward_cols = [c for c in df.columns if "報酬率(%)" in c]
+        df_plot = df[[signal_col] + reward_cols]
         grouped = df.groupby(signal_col)
         for i, (signal_name, group_df) in enumerate(grouped):
             win_rates = []
@@ -868,7 +871,7 @@ def render_backtest_dashboard():
             title="不同訊號之多週期勝率演變交叉圖", 
             xaxis_title="持有週期", 
             yaxis_title="勝率 (%)",
-            yaxis=dict(range=[0, 110]), 
+            yaxis=dict(range=[0, 110]), 	
             hovermode="x unified",
             legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5),
             margin=dict(l=20, r=20, t=60, b=120)
