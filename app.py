@@ -745,8 +745,13 @@ if 'selected_sid' not in st.session_state:
 # ==============================================================================
 def render_backtest_dashboard():
     import pandas as pd
-    import plotly.graph_objects as go
     import os
+    
+    # --- 【新增：強制檢查模式】 ---
+    st.subheader("🛠️ 系統診斷模式")
+    current_dir = os.getcwd()
+    st.write(f"當前工作目錄: {current_dir}")
+    st.write("目錄下的檔案列表:", os.listdir(current_dir))
     
     st.markdown("---")
     st.markdown("## 📈 策略多週期持股勝率模擬分析儀")
