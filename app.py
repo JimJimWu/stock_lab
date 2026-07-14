@@ -773,9 +773,10 @@ def render_backtest_dashboard():
                 if "大戶惜售" in x: return "💎【大戶惜售】量縮鎖碼，籌碼穩定"
                 if "出貨陷阱" in x: return "💀【出貨陷阱】爆量但主力高檔倒貨！"
                 if "深水區潛龍" in x: return "🐉【深水區潛龍】"
-                return "⚖️ 區間溫和"
+                return None # 💥 關鍵修改：不符合的全部回傳 None
 
             df[signal_col] = df[signal_col].apply(clean_signal)
+			df = df.dropna(subset=[signal_col]) # 💥 強制刪除所有不符合這四種策略的髒資料
             # ==============================================================================
             st.write("目前偵測到的策略分類：", df[signal_col].unique())
         # ==============================================================================
