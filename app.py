@@ -763,9 +763,6 @@ def render_backtest_dashboard():
         if not signal_col:
             st.error("CSV 中找不到『核心訊號』欄位，無法進行分組分析。")
             return
-		if not signal_col:
-                st.error("CSV 中找不到『核心訊號』欄位，無法進行分組分析。")
-                return
             # ==============================================================================
             # 💥 【加強版：動態標籤淨化器】
             # 使用 split("表面型態") 讓它對於冒號的全形半形都不敏感
