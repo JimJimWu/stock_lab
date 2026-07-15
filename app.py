@@ -1476,7 +1476,11 @@ if df is not None and not df.empty:
                 f"⚖️ 企業負債比率： {debt_text}",
                 "warning"
             )
-with col_main:
+		# 💥 1. 確保你在這裡有宣告分欄！(比例可以依你原本的喜好調整，例如 [1, 3] 或 [1, 2])
+        col_sidebar, col_main = st.columns([1, 3]) 
+
+        # 💥 2. 原本前段的籌碼與財務卡片，應該要包在左邊的 column 裡
+		with col_main:
         # 1. 安全防禦：確保資料存在才執行
         if df is not None and not df.empty and len(df) > 0:
             last = df.iloc[-1]
