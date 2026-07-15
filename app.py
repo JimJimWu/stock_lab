@@ -842,15 +842,24 @@ def render_backtest_dashboard():
         colors = ["#FF4B4B", "#00CC96", "#AB63FA", "#FFA15A"]	
         # 💥 僅調整此處：在分組前將 DataFrame 篩選為僅保留訊號與報酬率欄位
         # 這樣 groupby 就不會因為每一列的其他欄位（如連結、價格）不同而拆分成多條線
+# 💥 【最終修復】：強制使用 df_plot 進行分組，並繪圖
         reward_cols = [c for c in df.columns if "報酬率(%)" in c]
-        df_plot = df[[signal_col] + reward_cols]
-        grouped = df.groupby(signal_col)
+        df_plot = df[[signal_col] + reward_cols].copy()
+        
+        # 這裡的 grouped 要改成 df_plot
+        grouped = df_plot.groupby(signal_col) 
+        
+        periods = ["T+1", "T+3", "T+5", "T+10", "T+20"]
+        fig = go.Figure()
+        colors = ["#FF4B4B", "#00CC96", "#AB63FA", "#FFA15A", "#FFD700"]	
+        
         for i, (signal_name, group_df) in enumerate(grouped):
             win_rates = []
             for p in periods:
                 col_name = f"{p} 報酬率(%)"
                 if col_name in group_df.columns:
-                    valid_data = group_df[group_df[col_name] != 0.0]
+                    # 使用 group_df (現在它是乾淨的 df_plot 的一部分)
+                    valid_data = group_df[group_df[col_name].notna() & (group_df[col_name] != 0.0)]
                     if len(valid_data) > 0:
                         win_rate = (len(valid_data[valid_data[col_name] > 0]) / len(valid_data)) * 100
                     else:
