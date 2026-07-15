@@ -1037,7 +1037,7 @@ with st.sidebar:
         current_idx = options_list.index(st.session_state['selected_sid'])
     except:
         current_idx = 0
-   target_sid = st.sidebar.selectbox(
+	target_sid = st.sidebar.selectbox(
         "選擇每日觀察標的", 
         options=options_list, 
         index=current_idx,
