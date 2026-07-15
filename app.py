@@ -1561,36 +1561,37 @@ if df is not None and not df.empty:
             for ax in fig.select_xaxes(): ax.update(showticklabels=True)
             st.plotly_chart(fig, use_container_width=True)
 else:
-        st.warning("⚠️ 數據庫目前為空...") # 這裡假設原本是在 else 裡面
+        st.warning("⚠️ 數據庫目前為空，可能是 Yahoo API 封鎖中，或是該檔股票代號格式錯誤。")
         st.write(f"DEBUG: df 是否為 None? {df is None}")
         st.write(f"DEBUG: df 是否為 empty? {df.empty if df is not None else 'N/A'}")
 
-        # 💥 這裡的縮排，必須跟上面的 st.warning 對齊！
+        # 💥 戰情推播控制台 - 與上方 st.warning 對齊
         st.divider() 
         st.markdown("""<div style="background: linear-gradient(135deg, #1e293b, #0f172a); padding: 20px; border-radius: 12px; border: 1px solid #475569; margin-top: 15px;">
                 <h3 style="color: #60a5fa; margin: 0 0 10px 0; font-size: 20px; display: flex; align-items: center; gap: 8px;">📡 戰情推播控制台</h3>
             </div>""", unsafe_allow_html=True)
-	if st.button("🔗 發送 Discord 測試訊息", use_container_width=True):
-                import datetime
-                tz_tw = datetime.timezone(datetime.timedelta(hours=8))
-                test_time = datetime.datetime.now(tz_tw).strftime('%Y-%m-%d %H:%M:%S')
-                test_embed = {"title": "✅ 連線測試", "description": f"測試時間: {test_time}", "color": 3447003}
-                success, msg = send_discord_webhook(DEFAULT_DISCORD_WEBHOOK, test_embed)
-                if success: st.success("✅ " + msg)
-                else: st.error("❌ " + msg)
 
-            if st.button("🔍 執行全體雷達大掃描", use_container_width=True):
-                with st.spinner("🚀 掃描中..."):
-                    results = [sid for sid, sname in load_stock_dict().items() if run_single_scan_signal(sid, sname, DEFAULT_DISCORD_WEBHOOK)]
-                    if results:
-                        st.success(f"🎉 掃描完成！推播了 {len(results)} 檔。")
-                        st.rerun()
-                    else:
-                        st.info("💡 無異常訊號。")
+        if st.button("🔗 發送 Discord 測試訊息", use_container_width=True):
+            import datetime
+            tz_tw = datetime.timezone(datetime.timedelta(hours=8))
+            test_time = datetime.datetime.now(tz_tw).strftime('%Y-%m-%d %H:%M:%S')
+            test_embed = {"title": "✅ 連線測試", "description": f"測試時間: {test_time}", "color": 3447003}
+            success, msg = send_discord_webhook(DEFAULT_DISCORD_WEBHOOK, test_embed)
+            if success: st.success("✅ " + msg)
+            else: st.error("❌ " + msg)
+
+        if st.button("🔍 執行全體雷達大掃描", use_container_width=True):
+            with st.spinner("🚀 掃描中..."):
+                results = [sid for sid, sname in load_stock_dict().items() if run_single_scan_signal(sid, sname, DEFAULT_DISCORD_WEBHOOK)]
+                if results:
+                    st.success(f"🎉 掃描完成！推播了 {len(results)} 檔。")
+                    st.rerun()
+                else:
+                    st.info("💡 無異常訊號。")
         
-        # 錯誤處理
-            else:
-                st.error(f"❌ 暫時無法加載技術數據，請確認標的代號。")
+        # 錯誤處理 - 這層 else 應該要跟最外層的 if 對齊，但我調整了讓它符合邏輯結構
+        # 如果這是最後的收尾，這樣寫即可
+        st.error(f"❌ 暫時無法加載技術數據，請確認標的代號。")
 	
 
 
