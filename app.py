@@ -1579,5 +1579,7 @@ if df is not None and not df.empty:
                         st.info("💡 無異常訊號。")
         
         # 錯誤處理
-	else:
-            st.error(f"❌ 暫時無法加載技術數據，請確認標的代號。")
+            else:
+                st.error(f"❌ 暫時無法加載技術數據，請確認標的代號。")
+
+	
