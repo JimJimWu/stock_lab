@@ -1295,10 +1295,12 @@ with st.sidebar:
 # --- 數據加載線 (外掛 - 必須靠最左邊) ---
 # ==============================================================================
 # 💥 超級過濾器：把 "2880.TW (華南金) (⚡ 雷達)" 徹底洗成乾淨的 "2880"
-clean_sid = str(target_sid).split(' ')[0].split('(')[0].replace('.TW', '').replace('.TWO', '').strip()
-df = get_stock_df(target_sid)
-a_data = get_analysis_data(target_sid)
-bid_p, ask_p, bid_s, ask_s = get_realtime_order(target_sid)
+match = re.search(r'\d+', str(target_sid))
+clean_sid = match.group() if match else str(target_sid)
+# 將洗乾淨的 clean_sid 餵給所有的函數！
+df = get_stock_df(clean_sid)
+a_data = get_analysis_data(clean_sid)
+bid_p, ask_p, bid_s, ask_s = get_realtime_order(clean_sid)
 
 # ==============================================================================
 # 💥 【V41.0 物理對齊：極致對稱的排版層級結構，徹底告別縮排與語法地雷】
