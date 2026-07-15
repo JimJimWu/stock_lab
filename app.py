@@ -1442,62 +1442,66 @@ if df is not None and not df.empty:
         # 💥 【V41.0 三大法人籌碼雷達與主力完全體卡片 - 數據與排版終極融合淨化】
         # 100% 數據保證，100% 官方真實收盤數字對齊，100% 黛黑高顏值！
         # ==============================================================================
-        st.divider()
-        st.subheader("📊 籌碼與主力完全體")
-        
-        chip_results = get_institutional_chips(target_sid, df)
-        
-        # 💥 【V41.0 去標籤化】
-        custom_diagnostic_card(
-            chip_results["inst_status"],
-            "【三大法人資金與籌碼流向診斷】\n\n"
-            f"🚀 近 5 日主力籌碼淨向： {chip_results['net_buy_5d']}\n"
-            f"📊 近 10 日主力籌碼淨向： {chip_results['net_buy_10d']}\n\n"
-            f"💡 籌碼解讀： {chip_results['major_force_status']}",
-            chip_results["inst_card_type"]
-        )
-
-        if a_data:
-            eps_val = a_data.get('EPS', 'N/A')
-            roe_val = a_data.get('ROE', 'N/A')
-            pe_val = a_data.get('本益比', 'N/A')	
-            debt_val = a_data.get('負債比')
-            inst_hold = a_data.get('法人持股')
-            
-            debt_text = f"{round(debt_val, 1)}%" if (debt_val and isinstance(debt_val, (int, float)) and debt_val != 0) else "N/A"
-            
-            # 💥 【V41.0 去標籤化】
-            custom_diagnostic_card(
-                "👥 主力大戶持股與核心財務",
-                f"👥 法人大戶持股比： {round(inst_hold, 1) if (inst_hold and isinstance(inst_hold, (int,float))) else '0.0'}%\n"
-                f"💵 預估年化 EPS： {eps_val if eps_val != 'N/A' else 'N/A'} 元\n"
-                f"📊 股東權益報酬率 ROE： {roe_val if roe_val != 'N/A' else 'N/A'}\n"
-                f"⚡ 市場預估本益比 PE： {pe_val if pe_val != 'N/A' else 'N/A'} 倍\n"
-                f"⚖️ 企業負債比率： {debt_text}",
-                "warning"
-            )
-		# 💥 1. 確保你在這裡有宣告分欄！(比例可以依你原本的喜好調整，例如 [1, 3] 或 [1, 2])
+        # 💥 1. 確保你在這裡有宣告分欄！(比例可以依你原本的喜好調整，例如 [1, 3] 或 [1, 2])
         col_sidebar, col_main = st.columns([1, 3]) 
 
         # 💥 2. 原本前段的籌碼與財務卡片，應該要包在左邊的 column 裡
-	with col_main:
-        # 1. 安全防禦：確保資料存在才執行
-        if df is not None and not df.empty and len(df) > 0:
-            last = df.iloc[-1]
-            plot_df = df.tail(view_days)
+        with col_sidebar:
+            # ==============================================================================
+            # 💥 【V41.0 三大法人籌碼雷達與主力完全體卡片 - 數據與排版終極融合淨化】
+            # ==============================================================================
+            st.divider()
+            st.subheader("📊 籌碼與主力完全體")
             
-            # --- 數據計算區 ---
-            rsi_val = round(plot_df['RSI'].dropna().iloc[-1], 2) if not plot_df['RSI'].dropna().empty else 50.0
-            inst_val = a_data.get('法人持股', 0) if a_data else 0
-            chip_advice = " (大戶鎖碼中)" if inst_val > 25 else " (散戶主導中)"
+            chip_results = get_institutional_chips(target_sid, df)
             
-            if rsi_val > 80: color, msg = "#ef4444", f"⚠️【高檔過熱：禁止追高{chip_advice}】"
-            elif rsi_val < 40: color, msg = "#10b981", f"✅【低檔安全：留意佈局{chip_advice}】"
-            else: color, msg = "#f59e0b", f"⚖️【區間震盪：觀望趨勢{chip_advice}】"
-            
-            today_open = float(last['Open'])
-            today_high = float(last['High'])
-            today_low = float(last['Low'])
+            custom_diagnostic_card(
+                chip_results["inst_status"],
+                "【三大法人資金與籌碼流向診斷】\n\n"
+                f"🚀 近 5 日主力籌碼淨向： {chip_results['net_buy_5d']}\n"
+                f"📊 近 10 日主力籌碼淨向： {chip_results['net_buy_10d']}\n\n"
+                f"💡 籌碼解讀： {chip_results['major_force_status']}",
+                chip_results["inst_card_type"]
+            )
+
+            if a_data:
+                eps_val = a_data.get('EPS', 'N/A')
+                roe_val = a_data.get('ROE', 'N/A')
+                pe_val = a_data.get('本益比', 'N/A')	
+                debt_val = a_data.get('負債比')
+                inst_hold = a_data.get('法人持股')
+                
+                debt_text = f"{round(debt_val, 1)}%" if (debt_val and isinstance(debt_val, (int, float)) and debt_val != 0) else "N/A"
+                
+                custom_diagnostic_card(
+                    "👥 主力大戶持股與核心財務",
+                    f"👥 法人大戶持股比： {round(inst_hold, 1) if (inst_hold and isinstance(inst_hold, (int,float))) else '0.0'}%\n"
+                    f"💵 預估年化 EPS： {eps_val if eps_val != 'N/A' else 'N/A'} 元\n"
+                    f"📊 股東權益報酬率 ROE： {roe_val if roe_val != 'N/A' else 'N/A'}\n"
+                    f"⚡ 市場預估本益比 PE： {pe_val if pe_val != 'N/A' else 'N/A'} 倍\n"
+                    f"⚖️ 企業負債比率： {debt_text}",
+                    "warning"
+                )
+
+        # 💥 3. 注意這裡！with col_main 要跟上面的 with col_sidebar 垂直對齊！
+        with col_main:
+            # 1. 安全防禦：確保資料存在才執行
+            if df is not None and not df.empty and len(df) > 0:
+                last = df.iloc[-1]
+                plot_df = df.tail(view_days)
+                
+                # --- 數據計算區 ---
+                rsi_val = round(plot_df['RSI'].dropna().iloc[-1], 2) if not plot_df['RSI'].dropna().empty else 50.0
+                inst_val = a_data.get('法人持股', 0) if a_data else 0
+                chip_advice = " (大戶鎖碼中)" if inst_val > 25 else " (散戶主導中)"
+                
+                if rsi_val > 80: color, msg = "#ef4444", f"⚠️【高檔過熱：禁止追高{chip_advice}】"
+                elif rsi_val < 40: color, msg = "#10b981", f"✅【低檔安全：留意佈局{chip_advice}】"
+                else: color, msg = "#f59e0b", f"⚖️【區間震盪：觀望趨勢{chip_advice}】"
+                
+                today_open = float(last['Open'])
+                today_high = float(last['High'])
+                today_low = float(last['Low'])
 
             # 大看板
             st.markdown(f"""<div style="background: linear-gradient(90deg, #111827, #000000); border-left: 10px solid {color}; padding: 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
