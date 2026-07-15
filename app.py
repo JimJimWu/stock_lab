@@ -1504,21 +1504,22 @@ if df is not None and not df.empty:
 </div>
 </div>
 <div style="display: flex; gap: 8px;">
-<div style="background-color: #1e293b; width: 75px; padding: 8px 5px; border-radius: 8px; border: 1px solid #64748b; text-align: center;">
-<p style="color: #cbd5e1; font-size: 11px; margin: 0;">昨收</p>
-<p style="color: white; font-size: 18px; font-weight: bold; margin: 4px 0 0 0;">{round(prev_price, 2)}</p>
-</div>
-<div style="background-color: #1e293b; width: 75px; padding: 8px 5px; border-radius: 8px; border: 1px solid #475569; text-align: center;">
-<p style="color: #94a3b8; font-size: 11px; margin: 0;">開盤</p>
-<p style="color: white; font-size: 18px; font-weight: bold; margin: 4px 0 0 0;">{round(today_open, 2)}</p>
-</div>
-<div style="background-color: #1e293b; width: 75px; padding: 8px 5px; border-radius: 8px; border: 1px solid #ef4444; text-align: center;">
-<p style="color: #ef4444; font-size: 11px; margin: 0;">最高</p>
-<p style="color: white; font-size: 18px; font-weight: bold; margin: 4px 0 0 0;">{round(today_high, 2)}</p>
-</div>
-<div style="background-color: #1e293b; width: 75px; padding: 8px 5px; border-radius: 8px; border: 1px solid #10b981; text-align: center;">
-<p style="color: #10b981; font-size: 11px; margin: 0;">最低</p>
-<p style="color: white; font-size: 18px; font-weight: bold; margin: 4px 0 0 0;">{round(today_low, 2)}</p>
+    <div style="background-color: #1e293b; width: 75px; padding: 8px 5px; border-radius: 8px; border: 1px solid #94a3b8; text-align: center;">
+        <p style="color: #cbd5e1; font-size: 11px; margin: 0;">昨收</p>
+        <p style="color: #e2e8f0; font-size: 18px; font-weight: bold; margin: 4px 0 0 0;">{round(prev_price, 2)}</p>
+    </div>
+    <div style="background-color: #1e293b; width: 75px; padding: 8px 5px; border-radius: 8px; border: 1px solid #38bdf8; text-align: center;">
+        <p style="color: #38bdf8; font-size: 11px; margin: 0;">開盤</p>
+        <p style="color: white; font-size: 18px; font-weight: bold; margin: 4px 0 0 0;">{round(today_open, 2)}</p>
+    </div>
+    <div style="background-color: #1e293b; width: 75px; padding: 8px 5px; border-radius: 8px; border: 1px solid #ef4444; text-align: center;">
+        <p style="color: #ef4444; font-size: 11px; margin: 0;">最高</p>
+        <p style="color: white; font-size: 18px; font-weight: bold; margin: 4px 0 0 0;">{round(today_high, 2)}</p>
+    </div>
+    <div style="background-color: #1e293b; width: 75px; padding: 8px 5px; border-radius: 8px; border: 1px solid #10b981; text-align: center;">
+        <p style="color: #10b981; font-size: 11px; margin: 0;">最低</p>
+        <p style="color: white; font-size: 18px; font-weight: bold; margin: 4px 0 0 0;">{round(today_low, 2)}</p>
+    </div>
 </div>
 </div>
 </div>
