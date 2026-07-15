@@ -1443,39 +1443,7 @@ if df is not None and not df.empty:
         st.write(f"**MACD：** {'🟢 金叉' if last['DIF'] > last['DEA'] else '🔴 死叉'}")
         st.write(f"**KD 狀態：** {'🟢 金叉' if last['K'] > last['D'] else '🔴 死叉'}")
 
-        # 籌碼與主力完全體卡片 (直接接在左側下方)
-        st.divider()
-        st.subheader("📊 籌碼與主力完全體")
-        
-        chip_results = get_institutional_chips(target_sid, df)
-        
-        custom_diagnostic_card(
-            chip_results["inst_status"],
-            "【三大法人資金與籌碼流向診斷】\n\n"
-            f"🚀 近 5 日主力籌碼淨向： {chip_results['net_buy_5d']}\n"
-            f"📊 近 10 日主力籌碼淨向： {chip_results['net_buy_10d']}\n\n"
-            f"💡 籌碼解讀： {chip_results['major_force_status']}",
-            chip_results["inst_card_type"]
-        )
 
-        if a_data:
-            eps_val = a_data.get('EPS', 'N/A')
-            roe_val = a_data.get('ROE', 'N/A')
-            pe_val = a_data.get('本益比', 'N/A')   
-            debt_val = a_data.get('負債比')
-            inst_hold = a_data.get('法人持股')
-            
-            debt_text = f"{round(debt_val, 1)}%" if (debt_val and isinstance(debt_val, (int, float)) and debt_val != 0) else "N/A"
-            
-            custom_diagnostic_card(
-                "👥 主力大戶持股與核心財務",
-                f"👥 法人大戶持股比： {round(inst_hold, 1) if (inst_hold and isinstance(inst_hold, (int,float))) else '0.0'}%\n"
-                f"💵 預估年化 EPS： {eps_val if eps_val != 'N/A' else 'N/A'} 元\n"
-                f"📊 股東權益報酬率 ROE： {roe_val if roe_val != 'N/A' else 'N/A'}\n"
-                f"⚡ 市場預估本益比 PE： {pe_val if pe_val != 'N/A' else 'N/A'} 倍\n"
-                f"⚖️ 企業負債比率： {debt_text}",
-                "warning"
-            )
 
     # ==========================================
     # 👉 【右側區塊】：放 大看板、圖表、控制台
@@ -1550,7 +1518,40 @@ if df is not None and not df.empty:
             
             st.plotly_chart(fig, use_container_width=True)
 
-        # 戰情推播控制台 - 移至右側圖表下方
+                # 籌碼與主力完全體卡片 (直接接在左側下方)
+        st.divider()
+        st.subheader("📊 籌碼與主力完全體")
+        
+        chip_results = get_institutional_chips(target_sid, df)
+        
+        custom_diagnostic_card(
+            chip_results["inst_status"],
+            "【三大法人資金與籌碼流向診斷】\n\n"
+            f"🚀 近 5 日主力籌碼淨向： {chip_results['net_buy_5d']}\n"
+            f"📊 近 10 日主力籌碼淨向： {chip_results['net_buy_10d']}\n\n"
+            f"💡 籌碼解讀： {chip_results['major_force_status']}",
+            chip_results["inst_card_type"]
+        )
+
+        if a_data:
+            eps_val = a_data.get('EPS', 'N/A')
+            roe_val = a_data.get('ROE', 'N/A')
+            pe_val = a_data.get('本益比', 'N/A')   
+            debt_val = a_data.get('負債比')
+            inst_hold = a_data.get('法人持股')
+            
+            debt_text = f"{round(debt_val, 1)}%" if (debt_val and isinstance(debt_val, (int, float)) and debt_val != 0) else "N/A"
+            
+            custom_diagnostic_card(
+                "👥 主力大戶持股與核心財務",
+                f"👥 法人大戶持股比： {round(inst_hold, 1) if (inst_hold and isinstance(inst_hold, (int,float))) else '0.0'}%\n"
+                f"💵 預估年化 EPS： {eps_val if eps_val != 'N/A' else 'N/A'} 元\n"
+                f"📊 股東權益報酬率 ROE： {roe_val if roe_val != 'N/A' else 'N/A'}\n"
+                f"⚡ 市場預估本益比 PE： {pe_val if pe_val != 'N/A' else 'N/A'} 倍\n"
+                f"⚖️ 企業負債比率： {debt_text}",
+                "warning"
+            )
+		# 戰情推播控制台 - 移至右側圖表下方
         st.divider() 
         st.markdown("""<div style="background: linear-gradient(135deg, #1e293b, #0f172a); padding: 20px; border-radius: 12px; border: 1px solid #475569; margin-top: 15px;">
                 <h3 style="color: #60a5fa; margin: 0 0 10px 0; font-size: 20px; display: flex; align-items: center; gap: 8px;">📡 戰情推播控制台</h3>
