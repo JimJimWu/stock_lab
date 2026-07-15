@@ -1038,16 +1038,20 @@ with st.sidebar:
     except:
         current_idx = 0
 
-    target_sid = st.sidebar.selectbox(
+    # 1. 先把下拉選單的結果存到一個暫存變數 raw_selection
+    raw_selection = st.sidebar.selectbox(
         "選擇每日觀察標的", 
         options=options_list, 
         index=current_idx,
-        # 這裡的邏輯：如果您的 current_stocks 已經存成 "代號 (名稱)"，就直接顯示
-        # 如果存的是純名稱，再用 f"{sid} ({name})"
         format_func=lambda sid: current_stocks.get(sid, sid),
         key="target_sid_selectbox"
     )
     
+    # 💥 2. 【終極淨化器】：強制剝離後面所有的中文、括號與雷達圖案
+    # 確保傳遞給系統的永遠只有最乾淨的代碼 (例如 "8383.TWO")
+    target_sid = str(raw_selection).split('(')[0].split(' ')[0].strip()
+    
+    # 3. 最後才把乾淨的代碼存入 session_state 和後續使用
     st.session_state['selected_sid'] = target_sid
     
     # 💥 ADD THIS LINE: Define selected_label
