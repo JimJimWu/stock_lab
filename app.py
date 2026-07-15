@@ -1305,7 +1305,7 @@ bid_p, ask_p, bid_s, ask_s = get_realtime_order(target_sid)
 # ==============================================================================
 if df is not None and not df.empty:
     last, prev = df.iloc[-1], df.iloc[-2]
-    clean_prices = get_yahoo_web_quote_from_df(target_sid, df)
+    clean_prices = get_yahoo_web_quote_from_df(clean_sid, df)
     current_price = clean_prices["current"]
     prev_price = clean_prices["prev_close"]
         
@@ -1564,7 +1564,7 @@ if df is not None and not df.empty:
         
         # 👈 左邊放籌碼卡片
         with col_chip_card:
-            chip_results = get_institutional_chips(target_sid, df)
+            chip_results = get_institutional_chips(clean_sid, df)
             custom_diagnostic_card(
                 chip_results["inst_status"],
                 "【三大法人資金與籌碼流向診斷】\n\n"
