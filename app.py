@@ -746,12 +746,43 @@ if 'selected_sid' not in st.session_state:
 def render_backtest_dashboard():
     import pandas as pd
     import os
+	import json
+
+	# 💥 【完整版：連續偵測顯示模組】
+    st.markdown("### 🏹 盤前黑馬連續鎖碼偵測")
+    tracker_path = "tracker_state.json"
     
+    # 這裡我們自動計算連續股票
+    consecutive_stocks = []
+    if os.path.exists(tracker_path):
+        with open(tracker_path, 'r', encoding='utf-8') as f:
+            try:
+                # 這裡假設您的 tracker_state.json 結構是 { "代碼": "訊號名稱" }
+                # 注意：如果您的 tracker_state 是存歷史，這裡需對照當日 CSV
+                history = json.load(f)
+                
+                # 讀取今日最新掃描結果來對照
+                # 這裡我們讀取最後一次 CSV 的紀錄作為今日結果
+                df_latest = pd.read_csv("signal_history_backtest.csv", encoding="utf-8-sig")
+                today_latest = df_latest.tail(20).set_index('代碼')['核心訊號'].to_dict()
+                
+                for ticker, signal in today_latest.items():
+                    if ticker in history and history[ticker] == signal:
+                        consecutive_stocks.append(f"{ticker} ({signal})")
+            except Exception as e:
+                st.error(f"連續偵測讀取錯誤: {e}")
+
+    with st.expander("查看今日連續兩日上榜的黑馬股清單"):
+        if consecutive_stocks:
+            for item in consecutive_stocks:
+                st.success(f"✅ {item}")
+        else:
+            st.info("今日盤前暫無連續兩日出現相同訊號的標的。")
     # --- 【新增：強制檢查模式】 ---
-    st.subheader("🛠️ 系統診斷模式")
-    current_dir = os.getcwd()
-    st.write(f"當前工作目錄: {current_dir}")
-    st.write("目錄下的檔案列表:", os.listdir(current_dir))
+    #st.subheader("🛠️ 系統診斷模式")
+    #current_dir = os.getcwd()
+    #st.write(f"當前工作目錄: {current_dir}")
+    #st.write("目錄下的檔案列表:", os.listdir(current_dir))
     
     st.markdown("---")
     st.markdown("## 📈 策略多週期持股勝率模擬分析儀")
