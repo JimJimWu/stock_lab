@@ -1317,14 +1317,13 @@ if df is not None and not df.empty:
     # 👈 【左側區塊】：放所有的文字、數據、卡片
     # ==========================================
     with col_left:
-        st.markdown("### 🛡️ 技術防線")
+        #st.markdown("### 🛡️ 技術防線")
         
-        col_price_1, col_price_2 = st.columns(2)
-        with col_price_1:
-            st.metric("最新報價", f"{round(current_price, 2)}", f"{diff}", delta_color=m_color)
-        with col_price_2:
-            st.metric("昨日收盤", f"{round(prev_price, 2)}")
-
+         #col_price_1, col_price_2 = st.columns(2)
+         #with col_price_1:
+             #st.metric("最新報價", f"{round(current_price, 2)}", f"{diff}", delta_color=m_color)
+         #with col_price_2:
+             #st.metric("昨日收盤", f"{round(prev_price, 2)}")
         # 買賣掛單監控
         st.divider()
         st.subheader("⚖️ 買賣掛單監控")
