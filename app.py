@@ -468,7 +468,11 @@ def auto_update_industry_db(sid):
         # 轉成字串格式寫入
         sheet.update_cell(len(db) + 1, 1, sid) 
         sheet.update_cell(len(db) + 1, 2, json.dumps(db[sid], ensure_ascii=False))
-        
+
+		# 💥 【修正核心】：補上同步寫入本地 JSON 檔案
+        with open('industry_db.json', 'w', encoding='utf-8') as f:
+            json.dump(db, f, ensure_ascii=False, indent=4)
+			
         st.session_state['INDUSTRY_DB'] = db
         return True, f"✅ {company_name} 更新成功"
     return False, "AI 解析失敗"
