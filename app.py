@@ -1467,25 +1467,24 @@ if df is not None and not df.empty:
             today_low = float(last['Low'])
 
             # 大看板
-            # --- 獲取股票名稱 (確保你有這個變數，如果沒有，請從你的字典裡抓) ---
-            # 假設你的 target_sid 是 "2330"，你要把它變成 "2330 (台積電)"
-            # 如果你前面的下拉選單已經有完整名稱，就直接用；如果沒有，可以用 get_stock_name 函數
-            display_name = target_sid # 暫時用 target_sid，如果你有 sname 變數請換成 sname
-            if isinstance(target_sid, str) and "(" not in target_sid:
-                # 簡單的安全防護，如果你有寫好的字典對應，可以在這裡替換
-                current_dict = load_stock_dict()
-                base_sid = target_sid.split('.')[0]
-                if base_sid in current_dict:
-                    display_name = f"{base_sid} {current_dict[base_sid]}"
+            # --- 處理股票名稱 (解決重複顯示代號的問題) ---
+            # 確保乾淨抓出代號 (例如 "7853")
+            base_sid = str(target_sid).split(' ')[0].split('(')[0].strip()
+            
+            # 從字典抓取名稱，如果字典裡的名稱已經自帶代號，就直接使用，避免重複
+            current_dict = load_stock_dict()
+            if base_sid in current_dict:
+                sname = current_dict[base_sid]
+                display_name = sname if base_sid in sname else f"{base_sid} {sname}"
+            else:
+                display_name = str(target_sid)
 
             # --- 計算漲跌幅百分比 ---
             diff_pct = round((diff / prev_price) * 100, 2) if prev_price > 0 else 0
-            # 設定漲跌顏色：紅漲綠跌 (台灣股市慣例)
             price_color = "#ef4444" if diff > 0 else ("#10b981" if diff < 0 else "white")
             arrow = "▲" if diff > 0 else ("▼" if diff < 0 else "-")
 
-            # 大看板 HTML 重構
-            # 大看板 HTML 重構 (已解除 Markdown 縮排陷阱)
+            # 大看板 HTML 重構 (已將昨收獨立成方塊)
             st.markdown(f"""<div style="background: linear-gradient(90deg, #111827, #000000); border-left: 10px solid {color}; padding: 20px 25px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
 <div style="min-width: 300px; display: flex; flex-direction: column; justify-content: space-between;">
 <div style="display: flex; align-items: baseline; gap: 15px; margin-bottom: 5px;">
@@ -1499,14 +1498,17 @@ if df is not None and not df.empty:
 </div>
 <div style="display: flex; align-items: center; gap: 25px; flex-wrap: wrap; justify-content: flex-end;">
 <div style="text-align: right; padding-right: 20px; border-right: 2px solid #334155;">
-<p style="color: #94a3b8; font-size: 13px; margin: 0 0 2px 0; font-weight: bold;">最新報價</p>
+<p style="color: #94a3b8; font-size: 13px; margin: 0 0 5px 0; font-weight: bold;">最新報價</p>
 <div style="display: flex; align-items: baseline; gap: 10px; justify-content: flex-end;">
-<span style="color: {price_color}; font-size: 38px; font-weight: 900; line-height: 1;">{round(current_price, 2)}</span>
-<span style="color: {price_color}; font-size: 18px; font-weight: bold;">{arrow} {abs(diff)} ({diff_pct}%)</span>
+<span style="color: {price_color}; font-size: 42px; font-weight: 900; line-height: 1;">{round(current_price, 2)}</span>
+<span style="color: {price_color}; font-size: 20px; font-weight: bold;">{arrow} {abs(diff)} ({diff_pct}%)</span>
 </div>
-<p style="color: #64748b; font-size: 13px; margin: 5px 0 0 0;">昨收: {round(prev_price, 2)}</p>
 </div>
 <div style="display: flex; gap: 8px;">
+<div style="background-color: #1e293b; width: 75px; padding: 8px 5px; border-radius: 8px; border: 1px solid #64748b; text-align: center;">
+<p style="color: #cbd5e1; font-size: 11px; margin: 0;">昨收</p>
+<p style="color: white; font-size: 18px; font-weight: bold; margin: 4px 0 0 0;">{round(prev_price, 2)}</p>
+</div>
 <div style="background-color: #1e293b; width: 75px; padding: 8px 5px; border-radius: 8px; border: 1px solid #475569; text-align: center;">
 <p style="color: #94a3b8; font-size: 11px; margin: 0;">開盤</p>
 <p style="color: white; font-size: 18px; font-weight: bold; margin: 4px 0 0 0;">{round(today_open, 2)}</p>
