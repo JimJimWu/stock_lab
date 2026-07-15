@@ -1475,7 +1475,7 @@ if df is not None and not df.empty:
             # 從字典抓取名稱，如果字典裡的名稱已經自帶代號，就直接使用，避免重複
             current_dict = load_stock_dict()
             if clean_sid in current_dict:
-                sname = current_dict[base_sid]
+                sname = current_dict[clean_sid]
                 display_name = sname if clean_sid in sname else f"{clean_sid} {sname}"
             else:
                 display_name = str(target_sid)
