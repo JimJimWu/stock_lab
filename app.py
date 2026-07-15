@@ -746,8 +746,7 @@ if 'selected_sid' not in st.session_state:
 def render_backtest_dashboard():
     import pandas as pd
     import os
-	import json
-
+	
 	# 💥 【完整版：連續偵測顯示模組】
     st.markdown("### 🏹 盤前黑馬連續鎖碼偵測")
     tracker_path = "tracker_state.json"
