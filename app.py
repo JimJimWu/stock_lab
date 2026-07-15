@@ -1294,6 +1294,8 @@ with st.sidebar:
 # ==============================================================================
 # --- 數據加載線 (外掛 - 必須靠最左邊) ---
 # ==============================================================================
+# 💥 超級過濾器：把 "2880.TW (華南金) (⚡ 雷達)" 徹底洗成乾淨的 "2880"
+clean_sid = str(target_sid).split(' ')[0].split('(')[0].replace('.TW', '').replace('.TWO', '').strip()
 df = get_stock_df(target_sid)
 a_data = get_analysis_data(target_sid)
 bid_p, ask_p, bid_s, ask_s = get_realtime_order(target_sid)
@@ -1468,13 +1470,13 @@ if df is not None and not df.empty:
             # 大看板
             # --- 處理股票名稱 (解決重複顯示代號的問題) ---
             # 確保乾淨抓出代號 (例如 "7853")
-            base_sid = str(target_sid).split(' ')[0].split('(')[0].strip()
+            clean_sid = str(target_sid).split(' ')[0].split('(')[0].strip()
             
             # 從字典抓取名稱，如果字典裡的名稱已經自帶代號，就直接使用，避免重複
             current_dict = load_stock_dict()
-            if base_sid in current_dict:
+            if clean_sid in current_dict:
                 sname = current_dict[base_sid]
-                display_name = sname if base_sid in sname else f"{base_sid} {sname}"
+                display_name = sname if clean_sid in sname else f"{clean_sid} {sname}"
             else:
                 display_name = str(target_sid)
 
