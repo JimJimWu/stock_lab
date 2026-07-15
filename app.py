@@ -1038,29 +1038,16 @@ with st.sidebar:
     except:
         current_idx = 0
 
-    # 1. 取得下拉選單的原始選擇
-    raw_selection = st.sidebar.selectbox(
+   # 🔙 恢復成你原本的程式碼
+    target_sid = st.sidebar.selectbox(
         "選擇每日觀察標的", 
         options=options_list, 
         index=current_idx,
         format_func=lambda sid: current_stocks.get(sid, sid),
         key="target_sid_selectbox"
     )
-
-    # 2. 🛡️ 【終極防護：精準萃取代碼】
-    # 強制只抓取開頭的「英文字母、數字與小數點」，無視後面所有的中文、空格與符號
-    import re
-    try:
-        match = re.search(r'^[A-Za-z0-9.]+', str(raw_selection).strip())
-        target_sid = match.group() if match else str(raw_selection)
-    except:
-        target_sid = str(raw_selection)
-
-    # 3. 存入 session_state
+    
     st.session_state['selected_sid'] = target_sid
-
-    # 🛠️ 【加上除錯視窗】顯示在側邊欄，讓你看見系統過濾後的結果
-    st.sidebar.info(f"🛠️ 當前送出代碼: `{target_sid}`")
     
     # 💥 ADD THIS LINE: Define selected_label
     selected_label = current_stocks.get(target_sid, target_sid) 
