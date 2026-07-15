@@ -1480,7 +1480,7 @@ if df is not None and not df.empty:
         col_sidebar, col_main = st.columns([1, 3]) 
 
         # 💥 2. 原本前段的籌碼與財務卡片，應該要包在左邊的 column 裡
-		with col_main:
+	with col_main:
         # 1. 安全防禦：確保資料存在才執行
         if df is not None and not df.empty and len(df) > 0:
             last = df.iloc[-1]
