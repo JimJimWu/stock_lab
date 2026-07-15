@@ -1557,7 +1557,7 @@ with col_main:
         
         # 確保此行與 fig.update_layout 同層級對齊
         st.plotly_chart(fig, use_container_width=True)
-else:
+    else:
         st.warning("⚠️ 數據庫目前為空，可能是 Yahoo API 封鎖中，或是該檔股票代號格式錯誤。")
         st.write(f"DEBUG: df 是否為 None? {df is None}")
         st.write(f"DEBUG: df 是否為 empty? {df.empty if df is not None else 'N/A'}")
