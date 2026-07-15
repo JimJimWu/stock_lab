@@ -837,37 +837,34 @@ def render_backtest_dashboard():
             return
         # ==============================================================================
             
+       # 繪圖除錯版
         periods = ["T+1", "T+3", "T+5", "T+10", "T+20"]
         fig = go.Figure()
-        colors = ["#FF4B4B", "#00CC96", "#AB63FA", "#FFA15A"]	
-        # 💥 僅調整此處：在分組前將 DataFrame 篩選為僅保留訊號與報酬率欄位
-        # 這樣 groupby 就不會因為每一列的其他欄位（如連結、價格）不同而拆分成多條線
-# 💥 【最終修復】：強制使用 df_plot 進行分組，並繪圖
-        reward_cols = [c for c in df.columns if "報酬率(%)" in c]
-        df_plot = df[[signal_col] + reward_cols].copy()
+        colors = ["#FF4B4B", "#00CC96", "#AB63FA", "#FFA15A", "#FFD700"]
         
-        # 這裡的 grouped 要改成 df_plot
-        grouped = df_plot.groupby(signal_col) 
-        
-        periods = ["T+1", "T+3", "T+5", "T+10", "T+20"]
-        fig = go.Figure()
-        colors = ["#FF4B4B", "#00CC96", "#AB63FA", "#FFA15A", "#FFD700"]	
+        grouped = df_plot.groupby(signal_col)
         
         for i, (signal_name, group_df) in enumerate(grouped):
             win_rates = []
+            st.write(f"正在計算策略: {signal_name}, 該策略有 {len(group_df)} 筆資料") # 除錯用
+            
             for p in periods:
                 col_name = f"{p} 報酬率(%)"
                 if col_name in group_df.columns:
-                    # 使用 group_df (現在它是乾淨的 df_plot 的一部分)
-                    valid_data = group_df[group_df[col_name].notna() & (group_df[col_name] != 0.0)]
+                    # 強制轉為數值
+                    vals = pd.to_numeric(group_df[col_name], errors='coerce')
+                    valid_data = vals.dropna()
+                    
                     if len(valid_data) > 0:
-                        win_rate = (len(valid_data[valid_data[col_name] > 0]) / len(valid_data)) * 100
+                        win_rate = (len(valid_data[valid_data > 0]) / len(valid_data)) * 100
                     else:
                         win_rate = 0
                     win_rates.append(win_rate)
                 else:
                     win_rates.append(0)
-                    
+            
+            st.write(f"策略 {signal_name} 計算出的勝率清單: {win_rates}") # 除錯用
+            
             fig.add_trace(go.Scatter(
                 x=periods, y=win_rates, mode='lines+markers+text',
                 name=signal_name, text=[f"{val:.1f}%" for val in win_rates],
