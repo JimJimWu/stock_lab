@@ -1518,62 +1518,91 @@ if df is not None and not df.empty:
             
             st.plotly_chart(fig, use_container_width=True)
 
-                # 籌碼與主力完全體卡片 (直接接在左側下方)
+        # 籌碼與主力完全體卡片 (直接接在左側下方)
         st.divider()
-        st.subheader("📊 籌碼與主力完全體")
+        st.subheader("📊 籌碼與核心財務總覽")
         
-        chip_results = get_institutional_chips(target_sid, df)
+        # 💥 關鍵修改：在右側大空間中，切出兩個等寬的子欄位
+        col_chip_card, col_fin_card = st.columns(2)
         
-        custom_diagnostic_card(
-            chip_results["inst_status"],
-            "【三大法人資金與籌碼流向診斷】\n\n"
-            f"🚀 近 5 日主力籌碼淨向： {chip_results['net_buy_5d']}\n"
-            f"📊 近 10 日主力籌碼淨向： {chip_results['net_buy_10d']}\n\n"
-            f"💡 籌碼解讀： {chip_results['major_force_status']}",
-            chip_results["inst_card_type"]
-        )
-
-        if a_data:
-            eps_val = a_data.get('EPS', 'N/A')
-            roe_val = a_data.get('ROE', 'N/A')
-            pe_val = a_data.get('本益比', 'N/A')   
-            debt_val = a_data.get('負債比')
-            inst_hold = a_data.get('法人持股')
-            
-            debt_text = f"{round(debt_val, 1)}%" if (debt_val and isinstance(debt_val, (int, float)) and debt_val != 0) else "N/A"
-            
+        # 👈 左邊放籌碼卡片
+        with col_chip_card:
+            chip_results = get_institutional_chips(target_sid, df)
             custom_diagnostic_card(
-                "👥 主力大戶持股與核心財務",
-                f"👥 法人大戶持股比： {round(inst_hold, 1) if (inst_hold and isinstance(inst_hold, (int,float))) else '0.0'}%\n"
-                f"💵 預估年化 EPS： {eps_val if eps_val != 'N/A' else 'N/A'} 元\n"
-                f"📊 股東權益報酬率 ROE： {roe_val if roe_val != 'N/A' else 'N/A'}\n"
-                f"⚡ 市場預估本益比 PE： {pe_val if pe_val != 'N/A' else 'N/A'} 倍\n"
-                f"⚖️ 企業負債比率： {debt_text}",
-                "warning"
+                chip_results["inst_status"],
+                "【三大法人資金與籌碼流向診斷】\n\n"
+                f"🚀 近 5 日主力籌碼淨向： {chip_results['net_buy_5d']}\n"
+                f"📊 近 10 日主力籌碼淨向： {chip_results['net_buy_10d']}\n\n"
+                f"💡 籌碼解讀： {chip_results['major_force_status']}",
+                chip_results["inst_card_type"]
             )
+
+        # 👉 右邊放財務卡片
+        with col_fin_card:
+            if a_data:
+                eps_val = a_data.get('EPS', 'N/A')
+                roe_val = a_data.get('ROE', 'N/A')
+                pe_val = a_data.get('本益比', 'N/A')   
+                debt_val = a_data.get('負債比')
+                inst_hold = a_data.get('法人持股')
+                debt_text = f"{round(debt_val, 1)}%" if (debt_val and isinstance(debt_val, (int, float)) and debt_val != 0) else "N/A"
+                
+                custom_diagnostic_card(
+                    "👥 主力大戶持股與核心財務",
+                    f"👥 法人大戶持股比： {round(inst_hold, 1) if (inst_hold and isinstance(inst_hold, (int,float))) else '0.0'}%\n"
+                    f"💵 預估年化 EPS： {eps_val if eps_val != 'N/A' else 'N/A'} 元\n"
+                    f"📊 股東權益報酬率 ROE： {roe_val if roe_val != 'N/A' else 'N/A'}\n"
+                    f"⚡ 市場預估本益比 PE： {pe_val if pe_val != 'N/A' else 'N/A'} 倍\n"
+                    f"⚖️ 企業負債比率： {debt_text}",
+                    "warning"
+                )
 		# 戰情推播控制台 - 移至右側圖表下方
         st.divider() 
         st.markdown("""<div style="background: linear-gradient(135deg, #1e293b, #0f172a); padding: 20px; border-radius: 12px; border: 1px solid #475569; margin-top: 15px;">
                 <h3 style="color: #60a5fa; margin: 0 0 10px 0; font-size: 20px; display: flex; align-items: center; gap: 8px;">📡 戰情推播控制台</h3>
             </div>""", unsafe_allow_html=True)
 
-        if st.button("🔗 發送 Discord 測試訊息", use_container_width=True):
-            import datetime
-            tz_tw = datetime.timezone(datetime.timedelta(hours=8))
-            test_time = datetime.datetime.now(tz_tw).strftime('%Y-%m-%d %H:%M:%S')
-            test_embed = {"title": "✅ 連線測試", "description": f"測試時間: {test_time}", "color": 3447003}
-            success, msg = send_discord_webhook(DEFAULT_DISCORD_WEBHOOK, test_embed)
-            if success: st.success("✅ " + msg)
-            else: st.error("❌ " + msg)
+        # 💥 關鍵修改：在控制台區域也建立雙欄佈局
+        col_test_btn, col_scan_btn = st.columns(2)
 
-        if st.button("🔍 執行全體雷達大掃描", use_container_width=True):
-            with st.spinner("🚀 掃描中..."):
-                results = [sid for sid, sname in load_stock_dict().items() if run_single_scan_signal(sid, sname, DEFAULT_DISCORD_WEBHOOK)]
-                if results:
-                    st.success(f"🎉 掃描完成！推播了 {len(results)} 檔。")
-                    st.rerun()
-                else:
-                    st.info("💡 無異常訊號。")
+        with col_test_btn:
+            if st.button("🔗 發送 Discord 測試訊息", use_container_width=True, help="手動測試網頁與您的 Discord 頻道是否成功對接。"):
+                import datetime
+                tz_tw = datetime.timezone(datetime.timedelta(hours=8))
+                test_time = datetime.datetime.now(tz_tw).strftime('%Y-%m-%d %H:%M:%S')
+                
+                test_embed = {
+                    "title": "✅ 秉諺的黑馬雷達連線測試",
+                    "description": "網頁主端控制台發送成功！手動推播管道運作良好。",
+                    "color": 3447003,
+                    "footer": {"text": f"測試時間: {test_time}"}
+                }
+                success, msg = send_discord_webhook(DEFAULT_DISCORD_WEBHOOK, test_embed)
+                if success: st.success("✅ " + msg)
+                else: st.error("❌ " + msg)
+
+        with col_scan_btn:
+            if st.button("🔍 執行全體雷達大掃描", use_container_width=True, help="立即對您自選清單裡的所有股票進行技術與籌碼訊號的全面掃描。"):
+                with st.spinner("🚀 雷達深度掃描中..."):
+                    results = []
+                    current_scan_dict = load_stock_dict()
+                    for sid, sname in current_scan_dict.items():
+                        res = run_single_scan_signal(sid, sname, DEFAULT_DISCORD_WEBHOOK)
+                        if res: results.append(res)
+                        
+                        import time
+                        time.sleep(0.2)
+                        
+                    if results:
+                        st.success(f"🎉 掃描完成！共推播了 {len(results)} 檔。")
+                        st.toast(f"✅ 成功推送 {len(results)} 檔黑馬至 Discord！", icon="🚀")
+                        st.balloons()
+                        import time
+                        time.sleep(2.5) 
+                        st.rerun()      
+                    else:
+                        st.info("💡 目前所有標的指標平穩，未達警報標準。")
+                        st.toast("💤 掃描完畢，目前無異常訊號。", icon="☕")
 
 # ==============================================================================
 # 當 df 為空時的防呆處理 (與最外層的 if df is not None 對齊)
