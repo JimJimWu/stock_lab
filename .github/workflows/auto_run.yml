@@ -41,18 +41,21 @@ jobs:
             # 💥 【V35.0 升級：GitHub 資料自動同步引擎，放在最後一步】
             - name: 自動提交並更新回測日誌
               run: |
-                  # 1. 設定 Git 使用者身份（使用 GitHub Actions 官方機器人帳號）
                   git config --local user.email "github-actions[bot]@users.noreply.github.com"
                   git config --local user.name "github-actions[bot]"
                   
-                  # 2. 檢查是否有檔案更新，避免無意義的提交
-                  git add signal_history.csv
+                  # 檢查所有潛在會被更新的檔案 (包含你新增的 tracker_state.json)
+                  git add signal_history_backtest.csv signal_history.csv tracker_state.json radar_elite.json
                   
-                  # 3. 執行提交並加上 [skip ci] 標籤，防止觸發無限迴圈
                   if git diff --cached --quiet; then
                       echo "今日暫無新訊號，無需更新日誌。"
                   else
                       git commit -m "📈 自動更新回測日誌: $(TZ='Asia/Taipei' date +'%Y-%m-%d %H:%M') [skip ci]"
-                      git push
+                      
+                      # 💥 關鍵修改：先拉取遠端變更並進行 rebase，解決衝突
+                      git pull --rebase origin main
+                      
+                      # 執行推播
+                      git push origin main
                       echo "✅ 成功將最新的黑馬訊號同步回 GitHub 倉庫！"
                   fi
