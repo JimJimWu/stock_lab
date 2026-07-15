@@ -1301,8 +1301,6 @@ bid_p, ask_p, bid_s, ask_s = get_realtime_order(target_sid)
 # ==============================================================================
 # 💥 【V41.0 物理對齊：極致對稱的排版層級結構，徹底告別縮排與語法地雷】
 # ==============================================================================
-# 找到這一段，加上警示訊息
-st.write(f"正在分析代碼: {st.session_state.get('selected_sid')}")
 if df is not None and not df.empty:
     last, prev = df.iloc[-1], df.iloc[-2]
     clean_prices = get_yahoo_web_quote_from_df(target_sid, df)
@@ -1312,10 +1310,13 @@ if df is not None and not df.empty:
     diff = round(current_price - prev_price, 2)
     m_color = "normal" if diff >= 0 else "inverse"
     
-    # 建立左右兩欄
-    col_info, col_main = st.columns([1, 3])
+    # 💥 全局唯一一次的分欄宣告！
+    col_left, col_right = st.columns([1, 3])
     
-    with col_info:
+    # ==========================================
+    # 👈 【左側區塊】：放所有的文字、數據、卡片
+    # ==========================================
+    with col_left:
         st.markdown("### 🛡️ 技術防線")
         
         col_price_1, col_price_2 = st.columns(2)
@@ -1384,13 +1385,12 @@ if df is not None and not df.empty:
             
             if is_above_ma5 and (is_strong_rsi or inst_percent > 15):
                 vol_diag_msg = "💎 大戶惜售 / 籌碼鎖定"
-                # 💥 刪除原有的 st.warning，避免視覺混淆
                 custom_diagnostic_card(
                     "💤 【量能明顯萎縮】",
                     "💎 診斷：【大戶惜售 / 籌碼鎖定】\n\n"
                     "• 現狀分析：量能大幅萎縮，但價格頑強守在 MA5 防線之上，顯示籌碼已被莊家大戶鎖死，散戶賣壓基本出盡。\n"
                     "• 戰術提示：此處的突破有 90% 以上為「洗盤後的真突破」。建議沿著 MA5 / MA10 移動停利，偏多看待。",
-                    "warning" # 這裡的 warning 會渲染成漂亮的琥珀黃邊框
+                    "warning" 
                 )
             else:
                 vol_diag_msg = "🥶 人氣退潮"
@@ -1412,7 +1412,6 @@ if df is not None and not df.empty:
         
         if current_price >= weighted_support:
             support_status = f"🟢 莊家防線守住 ({weighted_support} 元)"
-            # 💥 【V41.0 去標籤化】完全使用 \n 與 CSS pre-line 特性，徹底拔除 <b>、<br>、<ul>、<li> 標籤！
             custom_diagnostic_card(
                 "🛡️ 莊家大戶籌碼防線",
                 f"🟢 防線守住 ({weighted_support} 元)\n\n"
@@ -1421,7 +1420,6 @@ if df is not None and not df.empty:
             )
         else:
             support_status = f"🔴 防線跌破、留意續跌 ({weighted_support} 元)"
-            # 💥 【V41.0 去標籤化】完全使用 \n 與 CSS pre-line 特性，徹底拔除 <b>、<br>、<ul>、<li> 標籤！
             custom_diagnostic_card(
                 "🛡️ 莊家大戶籌碼防線",
                 f"🔴 防線失守 ({weighted_support} 元)\n\n"
@@ -1445,124 +1443,114 @@ if df is not None and not df.empty:
         st.write(f"**MACD：** {'🟢 金叉' if last['DIF'] > last['DEA'] else '🔴 死叉'}")
         st.write(f"**KD 狀態：** {'🟢 金叉' if last['K'] > last['D'] else '🔴 死叉'}")
 
-        # ==============================================================================
-        # 💥 【V41.0 三大法人籌碼雷達與主力完全體卡片 - 數據與排版終極融合淨化】
-        # 100% 數據保證，100% 官方真實收盤數字對齊，100% 黛黑高顏值！
-       # 1. 宣告分欄
-col_sidebar, col_main = st.columns([1, 3])
-
-# 2. 籌碼與財務卡片 (放在左欄)
-with col_sidebar:
-    st.divider()
-    st.subheader("📊 籌碼與主力完全體")
-    
-    chip_results = get_institutional_chips(target_sid, df)
-    
-    custom_diagnostic_card(
-        chip_results["inst_status"],
-        "【三大法人資金與籌碼流向診斷】\n\n"
-        f"🚀 近 5 日主力籌碼淨向： {chip_results['net_buy_5d']}\n"
-        f"📊 近 10 日主力籌碼淨向： {chip_results['net_buy_10d']}\n\n"
-        f"💡 籌碼解讀： {chip_results['major_force_status']}",
-        chip_results["inst_card_type"]
-    )
-
-    if a_data:
-        eps_val = a_data.get('EPS', 'N/A')
-        roe_val = a_data.get('ROE', 'N/A')
-        pe_val = a_data.get('本益比', 'N/A')	
-        debt_val = a_data.get('負債比')
-        inst_hold = a_data.get('法人持股')
+        # 籌碼與主力完全體卡片 (直接接在左側下方)
+        st.divider()
+        st.subheader("📊 籌碼與主力完全體")
         
-        debt_text = f"{round(debt_val, 1)}%" if (debt_val and isinstance(debt_val, (int, float)) and debt_val != 0) else "N/A"
+        chip_results = get_institutional_chips(target_sid, df)
         
         custom_diagnostic_card(
-            "👥 主力大戶持股與核心財務",
-            f"👥 法人大戶持股比： {round(inst_hold, 1) if (inst_hold and isinstance(inst_hold, (int,float))) else '0.0'}%\n"
-            f"💵 預估年化 EPS： {eps_val if eps_val != 'N/A' else 'N/A'} 元\n"
-            f"📊 股東權益報酬率 ROE： {roe_val if roe_val != 'N/A' else 'N/A'}\n"
-            f"⚡ 市場預估本益比 PE： {pe_val if pe_val != 'N/A' else 'N/A'} 倍\n"
-            f"⚖️ 企業負債比率： {debt_text}",
-            "warning"
+            chip_results["inst_status"],
+            "【三大法人資金與籌碼流向診斷】\n\n"
+            f"🚀 近 5 日主力籌碼淨向： {chip_results['net_buy_5d']}\n"
+            f"📊 近 10 日主力籌碼淨向： {chip_results['net_buy_10d']}\n\n"
+            f"💡 籌碼解讀： {chip_results['major_force_status']}",
+            chip_results["inst_card_type"]
         )
 
-with col_main:
-    # 確保資料存在才執行
-    if df is not None and not df.empty and len(df) > 0:
-        last = df.iloc[-1]
-        plot_df = df.tail(view_days)
-        
-        # --- 數據計算區 ---
-        rsi_val = round(plot_df['RSI'].dropna().iloc[-1], 2) if not plot_df['RSI'].dropna().empty else 50.0
-        inst_val = a_data.get('法人持股', 0) if a_data else 0
-        chip_advice = " (大戶鎖碼中)" if inst_val > 25 else " (散戶主導中)"
-        
-        if rsi_val > 80: color, msg = "#ef4444", f"⚠️【高檔過熱：禁止追高{chip_advice}】"
-        elif rsi_val < 40: color, msg = "#10b981", f"✅【低檔安全：留意佈局{chip_advice}】"
-        else: color, msg = "#f59e0b", f"⚖️【區間震盪：觀望趨勢{chip_advice}】"
-        
-        today_open = float(last['Open'])
-        today_high = float(last['High'])
-        today_low = float(last['Low'])
+        if a_data:
+            eps_val = a_data.get('EPS', 'N/A')
+            roe_val = a_data.get('ROE', 'N/A')
+            pe_val = a_data.get('本益比', 'N/A')   
+            debt_val = a_data.get('負債比')
+            inst_hold = a_data.get('法人持股')
+            
+            debt_text = f"{round(debt_val, 1)}%" if (debt_val and isinstance(debt_val, (int, float)) and debt_val != 0) else "N/A"
+            
+            custom_diagnostic_card(
+                "👥 主力大戶持股與核心財務",
+                f"👥 法人大戶持股比： {round(inst_hold, 1) if (inst_hold and isinstance(inst_hold, (int,float))) else '0.0'}%\n"
+                f"💵 預估年化 EPS： {eps_val if eps_val != 'N/A' else 'N/A'} 元\n"
+                f"📊 股東權益報酬率 ROE： {roe_val if roe_val != 'N/A' else 'N/A'}\n"
+                f"⚡ 市場預估本益比 PE： {pe_val if pe_val != 'N/A' else 'N/A'} 倍\n"
+                f"⚖️ 企業負債比率： {debt_text}",
+                "warning"
+            )
 
-        # 大看板
-        st.markdown(f"""<div style="background: linear-gradient(90deg, #111827, #000000); border-left: 10px solid {color}; padding: 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
-            <div style="min-width: 250px;">
-                <p style="color:white; font-size: 32px; font-weight: 900; margin:0;">{selected_label} <span style="font-size: 24px; color: {color};">RSI: {rsi_val}</span></p>
-                <p style="color:{color}; font-size: 24px; font-weight: bold; margin-top: 10px; margin-bottom: 0;">
-                    {msg} <span style="color: #60a5fa; font-size: 24px; margin: 0 10px;">|</span> <span style="color: #e2e8f0; font-size: 22px; background-color: #1e293b; padding: 4px 12px; border-radius: 6px; border: 1px solid #475569;">{vol_diag_msg}</span>
-                </p>
-            </div>
-            <div style="display: flex; gap: 12px; flex-wrap: nowrap;">
-                <div style="background-color: #1e293b; width: 95px; padding: 8px 10px; border-radius: 8px; border: 1px solid #475569; text-align: center;">
-                    <p style="color: #94a3b8; font-size: 11px; margin: 0;">開盤</p>
-                    <p style="color: white; font-size: 20px; font-weight: bold; margin: 4px 0 0 0; white-space: nowrap;">{round(today_open, 2)}</p>
-                </div>
-                <div style="background-color: #1e293b; width: 95px; padding: 8px 10px; border-radius: 8px; border: 1px solid #ef4444; text-align: center;">
-                    <p style="color: #ef4444; font-size: 11px; margin: 0;">最高</p>
-                    <p style="color: white; font-size: 20px; font-weight: bold; margin: 4px 0 0 0; white-space: nowrap;">{round(today_high, 2)}</p>
-                </div>
-                <div style="background-color: #1e293b; width: 95px; padding: 8px 10px; border-radius: 8px; border: 1px solid #10b981; text-align: center;">
-                    <p style="color: #10b981; font-size: 11px; margin: 0;">最低</p>
-                    <p style="color: white; font-size: 20px; font-weight: bold; margin: 4px 0 0 0; white-space: nowrap;">{round(today_low, 2)}</p>
-                </div>
-            </div>
-        </div>""", unsafe_allow_html=True)
+    # ==========================================
+    # 👉 【右側區塊】：放 大看板、圖表、控制台
+    # ==========================================
+    with col_right:
+        # 確保資料存在才執行畫圖邏輯
+        if len(df) > 0:
+            plot_df = df.tail(view_days)
+            
+            # --- 數據計算區 ---
+            rsi_val = round(plot_df['RSI'].dropna().iloc[-1], 2) if not plot_df['RSI'].dropna().empty else 50.0
+            inst_val = a_data.get('法人持股', 0) if a_data else 0
+            chip_advice = " (大戶鎖碼中)" if inst_val > 25 else " (散戶主導中)"
+            
+            if rsi_val > 80: color, msg = "#ef4444", f"⚠️【高檔過熱：禁止追高{chip_advice}】"
+            elif rsi_val < 40: color, msg = "#10b981", f"✅【低檔安全：留意佈局{chip_advice}】"
+            else: color, msg = "#f59e0b", f"⚖️【區間震盪：觀望趨勢{chip_advice}】"
+            
+            today_open = float(last['Open'])
+            today_high = float(last['High'])
+            today_low = float(last['Low'])
 
-        # 圖表繪製
-        fig = make_subplots(rows=4, cols=1, shared_xaxes=True, vertical_spacing=0.04, row_heights=[0.4, 0.1, 0.2, 0.2])
-        fig.add_trace(go.Candlestick(x=plot_df.index, open=plot_df['Open'], high=plot_df['High'], low=plot_df['Low'], close=plot_df['Close'], name="K線",
-                                   decreasing=dict(fillcolor='#10b981', line=dict(color='#10b981')),
-                                   increasing=dict(fillcolor='#ef4444', line=dict(color='#ef4444'))), row=1, col=1)
-        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA5'], name="5MA", line=dict(color='orange', width=1.5)), row=1, col=1)
-        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA10'], name="10MA", line=dict(color='#60a5fa', width=1.5)), row=1, col=1)
-        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA20'], name="20MA", line=dict(color='violet', width=1.5)), row=1, col=1)
-        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA60'], name="60MA (季線)", line=dict(color='#2dd4bf', width=2)), row=1, col=1)
-        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA240'], name="240MA (年線)", line=dict(color='#cbd5e1', width=2, dash='dot')), row=1, col=1)
-        fig.add_trace(go.Bar(x=plot_df.index, y=plot_df['Volume'], name="成交量", marker_color='#334155'), row=2, col=1)
-        
-        m_colors = ['#ef4444' if x > 0 else '#10b981' for x in plot_df['MACD_Hist']]
-        fig.add_trace(go.Bar(x=plot_df.index, y=plot_df['MACD_Hist'], name="MACD柱", marker_color=m_colors), row=3, col=1)
-        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['DIF'], name="DIF", line=dict(color='cyan')), row=3, col=1)
-        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['DEA'], name="DEA", line=dict(color='yellow')), row=3, col=1)
-        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['K'], name="K值", line=dict(color='white')), row=4, col=1)
-        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['D'], name="D值", line=dict(color='yellow')), row=4, col=1)
-        
-        fig.update_layout(height=800, template="plotly_dark", xaxis_rangeslider_visible=False, hovermode="x unified",
-                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
-                        margin=dict(l=10, r=10, t=65, b=10))
-        fig.update_xaxes(showspikes=True, spikecolor="gray", spikesnap="cursor", spikemode="across")
-        fig.update_yaxes(showspikes=True, spikecolor="gray", spikethickness=1)
-        for ax in fig.select_xaxes(): ax.update(showticklabels=True)
-        
-        # 確保此行與 fig.update_layout 同層級對齊
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.warning("⚠️ 數據庫目前為空，可能是 Yahoo API 封鎖中，或是該檔股票代號格式錯誤。")
-        st.write(f"DEBUG: df 是否為 None? {df is None}")
-        st.write(f"DEBUG: df 是否為 empty? {df.empty if df is not None else 'N/A'}")
+            # 大看板
+            st.markdown(f"""<div style="background: linear-gradient(90deg, #111827, #000000); border-left: 10px solid {color}; padding: 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                <div style="min-width: 250px;">
+                    <p style="color:white; font-size: 32px; font-weight: 900; margin:0;">{target_sid} <span style="font-size: 24px; color: {color};">RSI: {rsi_val}</span></p>
+                    <p style="color:{color}; font-size: 24px; font-weight: bold; margin-top: 10px; margin-bottom: 0;">
+                        {msg} <span style="color: #60a5fa; font-size: 24px; margin: 0 10px;">|</span> <span style="color: #e2e8f0; font-size: 22px; background-color: #1e293b; padding: 4px 12px; border-radius: 6px; border: 1px solid #475569;">{vol_diag_msg}</span>
+                    </p>
+                </div>
+                <div style="display: flex; gap: 12px; flex-wrap: nowrap;">
+                    <div style="background-color: #1e293b; width: 95px; padding: 8px 10px; border-radius: 8px; border: 1px solid #475569; text-align: center;">
+                        <p style="color: #94a3b8; font-size: 11px; margin: 0;">開盤</p>
+                        <p style="color: white; font-size: 20px; font-weight: bold; margin: 4px 0 0 0; white-space: nowrap;">{round(today_open, 2)}</p>
+                    </div>
+                    <div style="background-color: #1e293b; width: 95px; padding: 8px 10px; border-radius: 8px; border: 1px solid #ef4444; text-align: center;">
+                        <p style="color: #ef4444; font-size: 11px; margin: 0;">最高</p>
+                        <p style="color: white; font-size: 20px; font-weight: bold; margin: 4px 0 0 0; white-space: nowrap;">{round(today_high, 2)}</p>
+                    </div>
+                    <div style="background-color: #1e293b; width: 95px; padding: 8px 10px; border-radius: 8px; border: 1px solid #10b981; text-align: center;">
+                        <p style="color: #10b981; font-size: 11px; margin: 0;">最低</p>
+                        <p style="color: white; font-size: 20px; font-weight: bold; margin: 4px 0 0 0; white-space: nowrap;">{round(today_low, 2)}</p>
+                    </div>
+                </div>
+            </div>""", unsafe_allow_html=True)
 
-        # 💥 戰情推播控制台 - 與上方 st.warning 對齊
+            # 圖表繪製
+            fig = make_subplots(rows=4, cols=1, shared_xaxes=True, vertical_spacing=0.04, row_heights=[0.4, 0.1, 0.2, 0.2])
+            fig.add_trace(go.Candlestick(x=plot_df.index, open=plot_df['Open'], high=plot_df['High'], low=plot_df['Low'], close=plot_df['Close'], name="K線",
+                                       decreasing=dict(fillcolor='#10b981', line=dict(color='#10b981')),
+                                       increasing=dict(fillcolor='#ef4444', line=dict(color='#ef4444'))), row=1, col=1)
+            fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA5'], name="5MA", line=dict(color='orange', width=1.5)), row=1, col=1)
+            fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA10'], name="10MA", line=dict(color='#60a5fa', width=1.5)), row=1, col=1)
+            fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA20'], name="20MA", line=dict(color='violet', width=1.5)), row=1, col=1)
+            fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA60'], name="60MA (季線)", line=dict(color='#2dd4bf', width=2)), row=1, col=1)
+            fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA240'], name="240MA (年線)", line=dict(color='#cbd5e1', width=2, dash='dot')), row=1, col=1)
+            fig.add_trace(go.Bar(x=plot_df.index, y=plot_df['Volume'], name="成交量", marker_color='#334155'), row=2, col=1)
+            
+            m_colors = ['#ef4444' if x > 0 else '#10b981' for x in plot_df['MACD_Hist']]
+            fig.add_trace(go.Bar(x=plot_df.index, y=plot_df['MACD_Hist'], name="MACD柱", marker_color=m_colors), row=3, col=1)
+            fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['DIF'], name="DIF", line=dict(color='cyan')), row=3, col=1)
+            fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['DEA'], name="DEA", line=dict(color='yellow')), row=3, col=1)
+            fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['K'], name="K值", line=dict(color='white')), row=4, col=1)
+            fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['D'], name="D值", line=dict(color='yellow')), row=4, col=1)
+            
+            fig.update_layout(height=800, template="plotly_dark", xaxis_rangeslider_visible=False, hovermode="x unified",
+                            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+                            margin=dict(l=10, r=10, t=65, b=10))
+            fig.update_xaxes(showspikes=True, spikecolor="gray", spikesnap="cursor", spikemode="across")
+            fig.update_yaxes(showspikes=True, spikecolor="gray", spikethickness=1)
+            for ax in fig.select_xaxes(): ax.update(showticklabels=True)
+            
+            st.plotly_chart(fig, use_container_width=True)
+
+        # 戰情推播控制台 - 移至右側圖表下方
         st.divider() 
         st.markdown("""<div style="background: linear-gradient(135deg, #1e293b, #0f172a); padding: 20px; border-radius: 12px; border: 1px solid #475569; margin-top: 15px;">
                 <h3 style="color: #60a5fa; margin: 0 0 10px 0; font-size: 20px; display: flex; align-items: center; gap: 8px;">📡 戰情推播控制台</h3>
@@ -1585,10 +1573,12 @@ with col_main:
                     st.rerun()
                 else:
                     st.info("💡 無異常訊號。")
-        
-        # 錯誤處理 - 這層 else 應該要跟最外層的 if 對齊，但我調整了讓它符合邏輯結構
-        # 如果這是最後的收尾，這樣寫即可
-        st.error(f"❌ 暫時無法加載技術數據，請確認標的代號。")
+
+# ==============================================================================
+# 當 df 為空時的防呆處理 (與最外層的 if df is not None 對齊)
+# ==============================================================================
+else:
+    st.error(f"❌ 暫時無法加載技術數據，請確認標的代號。")
 	
 
 
