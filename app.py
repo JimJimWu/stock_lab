@@ -1570,8 +1570,7 @@ else:
         st.markdown("""<div style="background: linear-gradient(135deg, #1e293b, #0f172a); padding: 20px; border-radius: 12px; border: 1px solid #475569; margin-top: 15px;">
                 <h3 style="color: #60a5fa; margin: 0 0 10px 0; font-size: 20px; display: flex; align-items: center; gap: 8px;">📡 戰情推播控制台</h3>
             </div>""", unsafe_allow_html=True)
-
-		if st.button("🔗 發送 Discord 測試訊息", use_container_width=True):
+	if st.button("🔗 發送 Discord 測試訊息", use_container_width=True):
                 import datetime
                 tz_tw = datetime.timezone(datetime.timedelta(hours=8))
                 test_time = datetime.datetime.now(tz_tw).strftime('%Y-%m-%d %H:%M:%S')
