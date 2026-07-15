@@ -1037,19 +1037,20 @@ with st.sidebar:
         current_idx = options_list.index(st.session_state['selected_sid'])
     except:
         current_idx = 0
-
-   # 🔙 恢復成你原本的程式碼
-    target_sid = st.sidebar.selectbox(
+   target_sid = st.sidebar.selectbox(
         "選擇每日觀察標的", 
         options=options_list, 
         index=current_idx,
+        # 這裡的邏輯：如果您的 current_stocks 已經存成 "代號 (名稱)"，就直接顯示
+        # 如果存的是純名稱，再用 f"{sid} ({name})"
         format_func=lambda sid: current_stocks.get(sid, sid),
+
         key="target_sid_selectbox"
     )
-    
+   
     st.session_state['selected_sid'] = target_sid
-    
-    # 💥 ADD THIS LINE: Define selected_label
+
+       # 💥 ADD THIS LINE: Define selected_label
     selected_label = current_stocks.get(target_sid, target_sid) 
     st.sidebar.divider()
     
