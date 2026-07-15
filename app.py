@@ -592,7 +592,8 @@ def get_stock_df(sid):
         except Exception as e:
             print(f"抓取 {sid}{suffix} K線失敗: {e}")
             continue
-            
+    # 💥 強制除錯：如果迴圈跑完還是空的，印出警告
+    st.sidebar.error(f"❌ 無法抓取資料: {sid}")        
     return default_df
 
 # ==============================================================================
@@ -1300,6 +1301,8 @@ bid_p, ask_p, bid_s, ask_s = get_realtime_order(target_sid)
 # ==============================================================================
 # 💥 【V41.0 物理對齊：極致對稱的排版層級結構，徹底告別縮排與語法地雷】
 # ==============================================================================
+# 找到這一段，加上警示訊息
+st.write(f"正在分析代碼: {st.session_state.get('selected_sid')}")
 if df is not None and not df.empty:
     last, prev = df.iloc[-1], df.iloc[-2]
     clean_prices = get_yahoo_web_quote_from_df(target_sid, df)
@@ -1557,6 +1560,10 @@ if df is not None and not df.empty:
             fig.update_yaxes(showspikes=True, spikecolor="gray", spikethickness=1)
             for ax in fig.select_xaxes(): ax.update(showticklabels=True)
             st.plotly_chart(fig, use_container_width=True)
+else:
+    st.warning("⚠️ 數據庫目前為空，可能是 Yahoo API 封鎖中，或是該檔股票代號格式錯誤。")
+    st.write(f"DEBUG: df 是否為 None? {df is None}")
+    st.write(f"DEBUG: df 是否為 empty? {df.empty if df is not None else 'N/A'}")		
 
             # 戰情推播控制台
             st.divider()
