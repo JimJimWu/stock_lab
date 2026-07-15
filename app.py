@@ -1531,7 +1531,7 @@ if df is not None and not df.empty:
                 </div>
             </div>""", unsafe_allow_html=True)
 
-            # 圖表繪製
+# 圖表繪製
             fig = make_subplots(rows=4, cols=1, shared_xaxes=True, vertical_spacing=0.04, row_heights=[0.4, 0.1, 0.2, 0.2])
             fig.add_trace(go.Candlestick(x=plot_df.index, open=plot_df['Open'], high=plot_df['High'], low=plot_df['Low'], close=plot_df['Close'], name="K線",
                                        decreasing=dict(fillcolor='#10b981', line=dict(color='#10b981')),
@@ -1555,8 +1555,10 @@ if df is not None and not df.empty:
                             margin=dict(l=10, r=10, t=65, b=10))
             fig.update_xaxes(showspikes=True, spikecolor="gray", spikesnap="cursor", spikemode="across")
             fig.update_yaxes(showspikes=True, spikecolor="gray", spikethickness=1)
-            for ax in fig.select_xaxes(): ax.update(showticklabels=True)	
-		st.plotly_chart(fig, use_container_width=True)
+            for ax in fig.select_xaxes(): ax.update(showticklabels=True)    
+            
+            # 💥 修正這裡：與上面的 for 迴圈和 fig.update 對齊
+            st.plotly_chart(fig, use_container_width=True)
 else:
         st.warning("⚠️ 數據庫目前為空，可能是 Yahoo API 封鎖中，或是該檔股票代號格式錯誤。")
         st.write(f"DEBUG: df 是否為 None? {df is None}")
