@@ -777,7 +777,8 @@ def render_backtest_dashboard():
                 st.success(f"✅ {item}")
         else:
             st.info("今日盤前暫無連續兩日出現相同訊號的標的。")
-    # --- 【新增：強制檢查模式】 ---
+			
+    # --- 【新增：強制檢查模式】 ---(暫時註解，測是用)
     #st.subheader("🛠️ 系統診斷模式")
     #current_dir = os.getcwd()
     #st.write(f"當前工作目錄: {current_dir}")
@@ -820,8 +821,8 @@ def render_backtest_dashboard():
         for col in reward_cols:
             df_plot[col] = pd.to_numeric(df_plot[col].astype(str).str.replace('%', ''), errors='coerce').fillna(0)
         
-        # 顯示一下過濾後的結果，檢查是否只剩下我們定義的那四種
-        st.write("✅ 成功篩選出的策略類別:", df[signal_col].unique().tolist())
+        # 顯示一下過濾後的結果，檢查是否只剩下我們定義的那四種 (暫時註解，測是用)
+        #st.write("✅ 成功篩選出的策略類別:", df[signal_col].unique().tolist())
         # ==============================================================================
         # 💥 【新增：戰情室動態數據篩選器】
         # ==============================================================================
