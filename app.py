@@ -761,13 +761,16 @@ def render_backtest_dashboard():
                 history = json.load(f)
                 
                 # 讀取今日最新掃描結果來對照
-                # 這裡我們讀取最後一次 CSV 的紀錄作為今日結果
+                # 這裡我們讀取最後一次 CSV 的紀錄作為今日結果，我們取最後 20 筆資料來做比對
                 df_latest = pd.read_csv("signal_history_backtest.csv", encoding="utf-8-sig")
-                today_latest = df_latest.tail(20).set_index('代碼')['核心訊號'].to_dict()
+                today_latest = df_latest.tail(20).set_index('股票代號')['核心訊號'].to_dict()
                 
                 for ticker, signal in today_latest.items():
-                    if ticker in history and history[ticker] == signal:
-                        consecutive_stocks.append(f"{ticker} ({signal})")
+					# 這裡的 signal 裡面包含了「表面型態：」，我們需要比對過濾後的名稱
+                    # 所以我們用之前寫好的 force_clean 邏輯來處理一下 signal
+                    clean_signal = force_clean(signal)
+                    if str(ticker) in history and history[str(ticker)] == clean_signal:
+                        consecutive_stocks.append(f"{ticker} - {clean_signal}")
             except Exception as e:
                 st.error(f"連續偵測讀取錯誤: {e}")
 
