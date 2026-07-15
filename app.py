@@ -1467,29 +1467,67 @@ if df is not None and not df.empty:
             today_low = float(last['Low'])
 
             # 大看板
-            st.markdown(f"""<div style="background: linear-gradient(90deg, #111827, #000000); border-left: 10px solid {color}; padding: 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
-                <div style="min-width: 250px;">
-                    <p style="color:white; font-size: 32px; font-weight: 900; margin:0;">{target_sid} <span style="font-size: 24px; color: {color};">RSI: {rsi_val}</span></p>
-                    <p style="color:{color}; font-size: 24px; font-weight: bold; margin-top: 10px; margin-bottom: 0;">
-                        {msg} <span style="color: #60a5fa; font-size: 24px; margin: 0 10px;">|</span> <span style="color: #e2e8f0; font-size: 22px; background-color: #1e293b; padding: 4px 12px; border-radius: 6px; border: 1px solid #475569;">{vol_diag_msg}</span>
+            # --- 獲取股票名稱 (確保你有這個變數，如果沒有，請從你的字典裡抓) ---
+            # 假設你的 target_sid 是 "2330"，你要把它變成 "2330 (台積電)"
+            # 如果你前面的下拉選單已經有完整名稱，就直接用；如果沒有，可以用 get_stock_name 函數
+            display_name = target_sid # 暫時用 target_sid，如果你有 sname 變數請換成 sname
+            if isinstance(target_sid, str) and "(" not in target_sid:
+                # 簡單的安全防護，如果你有寫好的字典對應，可以在這裡替換
+                current_dict = load_stock_dict()
+                base_sid = target_sid.split('.')[0]
+                if base_sid in current_dict:
+                    display_name = f"{base_sid} {current_dict[base_sid]}"
+
+            # --- 計算漲跌幅百分比 ---
+            diff_pct = round((diff / prev_price) * 100, 2) if prev_price > 0 else 0
+            # 設定漲跌顏色：紅漲綠跌 (台灣股市慣例)
+            price_color = "#ef4444" if diff > 0 else ("#10b981" if diff < 0 else "white")
+            arrow = "▲" if diff > 0 else ("▼" if diff < 0 else "-")
+
+            # 大看板 HTML 重構
+            st.markdown(f"""
+            <div style="background: linear-gradient(90deg, #111827, #000000); border-left: 10px solid {color}; padding: 20px 25px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                
+                <div style="min-width: 300px; display: flex; flex-direction: column; justify-content: space-between;">
+                    <div style="display: flex; align-items: baseline; gap: 15px; margin-bottom: 5px;">
+                        <h2 style="color:white; font-size: 32px; font-weight: 900; margin:0; letter-spacing: 1px;">{display_name}</h2>
+                        <span style="font-size: 20px; color: {color}; font-weight: bold; background-color: rgba(255,255,255,0.05); padding: 2px 10px; border-radius: 20px;">RSI: {rsi_val}</span>
+                    </div>
+                    <p style="color:{color}; font-size: 22px; font-weight: bold; margin: 5px 0 0 0;">
+                        {msg} <span style="color: #475569; margin: 0 10px;">|</span> 
+                        <span style="color: #e2e8f0; font-size: 18px; background-color: #1e293b; padding: 4px 12px; border-radius: 6px; border: 1px solid #475569; display: inline-block; vertical-align: middle;">{vol_diag_msg}</span>
                     </p>
                 </div>
-                <div style="display: flex; gap: 12px; flex-wrap: nowrap;">
-                    <div style="background-color: #1e293b; width: 95px; padding: 8px 10px; border-radius: 8px; border: 1px solid #475569; text-align: center;">
-                        <p style="color: #94a3b8; font-size: 11px; margin: 0;">開盤</p>
-                        <p style="color: white; font-size: 20px; font-weight: bold; margin: 4px 0 0 0; white-space: nowrap;">{round(today_open, 2)}</p>
+
+                <div style="display: flex; align-items: center; gap: 25px; flex-wrap: wrap; justify-content: flex-end;">
+                    
+                    <div style="text-align: right; padding-right: 20px; border-right: 2px solid #334155;">
+                        <p style="color: #94a3b8; font-size: 13px; margin: 0 0 2px 0; font-weight: bold;">最新報價</p>
+                        <div style="display: flex; align-items: baseline; gap: 10px; justify-content: flex-end;">
+                            <span style="color: {price_color}; font-size: 38px; font-weight: 900; line-height: 1;">{round(current_price, 2)}</span>
+                            <span style="color: {price_color}; font-size: 18px; font-weight: bold;">{arrow} {abs(diff)} ({diff_pct}%)</span>
+                        </div>
+                        <p style="color: #64748b; font-size: 13px; margin: 5px 0 0 0;">昨收: {round(prev_price, 2)}</p>
                     </div>
-                    <div style="background-color: #1e293b; width: 95px; padding: 8px 10px; border-radius: 8px; border: 1px solid #ef4444; text-align: center;">
-                        <p style="color: #ef4444; font-size: 11px; margin: 0;">最高</p>
-                        <p style="color: white; font-size: 20px; font-weight: bold; margin: 4px 0 0 0; white-space: nowrap;">{round(today_high, 2)}</p>
-                    </div>
-                    <div style="background-color: #1e293b; width: 95px; padding: 8px 10px; border-radius: 8px; border: 1px solid #10b981; text-align: center;">
-                        <p style="color: #10b981; font-size: 11px; margin: 0;">最低</p>
-                        <p style="color: white; font-size: 20px; font-weight: bold; margin: 4px 0 0 0; white-space: nowrap;">{round(today_low, 2)}</p>
+
+                    <div style="display: flex; gap: 8px;">
+                        <div style="background-color: #1e293b; width: 75px; padding: 8px 5px; border-radius: 8px; border: 1px solid #475569; text-align: center;">
+                            <p style="color: #94a3b8; font-size: 11px; margin: 0;">開盤</p>
+                            <p style="color: white; font-size: 18px; font-weight: bold; margin: 4px 0 0 0;">{round(today_open, 2)}</p>
+                        </div>
+                        <div style="background-color: #1e293b; width: 75px; padding: 8px 5px; border-radius: 8px; border: 1px solid #ef4444; text-align: center;">
+                            <p style="color: #ef4444; font-size: 11px; margin: 0;">最高</p>
+                            <p style="color: white; font-size: 18px; font-weight: bold; margin: 4px 0 0 0;">{round(today_high, 2)}</p>
+                        </div>
+                        <div style="background-color: #1e293b; width: 75px; padding: 8px 5px; border-radius: 8px; border: 1px solid #10b981; text-align: center;">
+                            <p style="color: #10b981; font-size: 11px; margin: 0;">最低</p>
+                            <p style="color: white; font-size: 18px; font-weight: bold; margin: 4px 0 0 0;">{round(today_low, 2)}</p>
+                        </div>
                     </div>
                 </div>
-            </div>""", unsafe_allow_html=True)
-
+            </div>
+            """, unsafe_allow_html=True)
+			
             # 圖表繪製
             fig = make_subplots(rows=4, cols=1, shared_xaxes=True, vertical_spacing=0.04, row_heights=[0.4, 0.1, 0.2, 0.2])
             fig.add_trace(go.Candlestick(x=plot_df.index, open=plot_df['Open'], high=plot_df['High'], low=plot_df['Low'], close=plot_df['Close'], name="K線",
