@@ -487,6 +487,7 @@ def get_stock_df(sid):
     # 💥 【核心修復】：在函數最開頭強制執行清洗
     # 這裡會把 "8383.TWO (千附) (⚡ 雷達)" 變成乾淨的 "8383.TWO"
     sid = str(sid).split('(')[0].split(' ')[0].strip()
+	
 	default_df = pd.DataFrame()
     suffixes = [".TWO", ".TW"] if sid in ["3595", "7853", "3081"] or len(sid) == 6 else [".TW", ".TWO"]
         
