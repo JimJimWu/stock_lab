@@ -388,22 +388,43 @@ def run_all_scan():
         except Exception as e:
             print(f"寫入 radar_elite.json 失敗: {e}")
 
-    # 第二階段：擇優排序與 Top 10 推播截斷
+    # 修改 run_all_scan 的第二階段：
+    # 第二階段：擇優排序與推播
     if daily_candidates:
-        # 依照 score 由高到低排序
         daily_candidates.sort(key=lambda x: x['score'], reverse=True)
-        top_10 = daily_candidates[:10]
-        print(f"\n🏆 掃描完畢！共 {len(daily_candidates)} 檔觸發，準備推播火力最強的 Top {len(top_10)}...")
-
-        # 真正執行 Discord 推播與 CSV 記錄 (只記錄前 10 名)
-        for stock in top_10:
-            send_discord_webhook(DEFAULT_DISCORD_WEBHOOK, stock['embed'])
+        
+        # 讀取昨天的紀錄來比對「連續通報」
+        last_day_path = "tracker_state.json"
+        last_day_signals = {}
+        if os.path.exists(last_day_path):
+            with open(last_day_path, 'r', encoding='utf-8') as f:
+                last_day_signals = json.load(f)
+        
+        new_tracker_state = {}
+        
+        for stock in daily_candidates:
+            # 1. 全部都寫入 CSV (這樣前 10 名以外的股票也會有紀錄)
             log_signal_to_csv(stock['sid'], stock['sname'], stock['current_price'], stock['embed'])
-            time.sleep(1)
             
-        print("✅ 今日精華推播任務完成！")
-    else:
-        print("今日盤勢無任何標的符合條件。")
+            # 2. 檢測連續通報
+            ticker = stock['sid']
+            signal_type = stock['embed'] # 假設 embed 包含形態訊息
+            if ticker in last_day_signals and last_day_signals[ticker] == signal_type:
+                # 這裡發送一個特殊的 Discord 訊息，標註「連續通報」
+                send_discord_webhook(DEFAULT_DISCORD_WEBHOOK, f"🔥 **【連續鎖碼通知】** {stock['sname']} 連續兩日上榜！")
+            
+            new_tracker_state[ticker] = signal_type
+
+            # 3. 只有 Top 10 才做 Discord 圖卡推播 (避免洗版)
+            if stock in daily_candidates[:10]:
+                send_discord_webhook(DEFAULT_DISCORD_WEBHOOK, stock['embed'])
+            
+            time.sleep(1)
+        
+        # 儲存今天的狀態供明天比對
+        with open(last_day_path, 'w', encoding='utf-8') as f:
+            json.dump(new_tracker_state, f, ensure_ascii=False)       
+        print("✅ 今日全體記錄與精華推播完成！")
 
 if __name__ == "__main__":
     print("DEBUG: 程式已啟動，準備進入 run_all_scan...") 
