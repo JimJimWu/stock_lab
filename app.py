@@ -1559,7 +1559,7 @@ if df is not None and not df.empty:
             fig.update_xaxes(showspikes=True, spikecolor="gray", spikesnap="cursor", spikemode="across")
             fig.update_yaxes(showspikes=True, spikecolor="gray", spikethickness=1)
             for ax in fig.select_xaxes(): ax.update(showticklabels=True)	
-			st.plotly_chart(fig, use_container_width=True)
+		st.plotly_chart(fig, use_container_width=True)
 else:
         st.warning("⚠️ 數據庫目前為空，可能是 Yahoo API 封鎖中，或是該檔股票代號格式錯誤。")
         st.write(f"DEBUG: df 是否為 None? {df is None}")
