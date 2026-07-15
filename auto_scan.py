@@ -423,7 +423,7 @@ def run_all_scan():
         
         # 儲存今天的狀態供明天比對
         with open(last_day_path, 'w', encoding='utf-8') as f:
-            json.dump(new_tracker_state, f, ensure_ascii=False)       
+            json.dump(new_tracker_state, f, ensure_ascii=False)           
         print("✅ 今日全體記錄與精華推播完成！")
 
 if __name__ == "__main__":
