@@ -65,71 +65,52 @@ def migrate_local_to_cloud():
     sheet.append_rows(rows) # 批次寫入
     st.success(f"成功將 {len(rows)} 筆資料同步至 Google Sheets！")
 # ==============================================================================
-def generate_ai_insights(company_name, prompt_context=""):
-    """精簡版：使用 flash 模型，透過強制 JSON 輸出模式徹底消滅 AI 幻覺與贅字"""
+def generate_ai_insights(company_name, summary):
+    """終極版：強制 API 輸出純 JSON，徹底解決解析錯誤與贅字問題"""
     import json
     import re
     
-    # 拆解代號與名稱邏輯保持不變
+    # 動態拆解邏輯
     match = re.match(r'^([A-Za-z0-9]+)(?:\s*\((.*?)\))?', company_name.strip())
-    ticker = match.group(1) if match else company_name
-    pure_name = match.group(2) if match and match.group(2) else company_name
+    if match:
+        ticker = match.group(1)
+        pure_name = match.group(2) if match.group(2) else ticker
+    else:
+        ticker = company_name
+        pure_name = company_name
 
-    # 💥 核心優化：啟用 response_mime_type 強制模型「只准輸出 JSON」
-    # 這會從 API 底層封印 AI 的聊天本能，保證沒有任何前言、結語或 ```json 標籤！
+    # 💥 終極殺招：啟用 response_mime_type 強制模型「只准輸出 JSON」
+    # 這會從 API 底層完全封印 AI 的聊天本能，保證沒有任何前言、結語或 Markdown 標籤！
     model = genai.GenerativeModel(
         model_name='gemini-2.5-flash',
         generation_config={"response_mime_type": "application/json"}
     )
     
-    # 建立嚴格的輸出格式模板，並將 prompt_context 完美融入
+    # 組合 Prompt：將你外部設定的強悍 summary 鐵律直接灌進去
     prompt = f"""
-    [核心任務]
-    請分析台股企業「{pure_name}」(代號:{ticker})。
+    {summary}
     
-    {prompt_context}
-
-    [輸出規範]
-    1. 必須嚴格使用以下 JSON 格式欄位輸出。
-    2. 若對該公司特定資訊查無明確資料，請一律填入「【資料不足，無法確認】」，對手陣列則填入空陣列 []。
-    
-    {{
-        "company_brief": "請以三句話描述公司核心業務與產業地位",
-        "overview": "公司在市場中的定位與規模",
-        "value_chain": "請以清單或條列方式呈現上中下游",
-        "competitors": ["對手1", "對手2", "對手3"],
-        "drivers": "請條列公司未來成長動能"
-    }}
+    [任務目標]
+    請針對台股企業「{pure_name}」(代號:{ticker}) 進行分析。
+    若對該公司特定資訊查無明確資料，請一律填入「【資料不足，無法確認】」，competitors 填寫空陣列 []。
     """
-    
+
     # 預設 Google 搜尋網址
-    source_url = f"[https://www.google.com/search?q=台股](https://www.google.com/search?q=台股)+{ticker}+{pure_name}+產業分析"
+    source_url = f"https://www.google.com/search?q=台股+{ticker}+{pure_name}+產業分析"
 
     try:
         response = model.generate_content(prompt)
-        text = response.text.strip()
         
-        # 由於已強制輸出 JSON 格式，直接解析即可
-        try:
-            ai_dict = json.loads(text)
-        except json.JSONDecodeError:
-            # 終極防護網：以防萬一 API 抽風還是吐了 Markdown，用 Regex 強制捕捉
-            match_json = re.search(r'\{.*\}', text, re.DOTALL)
-            if match_json:
-                ai_dict = json.loads(match_json.group(0))
-            else:
-                raise ValueError("回傳內容完全不包含有效的 JSON 結構")
-                
-        # 補上資料來源網址
+        # 因為已經強制輸出純 JSON，我們連 Regex 都不需要了，直接解析！
+        ai_dict = json.loads(response.text)
         ai_dict['source_url'] = source_url
         return ai_dict
         
     except Exception as e:
         # 發生錯誤時回傳結構化的失敗資訊，防止 UI 渲染崩潰
-        error_msg = str(e)
-        preview = response.text[:100] if 'response' in locals() and hasattr(response, 'text') else "無回覆"
+        error_preview = response.text[:200] if 'response' in locals() and hasattr(response, 'text') else "無回覆"
         return {
-            "company_brief": f"⚠️ 解析錯誤: {error_msg}\n\n(AI 原始回覆片段): {preview}", 
+            "company_brief": f"⚠️ 解析錯誤: {str(e)}\n\n(AI 原始回覆片段): {error_preview}", 
             "overview": "【資料不足，無法確認】", 
             "value_chain": "【資料不足，無法確認】", 
             "competitors": [], 
