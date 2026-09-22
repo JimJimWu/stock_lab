@@ -1040,33 +1040,39 @@ with st.sidebar:
     st.sidebar.divider()
     
     # 2. 🔍 探索新標的 (全市場擴建)
-    with st.sidebar.expander("🔍 搜尋全市場並擴建雷達"):
-        full_market = load_full_market() # 讀取那 1,971 檔母體
-        
-        # 建立搜尋用列表：強制統一格式「代號 (名稱)」
-        search_options = [f"{sid} ({name})" for sid, name in full_market.items()]
-        
-        # 使用者搜尋界面
-        new_stock_input = st.selectbox("請輸入代號或名稱搜尋", options=search_options)
-        
-        if st.button("➕ 加入每日戰情室"):
-            # 從字串中切出代號 (例如: "2330 (台積電)" -> "2330")
-            new_sid = new_stock_input.split(" ")[0]
+	    with st.sidebar.expander("🔍 搜尋全市場並擴建雷達"):
+	        full_market = load_full_market() # 讀取那 1,971 檔母體
+	        
+	        # 建立搜尋用列表：強制統一格式「代號 (名稱)」
+	        search_options = [f"{sid} ({name})" for sid, name in full_market.items()]
+	        
+	        # 使用者搜尋界面
+	        new_stock_input = st.selectbox("請輸入代號或名稱搜尋", options=search_options)
+	        
+	        if st.button("➕ 加入每日戰情室", use_container_width=True):
+            clean_new_sid = new_stock_input.split(" ")[0].strip()
+            stock_name = full_market.get(clean_new_sid, "未知標的")
+            formatted_name = f"{clean_new_sid} ({stock_name})"
             
-            if new_sid not in current_stocks:
-                # 寫入邏輯
-                current_stocks[new_sid] = full_market.get(new_sid, "未知公司")
+            # 從硬碟取得最新自選清單
+            current_stocks = load_stock_dict()
+            
+            if clean_new_sid not in current_stocks:
+                # 寫入實體檔案 (永久保存)
+                current_stocks[clean_new_sid] = formatted_name
                 save_stock_dict(current_stocks)
-
-				# 💥 關鍵修復：同步更新記憶體，確保選單立刻讀得到
+                
+                # 💥 關鍵修復：同步更新記憶體，確保選單立刻讀得到且不消失
                 st.session_state['STOCK_DICT'] = current_stocks
-                st.session_state['selected_sid'] = new_sid  # 自動切換到剛新增的標的
-				
-                st.success(f"✅ 已成功加入: {new_sid}")
+                st.session_state['selected_sid'] = clean_new_sid  # 自動切換到剛新增的標的
+                
+                st.success(f"✅ 已成功加入: {clean_new_sid} \n(百科請視需求手動點擊生成)")
+                import time
+                time.sleep(0.8)
                 st.rerun() # 立即重整頁面讓戰情室選單更新
             else:
                 st.warning("⚠️ 此標的已在自選清單中")
-
+				
     # 3. 📅 歷史數據追蹤
     view_days = st.sidebar.slider("📅 歷史數據追蹤天數", 30, 240, 90)
     st.sidebar.divider()
@@ -1241,41 +1247,7 @@ with st.sidebar:
         else:
             st.info("💡 雲端尚未生成回測紀錄。")
             
-    # 6. ➕ 擴建雷達
-    st.sidebar.divider()
-    st.sidebar.markdown("### ➕ 擴建雷達-新增股票")
-    new_sid = st.sidebar.text_input("輸入股票代號", help="資料請核對正確，例如 2330")
-    new_name = st.sidebar.text_input("輸入股票名稱", help="資料請核對正確，例如 台積電")
-    
-    if st.sidebar.button("⚡ 新增百科標的", use_container_width=True):
-        if new_sid and new_name:
-            with st.sidebar.status("🤖 正在處理新增請求...", expanded=True) as status:
-                prog_bar = st.progress(0, text="準備開始...")
-                prog_bar.progress(20, text="📝 正在寫入預設名單...")
-                current_stocks = load_stock_dict()
-                current_stocks[new_sid] = f"{new_sid} ({new_name})"
-                save_stock_dict(current_stocks)
-                st.session_state['STOCK_DICT'] = current_stocks
-                
-                prog_bar.progress(50, text="🌐 AI 正在連網搜尋最新資料...")
-                try:
-                    success, msg = auto_update_industry_db(new_sid)
-                    if success:
-                        prog_bar.progress(100, text="✅ 百科補全完成！")
-                        st.write(f"🎉 {msg}")
-                        status.update(label="🎉 標的新增與百科成功！", state="complete", expanded=False)
-                    else:
-                        prog_bar.error("⚠️ AI 回傳資料不完全")
-                        status.update(label="⚠️ 標的已新增，但百科失敗", state="error")
-                except Exception as e:
-                    prog_bar.error("❌ 發生未知錯誤")
-                    st.write(f"系統訊息: {str(e)}")
-                    status.update(label="❌ 百科生成失敗", state="error")
-            import time
-            time.sleep(1.2)
-            st.rerun()
-        else:
-            st.sidebar.error("❌ 請輸入完整的代號與名稱")              
+               
 # ==============================================================================
 # --- 數據加載線 (外掛 - 必須靠最左邊) ---
 # ==============================================================================
