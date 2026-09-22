@@ -1057,6 +1057,11 @@ with st.sidebar:
                 # 寫入邏輯
                 current_stocks[new_sid] = full_market.get(new_sid, "未知公司")
                 save_stock_dict(current_stocks)
+
+				# 💥 關鍵修復：同步更新記憶體，確保選單立刻讀得到
+                st.session_state['STOCK_DICT'] = current_stocks
+                st.session_state['selected_sid'] = new_sid  # 自動切換到剛新增的標的
+				
                 st.success(f"✅ 已成功加入: {new_sid}")
                 st.rerun() # 立即重整頁面讓戰情室選單更新
             else:
