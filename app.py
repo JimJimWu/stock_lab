@@ -1040,7 +1040,7 @@ with st.sidebar:
     st.sidebar.divider()
     
     # 2. 🔍 探索新標的 (全市場擴建)
-	    with st.sidebar.expander("🔍 搜尋全市場並擴建雷達"):
+	with st.sidebar.expander("🔍 搜尋全市場並擴建雷達"):
 	        full_market = load_full_market() # 讀取那 1,971 檔母體
 	        
 	        # 建立搜尋用列表：強制統一格式「代號 (名稱)」
