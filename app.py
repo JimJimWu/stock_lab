@@ -1036,20 +1036,20 @@ with st.sidebar:
     st.session_state['selected_sid'] = target_sid
 
        # 💥 ADD THIS LINE: Define selected_label
-    selected_label = current_stocks.get(target_sid, target_sid) 
+    selected_label = current_stocks_dict.get(target_sid, target_sid) 
     st.sidebar.divider()
     
     # 2. 🔍 探索新標的 (全市場擴建)
-	with st.sidebar.expander("🔍 搜尋全市場並擴建雷達"):
-	        full_market = load_full_market() # 讀取那 1,971 檔母體
-	        
-	        # 建立搜尋用列表：強制統一格式「代號 (名稱)」
-	        search_options = [f"{sid} ({name})" for sid, name in full_market.items()]
-	        
-	        # 使用者搜尋界面
-	        new_stock_input = st.selectbox("請輸入代號或名稱搜尋", options=search_options)
-	        
-	        if st.button("➕ 加入每日戰情室", use_container_width=True):
+    with st.sidebar.expander("🔍 搜尋全市場並擴建雷達"):
+        full_market = load_full_market() # 讀取那 1,971 檔母體
+        
+        # 建立搜尋用列表：強制統一格式「代號 (名稱)」
+        search_options = [f"{sid} ({name})" for sid, name in full_market.items()]
+        
+        # 使用者搜尋界面
+        new_stock_input = st.selectbox("請輸入代號或名稱搜尋", options=search_options)
+        
+        if st.button("➕ 加入每日戰情室", use_container_width=True):
             clean_new_sid = new_stock_input.split(" ")[0].strip()
             stock_name = full_market.get(clean_new_sid, "未知標的")
             formatted_name = f"{clean_new_sid} ({stock_name})"
