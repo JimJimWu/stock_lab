@@ -264,7 +264,7 @@ def load_full_market():
 def load_stock_dict():
     current_data = DEFAULT_STOCKS.copy()
     
-    # 1. 讀取舊名單，並啟動強制格式化引擎，統一為「代號 (名稱)」
+    # 1. 單純讀取，絕不在此覆寫檔案
     if os.path.exists(DICT_FILE):
         try:
             with open(DICT_FILE, "r", encoding="utf-8") as f:
@@ -277,16 +277,21 @@ def load_stock_dict():
         except Exception as e:
             print(f"讀取 {DICT_FILE} 失敗: {e}")
             
-    # 💥 【防護升級】：已移除原先強迫將 industry_db 歷史股票倒進來的邏輯，徹底杜絕幽靈股票
-    
-    # 2. 將格式完美統一後的乾淨名單存回實體檔案
+    # 2. 自動同步 JSON 倉庫 (把有百科資料的標的自動加回來)
     try:
-        with open(DICT_FILE, "w", encoding="utf-8") as f:
-            json.dump(current_data, f, ensure_ascii=False, indent=4)
+        db = load_industry_db()
+        for sid, info in db.items():
+            sid_str = str(sid).strip()
+            if sid_str not in current_data:
+                company_name = info.get("name", "未知名稱").replace("台股代號 ", "")
+                if sid_str in company_name:
+                    current_data[sid_str] = company_name
+                else:
+                    current_data[sid_str] = f"{sid_str} ({company_name})"
     except Exception as e:
-        print(f"建立 {DICT_FILE} 失敗: {e}")
+        pass
         
-    # 3. 【雙軌合併】在記憶體中動態加入「雷達菁英」，顯示於儀表板但絕不寫入實體檔案
+    # 3. 動態加入雷達菁英 (僅在記憶體中合併)
     if os.path.exists("radar_elite.json"):
         try:
             with open("radar_elite.json", "r", encoding="utf-8") as f:
@@ -294,48 +299,9 @@ def load_stock_dict():
                 for sid, sname in radar_stocks.items():
                     if sid not in current_data:
                         pure_name = sname.replace(str(sid), "").replace("台股代號", "").replace("(", "").replace(")", "").strip()
-                        # 加上閃電標籤，讓您一眼看出這是雲端抓下來的短線菁英
                         current_data[sid] = f"{sid} ({pure_name}) (⚡雷達)"
         except Exception as e:
-            print(f"讀取 radar_elite.json 失敗: {e}")
-            
-    return current_data
-            
-    # 2. 自動同步 JSON 倉庫 (把富喬、台玻自動加回來)
-    try:
-        db = load_industry_db()
-        for sid, info in db.items():
-            sid_str = str(sid).strip()
-            if sid_str not in current_data:
-                # 把百科裡的名稱也洗白
-                company_name = info.get("name", "未知名稱").replace("台股代號 ", "")
-                if sid_str in company_name:
-                    current_data[sid_str] = company_name
-                else:
-                    current_data[sid_str] = f"{sid_str} ({company_name})"
-    except Exception as e:
-        print(f"自動同步選單失敗: {e}")
-
-    # 3. 將乾淨的名單存回檔案 (此時只存手動的永久名單，絕不包含雷達菁英)
-    try:
-        with open(DICT_FILE, "w", encoding="utf-8") as f:
-            json.dump(current_data, f, ensure_ascii=False, indent=4)
-    except Exception as e:
-        print(f"建立 {DICT_FILE} 失敗: {e}")
-        
-    # ==========================================================================
-    # 💥 4. 【雙軌合併】在記憶體中動態加入「雷達菁英」，顯示於儀表板但絕不寫入實體檔案
-    # ==========================================================================
-    if os.path.exists("radar_elite.json"):
-        try:
-            with open("radar_elite.json", "r", encoding="utf-8") as f:
-                radar_stocks = json.load(f)
-                for sid, sname in radar_stocks.items():
-                    # 如果這檔股票已經在您的永久名單中，就不重複加標籤
-                    if sid not in current_data:
-                        current_data[sid] = f"{sname} (⚡雷達)"
-        except Exception as e:
-            print(f"讀取 radar_elite.json 失敗: {e}")
+            pass
             
     return current_data
 
