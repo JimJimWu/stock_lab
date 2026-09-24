@@ -742,39 +742,58 @@ def render_backtest_dashboard():
         if "深水區潛龍" in s: return "🐉【深水區潛龍】"
         return "⚖️ 區間溫和"
 	
-    # 💥 【完整版：連續偵測顯示模組】
-    st.markdown("### 🏹 盤前黑馬連續鎖碼偵測")
-    tracker_path = "tracker_state.json"
+    # ==============================================================================
+    # 💥 【無敵版：歷史多日連續偵測模組 (純 CSV 運算)】
+    # ==============================================================================
+    st.markdown("### 🏹 歷史連續鎖碼偵測")
     
-    # 這裡我們自動計算連續股票
+    # 🎛️ 新增互動式拉桿，讓你可以自由切換要抓連續 2 天或更多天
+    target_days = st.slider("🔥 選擇連續上榜天數", min_value=2, max_value=5, value=2, help="自動比對歷史 CSV 中最近 N 個交易日是否出現完全相同的訊號")
+    
     consecutive_stocks = []
-    if os.path.exists(tracker_path):
-        with open(tracker_path, 'r', encoding='utf-8') as f:
-            try:
-                # 這裡假設您的 tracker_state.json 結構是 { "代碼": "訊號名稱" }
-                # 注意：如果您的 tracker_state 是存歷史，這裡需對照當日 CSV
-                history = json.load(f)
+    log_file_path = "signal_history_backtest.csv"
+    
+    if os.path.exists(log_file_path):
+        try:
+            # 1. 讀取所有歷史資料 (忽略異常行)
+            df_history = pd.read_csv(log_file_path, encoding="utf-8-sig", on_bad_lines='skip')
+            
+            # 確保必要的 3 個欄位存在
+            if "日期時間" in df_history.columns and "股票代號" in df_history.columns and "核心訊號" in df_history.columns:
+                # 2. 清洗與轉換格式
+                df_history['日期'] = pd.to_datetime(df_history['日期時間']).dt.date
+                df_history['核心訊號'] = df_history['核心訊號'].apply(force_clean)
                 
-                # 讀取今日最新掃描結果來對照
-                # 這裡我們讀取最後一次 CSV 的紀錄作為今日結果，我們取最後 20 筆資料來做比對
-                df_latest = pd.read_csv("signal_history_backtest.csv", encoding="utf-8-sig")
-                today_latest = df_latest.tail(20).set_index('股票代號')['核心訊號'].to_dict()
+                # 3. 去除同一天重複掃描的雜訊，每天每檔股票只保留「最後一次」的訊號
+                df_daily = df_history.drop_duplicates(subset=['日期', '股票代號'], keep='last')
                 
-                for ticker, signal in today_latest.items():
-					# 這裡的 signal 裡面包含了「表面型態：」，我們需要比對過濾後的名稱
-                    # 所以我們用之前寫好的 force_clean 邏輯來處理一下 signal
-                    clean_signal = force_clean(signal)
-                    if str(ticker) in history and history[str(ticker)] == clean_signal:
-                        consecutive_stocks.append(f"{ticker} - {clean_signal}")
-            except Exception as e:
-                st.error(f"連續偵測讀取錯誤: {e}")
-
-    with st.expander("查看今日連續兩日上榜的黑馬股清單"):
+                # 4. 自動抓出全市場「最近的 N 個交易日」
+                latest_dates = sorted(df_daily['日期'].unique(), reverse=True)
+                
+                if len(latest_dates) >= target_days:
+                    check_dates = latest_dates[:target_days]
+                    
+                    # 5. 過濾出只在這 N 天內的歷史資料
+                    df_recent = df_daily[df_daily['日期'].isin(check_dates)]
+                    
+                    # 6. 群組交叉比對：如果在這些天數都有出現，且訊號只有 1 種 (代表連續一模一樣)
+                    for ticker, group in df_recent.groupby('股票代號'):
+                        if len(group) == target_days and group['核心訊號'].nunique() == 1:
+                            signal_name = group['核心訊號'].iloc[0]
+                            stock_name = group['股票名稱'].iloc[0] if '股票名稱' in group.columns else ""
+                            consecutive_stocks.append(f"{ticker} {stock_name} - {signal_name}")
+        except Exception as e:
+            st.error(f"連續偵測運算發生錯誤: {e}")
+    else:
+        st.warning("尚未產生回測日誌，無法進行連續偵測。")
+    
+    # 📊 顯示結果介面
+    with st.expander(f"查看最近 {target_days} 日連續上榜的黑馬股清單", expanded=True):
         if consecutive_stocks:
             for item in consecutive_stocks:
                 st.success(f"✅ {item}")
         else:
-            st.info("今日盤前暫無連續兩日出現相同訊號的標的。")
+            st.info(f"最近 {target_days} 個交易日內，暫無連續出現相同訊號的標的。")
 			
     # --- 【新增：強制檢查模式】 ---(暫時註解，測是用)
     #st.subheader("🛠️ 系統診斷模式")
