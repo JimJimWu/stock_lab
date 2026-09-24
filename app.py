@@ -1016,31 +1016,33 @@ with st.sidebar:
         new_stock_input = st.selectbox("請輸入代號或名稱搜尋", options=search_options)
         
         if st.button("➕ 加入每日戰情室", use_container_width=True):
-            # 1. 抽取代號並強制清除所有的 .TW 或 .TWO 後綴
-            raw_sid = new_stock_input.split(" ")[0].strip()
-            clean_new_sid = raw_sid.replace(".TW", "").replace(".TWO", "")
-            
-            stock_name = full_market.get(clean_new_sid, "未知標的")
-            formatted_name = f"{clean_new_sid} ({stock_name})"
-            
-            # 從硬碟取得最新自選清單
-            current_stocks = load_stock_dict()
-            
-            if clean_new_sid not in current_stocks:
-                # 寫入實體檔案 (永久保存)
-                current_stocks[clean_new_sid] = formatted_name
-                save_stock_dict(current_stocks)
+            if new_stock_input:
+                # 1. 抓取選單上的「原始 Key」(可能帶有 .TW)，確保能從字典 100% 查出正確公司名稱
+                raw_key = new_stock_input.split(" ")[0].strip()
+                stock_name = full_market.get(raw_key, "未知標的")
                 
-                # 💥 同步更新記憶體，確保選單立刻讀得到且不消失
-                st.session_state['STOCK_DICT'] = current_stocks
-                st.session_state['selected_sid'] = clean_new_sid  # 自動切換到剛新增的標的
+                # 2. 強制清洗代號：遇到小數點 (.) 就切斷，只保留前面的純數字 (解決 6147O 變異問題)
+                clean_new_sid = raw_key.split(".")[0]
+                formatted_name = f"{clean_new_sid} ({stock_name})"
                 
-                st.success(f"✅ 已成功加入: {clean_new_sid} \n(百科請視需求手動點擊生成)")
-                import time
-                time.sleep(0.8)
-                st.rerun() # 立即重整頁面讓戰情室選單更新
-            else:
-                st.warning(f"⚠️ {clean_new_sid} 此標的已在自選清單中，請勿重複新增！")
+                # 從硬碟取得最新自選清單
+                current_stocks = load_stock_dict()
+                
+                if clean_new_sid not in current_stocks:
+                    # 寫入實體檔案 (永久保存純數字版本)
+                    current_stocks[clean_new_sid] = formatted_name
+                    save_stock_dict(current_stocks)
+                    
+                    # 💥 同步更新記憶體，確保選單立刻讀得到且不消失
+                    st.session_state['STOCK_DICT'] = current_stocks
+                    st.session_state['selected_sid'] = clean_new_sid  # 自動切換
+                    
+                    st.success(f"✅ 已成功加入: {formatted_name} \n(百科請視需求手動點擊生成)")
+                    import time
+                    time.sleep(0.8)
+                    st.rerun() # 立即重整頁面
+                else:
+                    st.warning(f"⚠️ {clean_new_sid} 此標的已在自選清單中，請勿重複新增！")
 				
     # 3. 📅 歷史數據追蹤
     view_days = st.sidebar.slider("📅 歷史數據追蹤天數", 30, 240, 90)
