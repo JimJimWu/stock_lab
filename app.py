@@ -742,7 +742,7 @@ def render_backtest_dashboard():
         if "深水區潛龍" in s: return "🐉【深水區潛龍】"
         return "⚖️ 區間溫和"
 	
-    # ==============================================================================
+   # ==============================================================================
     # 💥 【無敵版：歷史多日連續偵測模組 (純 CSV 運算)】
     # ==============================================================================
     st.markdown("### 🏹 歷史連續鎖碼偵測")
@@ -752,6 +752,7 @@ def render_backtest_dashboard():
     
     consecutive_stocks = []
     log_file_path = "signal_history_backtest.csv"
+    date_range_info = "" # 預設空字串
     
     if os.path.exists(log_file_path):
         try:
@@ -773,6 +774,11 @@ def render_backtest_dashboard():
                 if len(latest_dates) >= target_days:
                     check_dates = latest_dates[:target_days]
                     
+                    # 💥 計算並格式化這 N 天的起訖日期
+                    start_date_str = min(check_dates).strftime("%m/%d")
+                    end_date_str = max(check_dates).strftime("%m/%d")
+                    date_range_info = f"(觸發區間: {start_date_str} ~ {end_date_str})"
+                    
                     # 5. 過濾出只在這 N 天內的歷史資料
                     df_recent = df_daily[df_daily['日期'].isin(check_dates)]
                     
@@ -781,11 +787,22 @@ def render_backtest_dashboard():
                         if len(group) == target_days and group['核心訊號'].nunique() == 1:
                             signal_name = group['核心訊號'].iloc[0]
                             stock_name = group['股票名稱'].iloc[0] if '股票名稱' in group.columns else ""
-                            consecutive_stocks.append(f"{ticker} {stock_name} - {signal_name}")
+                            # 💥 把日期區間直接加進去印出來
+                            consecutive_stocks.append(f"{ticker} {stock_name} - {signal_name} 🗓️ {date_range_info}")
         except Exception as e:
             st.error(f"連續偵測運算發生錯誤: {e}")
     else:
         st.warning("尚未產生回測日誌，無法進行連續偵測。")
+    
+    # 📊 顯示結果介面
+    # 💥 把日期區間直接顯示在下拉選單的標題上，完全不迷路
+    expander_title = f"查看最近 {target_days} 日連續上榜的黑馬股清單 {date_range_info}"
+    with st.expander(expander_title, expanded=True):
+        if consecutive_stocks:
+            for item in consecutive_stocks:
+                st.success(f"✅ {item}")
+        else:
+            st.info(f"該區間內，暫無連續出現相同訊號的標的。")
     
     # 📊 顯示結果介面
     with st.expander(f"查看最近 {target_days} 日連續上榜的黑馬股清單", expanded=True):
