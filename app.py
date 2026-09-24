@@ -751,14 +751,28 @@ def render_backtest_dashboard():
     col_main, col_info = st.columns([2.5, 1])
     
     with col_info:
-        # 右側：精簡版操作說明卡片
-        st.info(
-            "💡 **連續鎖碼偵測**\n\n"
-            "• **原理**：抓出連續 N 個交易日觸發「相同訊號」的標的。\n"
-            "• **意義**：過濾單日騙線雜訊，確認主力籌碼高度延續性。\n"
-            "• **時機**：建議於「盤前」查看，精準鎖定波段黑馬！\n"
-            "*(註：單日多次掃描自動取最後一次狀態為主)*"
-        )
+        # 🎨 高質感戰情說明卡片 (獨立圖示與呼吸邊框)
+        st.markdown("""
+        <div style="background: linear-gradient(145deg, #1e293b, #0f172a); 
+                    border: 1px solid #334155; 
+                    border-left: 5px solid #38bdf8; 
+                    padding: 14px 16px; 
+                    border-radius: 10px; 
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+                <span style="font-size: 18px;">💡</span>
+                <span style="color: #38bdf8; font-size: 16px; font-weight: 800; letter-spacing: 0.5px;">連續鎖碼偵測指南</span>
+            </div>
+            <div style="color: #cbd5e1; font-size: 13.5px; line-height: 1.6; display: flex; flex-direction: column; gap: 6px;">
+                <div>🔍 <strong style="color: #f8fafc;">運作原理：</strong>篩選出連續 N 日觸發完全相同核心訊號的標的。</div>
+                <div>🛡️ <strong style="color: #f8fafc;">策略意義：</strong>有效過濾單日騙線，鎖定主力籌碼的高延續性。</div>
+                <div>⏰ <strong style="color: #f8fafc;">建議時機：</strong>適合<strong>「開盤前」</strong>審查，鎖定波段黑馬。</div>
+            </div>
+            <div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed #334155; color: #64748b; font-size: 12px;">
+                📌 <em>單日多次掃描將自動以最後一次狀態為準</em>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
     with col_main:
         # 左側：主要操作區塊 (包含雙分頁與資料處理)
