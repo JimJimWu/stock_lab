@@ -732,8 +732,9 @@ if 'selected_sid' not in st.session_state:
 def render_backtest_dashboard():
     import pandas as pd
     import os
-    
-    # 💥 【關鍵修復】：將過濾器移到最上方，讓後面的所有模組都能讀取到
+    import datetime
+
+    # 💥 【核心過濾器】：必須置於最頂部，供所有模組使用
     def force_clean(x):
         s = str(x)
         if "強勢突破" in s: return "🚨【強勢突破】"
@@ -741,16 +742,13 @@ def render_backtest_dashboard():
         if "出貨陷阱" in s: return "💀【出貨陷阱】"
         if "深水區潛龍" in s: return "🐉【深水區潛龍】"
         return "⚖️ 區間溫和"
-	
-    # ==============================================================================
-    # 💥 【無敵版：多日連續偵測模組 (雙欄排版 + 歷史時光機)】
-    # ==============================================================================
+
     st.markdown("### 🏹 連續鎖碼偵測中心")
     
     # 💥 建立左右雙欄排版 (左佔比 2.5，右佔比 1)
     col_main, col_info = st.columns([2.5, 1])
     
-   with col_info:
+    with col_info:
         # 🎨 美式機構級戰情說明卡片 (字體放大 + 詳細策略 + 高亮提示)
         st.markdown("""
         <div style="background: linear-gradient(145deg, #1e293b, #0f172a); 
@@ -785,12 +783,11 @@ def render_backtest_dashboard():
         """, unsafe_allow_html=True)
 
     with col_main:
-        # 左側：主要操作區塊 (包含雙分頁與資料處理)
         log_file_path = "signal_history_backtest.csv"
         
         if os.path.exists(log_file_path):
             try:
-                # 1. 讀取所有歷史資料 (忽略異常行)
+                # 1. 讀取歷史日誌 (略過異常行)
                 df_history = pd.read_csv(log_file_path, encoding="utf-8-sig", on_bad_lines='skip')
                 
                 if "日期時間" in df_history.columns and "股票代號" in df_history.columns and "核心訊號" in df_history.columns:
@@ -834,7 +831,7 @@ def render_backtest_dashboard():
                                 for item in consecutive_stocks:
                                     st.success(f"✅ {item}")
                             else:
-                                st.info(f"該區間內，暫無連續出現相同訊號的標的。")
+                                st.info("該區間內，暫無連續出現相同訊號的標的。")
 
                     # ---------------------------------------------------------
                     # 分頁 2：歷史時光機 (自由指定基準日往回推 N 天)
@@ -842,7 +839,6 @@ def render_backtest_dashboard():
                     with tab2:
                         col_d1, col_d2 = st.columns(2)
                         with col_d1:
-                            import datetime
                             default_date = all_available_dates[0] if all_available_dates else datetime.date.today()
                             base_date = st.date_input("📅 選擇歷史基準日", value=default_date)
                         with col_d2:
