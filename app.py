@@ -783,7 +783,8 @@ def render_backtest_dashboard():
         """, unsafe_allow_html=True)
 
     with col_main:
-        log_file_path = "signal_history_backtest.csv"
+		# 💥 【即時修復】改讀取 0 時差即時日誌，保證永遠抓到最新鮮的盤前/盤中訊號
+        log_file_path = "signal_history.csv"
         
         if os.path.exists(log_file_path):
             try:
