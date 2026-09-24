@@ -1016,7 +1016,10 @@ with st.sidebar:
         new_stock_input = st.selectbox("請輸入代號或名稱搜尋", options=search_options)
         
         if st.button("➕ 加入每日戰情室", use_container_width=True):
-            clean_new_sid = new_stock_input.split(" ")[0].strip()
+            # 1. 抽取代號並強制清除所有的 .TW 或 .TWO 後綴
+            raw_sid = new_stock_input.split(" ")[0].strip()
+            clean_new_sid = raw_sid.replace(".TW", "").replace(".TWO", "")
+            
             stock_name = full_market.get(clean_new_sid, "未知標的")
             formatted_name = f"{clean_new_sid} ({stock_name})"
             
@@ -1028,7 +1031,7 @@ with st.sidebar:
                 current_stocks[clean_new_sid] = formatted_name
                 save_stock_dict(current_stocks)
                 
-                # 💥 關鍵修復：同步更新記憶體，確保選單立刻讀得到且不消失
+                # 💥 同步更新記憶體，確保選單立刻讀得到且不消失
                 st.session_state['STOCK_DICT'] = current_stocks
                 st.session_state['selected_sid'] = clean_new_sid  # 自動切換到剛新增的標的
                 
@@ -1037,7 +1040,7 @@ with st.sidebar:
                 time.sleep(0.8)
                 st.rerun() # 立即重整頁面讓戰情室選單更新
             else:
-                st.warning("⚠️ 此標的已在自選清單中")
+                st.warning(f"⚠️ {clean_new_sid} 此標的已在自選清單中，請勿重複新增！")
 				
     # 3. 📅 歷史數據追蹤
     view_days = st.sidebar.slider("📅 歷史數據追蹤天數", 30, 240, 90)
