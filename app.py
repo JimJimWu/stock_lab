@@ -732,8 +732,17 @@ if 'selected_sid' not in st.session_state:
 def render_backtest_dashboard():
     import pandas as pd
     import os
+    
+    # 💥 【關鍵修復】：將過濾器移到最上方，讓後面的所有模組都能讀取到
+    def force_clean(x):
+        s = str(x)
+        if "強勢突破" in s: return "🚨【強勢突破】"
+        if "大戶惜售" in s: return "💎【大戶惜售】"
+        if "出貨陷阱" in s: return "💀【出貨陷阱】"
+        if "深水區潛龍" in s: return "🐉【深水區潛龍】"
+        return "⚖️ 區間溫和"
 	
-	# 💥 【完整版：連續偵測顯示模組】
+    # 💥 【完整版：連續偵測顯示模組】
     st.markdown("### 🏹 盤前黑馬連續鎖碼偵測")
     tracker_path = "tracker_state.json"
     
@@ -789,18 +798,6 @@ def render_backtest_dashboard():
         if not signal_col:
             st.error(f"找不到『核心訊號』欄位。目前欄位: {df.columns.tolist()}")
             return
-
-        # ==============================================================================
-        # 💥 【絕對過濾器】
-        # 這段代碼強制將所有資料內容轉成純文字，並重新進行嚴格分類
-        # ==============================================================================
-        def force_clean(x):
-            s = str(x)
-            if "強勢突破" in s: return "🚨【強勢突破】"
-            if "大戶惜售" in s: return "💎【大戶惜售】"
-            if "出貨陷阱" in s: return "💀【出貨陷阱】"
-            if "深水區潛龍" in s: return "🐉【深水區潛龍】"
-            return "⚖️ 區間溫和"
 
         df[signal_col] = df[signal_col].apply(force_clean)
 		# 2. 準備繪圖專用的乾淨 DataFrame (這就是 df_plot 的定義！)
