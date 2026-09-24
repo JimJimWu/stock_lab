@@ -743,104 +743,117 @@ def render_backtest_dashboard():
         return "⚖️ 區間溫和"
 	
     # ==============================================================================
-    # 💥 【無敵版：多日連續偵測模組 (支援最新與歷史時光機)】
+    # 💥 【無敵版：多日連續偵測模組 (雙欄排版 + 歷史時光機)】
     # ==============================================================================
     st.markdown("### 🏹 連續鎖碼偵測中心")
     
-    log_file_path = "signal_history_backtest.csv"
+    # 💥 建立左右雙欄排版 (左佔比 2.5，右佔比 1)
+    col_main, col_info = st.columns([2.5, 1])
     
-    if os.path.exists(log_file_path):
-        try:
-            # 1. 讀取所有歷史資料 (忽略異常行)
-            df_history = pd.read_csv(log_file_path, encoding="utf-8-sig", on_bad_lines='skip')
-            
-            if "日期時間" in df_history.columns and "股票代號" in df_history.columns and "核心訊號" in df_history.columns:
-                # 2. 清洗與轉換格式
-                df_history['日期'] = pd.to_datetime(df_history['日期時間']).dt.date
-                df_history['核心訊號'] = df_history['核心訊號'].apply(force_clean)
-                
-                # 3. 去除同一天重複掃描的雜訊，每天每檔股票只保留「最後一次」的訊號
-                df_daily = df_history.drop_duplicates(subset=['日期', '股票代號'], keep='last')
-                
-                # 4. 抓出全市場所有發生過掃描的交易日 (由新到舊排序)
-                all_available_dates = sorted(df_daily['日期'].unique(), reverse=True)
-                
-                # 💥 建立雙分頁系統：一個看最新，一個看歷史
-                tab1, tab2 = st.tabs(["🚀 最新盤前偵測", "⏪ 歷史時光機回測"])
-                
-                # ---------------------------------------------------------
-                # 分頁 1：最新盤前偵測 (永遠抓最新 N 天)
-                # ---------------------------------------------------------
-                with tab1:
-                    target_days = st.slider("🔥 選擇最近連續上榜天數", min_value=2, max_value=5, value=2, key="slider_latest")
-                    consecutive_stocks = []
-                    date_range_info = ""
-                    
-                    if len(all_available_dates) >= target_days:
-                        check_dates = all_available_dates[:target_days]
-                        start_date_str = min(check_dates).strftime("%m/%d")
-                        end_date_str = max(check_dates).strftime("%m/%d")
-                        date_range_info = f"(觸發區間: {start_date_str} ~ {end_date_str})"
-                        
-                        df_recent = df_daily[df_daily['日期'].isin(check_dates)]
-                        
-                        for ticker, group in df_recent.groupby('股票代號'):
-                            if len(group) == target_days and group['核心訊號'].nunique() == 1:
-                                signal_name = group['核心訊號'].iloc[0]
-                                stock_name = group['股票名稱'].iloc[0] if '股票名稱' in group.columns else ""
-                                consecutive_stocks.append(f"{ticker} {stock_name} - {signal_name}")
-                                
-                    with st.expander(f"查看最近 {target_days} 日連續上榜清單 {date_range_info}", expanded=True):
-                        if consecutive_stocks:
-                            for item in consecutive_stocks:
-                                st.success(f"✅ {item}")
-                        else:
-                            st.info(f"該區間內，暫無連續出現相同訊號的標的。")
+    with col_info:
+        # 右側：精簡版操作說明卡片
+        st.info(
+            "💡 **連續鎖碼偵測**\n\n"
+            "• **原理**：抓出連續 N 個交易日觸發「相同訊號」的標的。\n"
+            "• **意義**：過濾單日騙線雜訊，確認主力籌碼高度延續性。\n"
+            "• **時機**：建議於「盤前」查看，精準鎖定波段黑馬！\n"
+            "*(註：單日多次掃描自動取最後一次狀態為主)*"
+        )
 
-                # ---------------------------------------------------------
-                # 分頁 2：歷史時光機 (自由指定基準日往回推 N 天)
-                # ---------------------------------------------------------
-                with tab2:
-                    col_d1, col_d2 = st.columns(2)
-                    with col_d1:
-                        import datetime
-                        # 預設基準日為最新的一天
-                        default_date = all_available_dates[0] if all_available_dates else datetime.date.today()
-                        base_date = st.date_input("📅 選擇歷史基準日 (系統將從此日往回推算)", value=default_date)
-                    with col_d2:
-                        target_days_hist = st.slider("🔥 選擇歷史連續天數", min_value=2, max_value=5, value=2, key="slider_hist")
+    with col_main:
+        # 左側：主要操作區塊 (包含雙分頁與資料處理)
+        log_file_path = "signal_history_backtest.csv"
+        
+        if os.path.exists(log_file_path):
+            try:
+                # 1. 讀取所有歷史資料 (忽略異常行)
+                df_history = pd.read_csv(log_file_path, encoding="utf-8-sig", on_bad_lines='skip')
+                
+                if "日期時間" in df_history.columns and "股票代號" in df_history.columns and "核心訊號" in df_history.columns:
+                    # 2. 清洗與轉換格式
+                    df_history['日期'] = pd.to_datetime(df_history['日期時間']).dt.date
+                    df_history['核心訊號'] = df_history['核心訊號'].apply(force_clean)
                     
-                    consecutive_stocks_hist = []
-                    date_range_info_hist = ""
+                    # 3. 去除同一天重複掃描的雜訊，每天每檔股票只保留「最後一次」的訊號
+                    df_daily = df_history.drop_duplicates(subset=['日期', '股票代號'], keep='last')
                     
-                    # 過濾出所有「小於等於」基準日的歷史交易日
-                    past_dates = [d for d in all_available_dates if d <= base_date]
+                    # 4. 抓出全市場所有發生過掃描的交易日 (由新到舊排序)
+                    all_available_dates = sorted(df_daily['日期'].unique(), reverse=True)
                     
-                    if len(past_dates) >= target_days_hist:
-                        check_dates_hist = past_dates[:target_days_hist]
-                        start_date_str_h = min(check_dates_hist).strftime("%m/%d")
-                        end_date_str_h = max(check_dates_hist).strftime("%m/%d")
-                        date_range_info_hist = f"(觸發區間: {start_date_str_h} ~ {end_date_str_h})"
+                    # 建立雙分頁系統
+                    tab1, tab2 = st.tabs(["🚀 最新盤前偵測", "⏪ 歷史時光機回測"])
+                    
+                    # ---------------------------------------------------------
+                    # 分頁 1：最新盤前偵測 (永遠抓最新 N 天)
+                    # ---------------------------------------------------------
+                    with tab1:
+                        target_days = st.slider("🔥 選擇最近連續上榜天數", min_value=2, max_value=5, value=2, key="slider_latest")
+                        consecutive_stocks = []
+                        date_range_info = ""
                         
-                        df_hist_range = df_daily[df_daily['日期'].isin(check_dates_hist)]
-                        
-                        for ticker, group in df_hist_range.groupby('股票代號'):
-                            if len(group) == target_days_hist and group['核心訊號'].nunique() == 1:
-                                signal_name = group['核心訊號'].iloc[0]
-                                stock_name = group['股票名稱'].iloc[0] if '股票名稱' in group.columns else ""
-                                consecutive_stocks_hist.append(f"{ticker} {stock_name} - {signal_name}")
-                                
-                    with st.expander(f"查看歷史 {target_days_hist} 日連續上榜清單 {date_range_info_hist}", expanded=True):
-                        if consecutive_stocks_hist:
-                            for item in consecutive_stocks_hist:
-                                st.success(f"✅ {item}")
-                        else:
-                            st.info(f"在 {date_range_info_hist} 區間內，無連續出現相同訊號的標的。")
+                        if len(all_available_dates) >= target_days:
+                            check_dates = all_available_dates[:target_days]
+                            start_date_str = min(check_dates).strftime("%m/%d")
+                            end_date_str = max(check_dates).strftime("%m/%d")
+                            date_range_info = f"(觸發區間: {start_date_str} ~ {end_date_str})"
                             
-        except Exception as e:
-            st.error(f"連續偵測運算發生錯誤: {e}")
-    else:
-        st.warning("尚未產生回測日誌，無法進行連續偵測。")
+                            df_recent = df_daily[df_daily['日期'].isin(check_dates)]
+                            
+                            for ticker, group in df_recent.groupby('股票代號'):
+                                if len(group) == target_days and group['核心訊號'].nunique() == 1:
+                                    signal_name = group['核心訊號'].iloc[0]
+                                    stock_name = group['股票名稱'].iloc[0] if '股票名稱' in group.columns else ""
+                                    consecutive_stocks.append(f"{ticker} {stock_name} - {signal_name}")
+                                    
+                        with st.expander(f"查看最近 {target_days} 日連續上榜清單 {date_range_info}", expanded=True):
+                            if consecutive_stocks:
+                                for item in consecutive_stocks:
+                                    st.success(f"✅ {item}")
+                            else:
+                                st.info(f"該區間內，暫無連續出現相同訊號的標的。")
+
+                    # ---------------------------------------------------------
+                    # 分頁 2：歷史時光機 (自由指定基準日往回推 N 天)
+                    # ---------------------------------------------------------
+                    with tab2:
+                        col_d1, col_d2 = st.columns(2)
+                        with col_d1:
+                            import datetime
+                            default_date = all_available_dates[0] if all_available_dates else datetime.date.today()
+                            base_date = st.date_input("📅 選擇歷史基準日", value=default_date)
+                        with col_d2:
+                            target_days_hist = st.slider("🔥 選擇歷史連續天數", min_value=2, max_value=5, value=2, key="slider_hist")
+                        
+                        consecutive_stocks_hist = []
+                        date_range_info_hist = ""
+                        
+                        past_dates = [d for d in all_available_dates if d <= base_date]
+                        
+                        if len(past_dates) >= target_days_hist:
+                            check_dates_hist = past_dates[:target_days_hist]
+                            start_date_str_h = min(check_dates_hist).strftime("%m/%d")
+                            end_date_str_h = max(check_dates_hist).strftime("%m/%d")
+                            date_range_info_hist = f"(觸發區間: {start_date_str_h} ~ {end_date_str_h})"
+                            
+                            df_hist_range = df_daily[df_daily['日期'].isin(check_dates_hist)]
+                            
+                            for ticker, group in df_hist_range.groupby('股票代號'):
+                                if len(group) == target_days_hist and group['核心訊號'].nunique() == 1:
+                                    signal_name = group['核心訊號'].iloc[0]
+                                    stock_name = group['股票名稱'].iloc[0] if '股票名稱' in group.columns else ""
+                                    consecutive_stocks_hist.append(f"{ticker} {stock_name} - {signal_name}")
+                                    
+                        with st.expander(f"查看歷史 {target_days_hist} 日連續上榜清單 {date_range_info_hist}", expanded=True):
+                            if consecutive_stocks_hist:
+                                for item in consecutive_stocks_hist:
+                                    st.success(f"✅ {item}")
+                            else:
+                                st.info(f"在 {date_range_info_hist} 區間內，無連續出現相同訊號的標的。")
+                                
+            except Exception as e:
+                st.error(f"連續偵測運算發生錯誤: {e}")
+        else:
+            st.warning("尚未產生回測日誌，無法進行連續偵測。")
 		
     # --- 【新增：強制檢查模式】 ---(暫時註解，測是用)
     #st.subheader("🛠️ 系統診斷模式")
