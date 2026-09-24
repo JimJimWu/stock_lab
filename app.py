@@ -750,26 +750,36 @@ def render_backtest_dashboard():
     # 💥 建立左右雙欄排版 (左佔比 2.5，右佔比 1)
     col_main, col_info = st.columns([2.5, 1])
     
-    with col_info:
-        # 🎨 高質感戰情說明卡片 (獨立圖示與呼吸邊框)
+   with col_info:
+        # 🎨 美式機構級戰情說明卡片 (字體放大 + 詳細策略 + 高亮提示)
         st.markdown("""
         <div style="background: linear-gradient(145deg, #1e293b, #0f172a); 
                     border: 1px solid #334155; 
                     border-left: 5px solid #38bdf8; 
-                    padding: 14px 16px; 
-                    border-radius: 10px; 
-                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);">
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
-                <span style="font-size: 18px;">💡</span>
-                <span style="color: #38bdf8; font-size: 16px; font-weight: 800; letter-spacing: 0.5px;">連續鎖碼偵測指南</span>
+                    padding: 18px 20px; 
+                    border-radius: 12px; 
+                    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 14px; border-bottom: 1px solid #334155; padding-bottom: 10px;">
+                <span style="font-size: 22px;">🏹</span>
+                <span style="color: #38bdf8; font-size: 18px; font-weight: 900; letter-spacing: 0.5px;">連續鎖碼偵測核心指南</span>
             </div>
-            <div style="color: #cbd5e1; font-size: 13.5px; line-height: 1.6; display: flex; flex-direction: column; gap: 6px;">
-                <div>🔍 <strong style="color: #f8fafc;">運作原理：</strong>篩選出連續 N 日觸發完全相同核心訊號的標的。</div>
-                <div>🛡️ <strong style="color: #f8fafc;">策略意義：</strong>有效過濾單日騙線，鎖定主力籌碼的高延續性。</div>
-                <div>⏰ <strong style="color: #f8fafc;">建議時機：</strong>適合<strong>「開盤前」</strong>審查，鎖定波段黑馬。</div>
+            <div style="color: #e2e8f0; font-size: 15px; line-height: 1.7; display: flex; flex-direction: column; gap: 10px;">
+                <div>
+                    🔍 <strong style="color: #67e8f9;">運作原理：</strong>
+                    調閱歷史資料庫，過濾出最近 N 個交易日<strong>連續出現相同核心訊號</strong>（如連續突破或惜售）的極端強勢股。
+                </div>
+                <div>
+                    🛡️ <strong style="color: #a7f3d0;">策略意義：</strong>
+                    徹底消滅「單日一日遊」的假突破與騙線，確認主力大戶正在<strong>分批持續吸籌或強勢鎖碼</strong>。
+                </div>
+                <div>
+                    ⏰ <strong style="color: #fed7aa;">實戰時機：</strong>
+                    建議於<strong>每日開盤前（08:30）</strong>檢視最新名單，直接將其列為當日早盤核心重兵盯盤對象。
+                </div>
             </div>
-            <div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed #334155; color: #64748b; font-size: 12px;">
-                📌 <em>單日多次掃描將自動以最後一次狀態為準</em>
+            <div style="margin-top: 14px; padding: 8px 12px; background: rgba(250, 204, 21, 0.08); border: 1px solid rgba(250, 204, 21, 0.25); border-radius: 8px; color: #facc15; font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+                <span>📌</span>
+                <span>單日多次掃描將自動以最後一次狀態為準</span>
             </div>
         </div>
         """, unsafe_allow_html=True)
