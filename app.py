@@ -777,9 +777,14 @@ def run_single_scan_signal(sid, sname, webhook_url):
             ],
             "footer": {"text": f"秉諺的黑馬自動監控引擎 • 偵測時間: {now_time}"}
         }
-        send_discord_webhook(webhook_url, embed)
-        log_signal_to_csv(sid, sname, current_price, embed)
-        return f"{sname} ({sid}) 觸發推播"
+        # 💥 移除直接推播，改為打包字典回傳供後續排序
+        return {
+            "sid": sid,
+            "sname": sname,
+            "score": score,
+            "current_price": current_price,
+            "embed": embed
+        }
     return None
 # 💥 【全域作用域宣告】
 # ==============================================================================
@@ -1739,21 +1744,39 @@ if df is not None and not df.empty:
                 if success: st.success("✅ " + msg)
                 else: st.error("❌ " + msg)
 
-        with col_scan_btn:
-            if st.button("🔍 執行全體雷達大掃描", use_container_width=True, help="立即對您自選清單裡的所有股票進行技術與籌碼訊號的全面掃描。"):
-                with st.spinner("🚀 雷達深度掃描中..."):
-                    results = []
+       with col_scan_btn:
+            if st.button("🔍 執行全體雷達大掃描", use_container_width=True, help="對自選清單進行全面掃描，並依照【綜合火力評分】排序，僅推播前 10 名最精華標的。"):
+                with st.spinner("🚀 雷達深度掃描與火力評分中..."):
+                    daily_candidates = []
                     current_scan_dict = load_stock_dict()
+                    
+                    # 1. 收集所有過關名單
                     for sid, sname in current_scan_dict.items():
                         res = run_single_scan_signal(sid, sname, DEFAULT_DISCORD_WEBHOOK)
-                        if res: results.append(res)
-                        
+                        if res: 
+                            daily_candidates.append(res)
                         import time
-                        time.sleep(0.2)
+                        time.sleep(0.1) # 稍微降速避免 API 請求過快
                         
-                    if results:
-                        st.success(f"🎉 掃描完成！共推播了 {len(results)} 檔。")
-                        st.toast(f"✅ 成功推送 {len(results)} 檔黑馬至 Discord！", icon="🚀")
+                    if daily_candidates:
+                        # 2. 依照綜合火力評分 (score) 進行降冪排序
+                        daily_candidates.sort(key=lambda x: x['score'], reverse=True)
+                        
+                        # 3. 取出前 10 名 (如果少於 10 檔則全取)
+                        top_candidates = daily_candidates[:10]
+                        
+                        # 4. 執行發送與存檔
+                        for stock in top_candidates:
+                            send_discord_webhook(DEFAULT_DISCORD_WEBHOOK, stock['embed'])
+                            log_signal_to_csv(stock['sid'], stock['sname'], stock['current_price'], stock['embed'])
+                            time.sleep(0.5) # 發送 Discord 稍微延遲避免被擋
+                        
+                        # 如果有未上榜的，也把它們寫入 CSV 留存歷史 (但不推播 Discord)
+                        for stock in daily_candidates[10:]:
+                            log_signal_to_csv(stock['sid'], stock['sname'], stock['current_price'], stock['embed'])
+
+                        st.success(f"🎉 掃描完成！共發現 {len(daily_candidates)} 檔訊號，已為您精選並推播火力最強的 Top {len(top_candidates)} 檔。")
+                        st.toast(f"✅ 成功推送 {len(top_candidates)} 檔精華黑馬至 Discord！", icon="🚀")
                         st.balloons()
                         import time
                         time.sleep(2.5) 
