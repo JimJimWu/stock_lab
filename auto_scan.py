@@ -1,4 +1,4 @@
-    # ==============================================================================
+# ==============================================================================
 # 秉諺的黑馬雷達 - 背景自動無人值守掃描器 (auto_scan.py V35.1 - 綜合火力 Top10 版)
 # ==============================================================================
 import os
@@ -337,6 +337,7 @@ def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
             "sname": sname,
             "score": score,
             "current_price": current_price,
+            "status_msg": status_msg,  # 💥 新增這行：回傳純文字型態供精準比對    
             "embed": embed
         }
         
@@ -346,19 +347,15 @@ def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
 def run_all_scan():
     print(f"[{datetime.datetime.now()}] 開始執行背景自動掃描...")
     
-    # 💥 測試模式開關：設為 True 時只會掃前 5 檔，設為 False 則全掃
     TEST_MODE = False  
-    
     stock_dict = load_stock_dict()
     
     if not stock_dict:
         print("名單為空，停止掃描。")
         return
 
-    # 如果在測試模式下，強制將 stock_dict 縮減為前 5 檔
     if TEST_MODE:
         print("⚠️ [測試模式開啟]：只掃描前 5 檔，不執行全體掃描。")
-        # 將 dict 轉成 list 切片後再轉回 dict
         items = list(stock_dict.items())[:5]
         stock_dict = dict(items)
 
@@ -370,17 +367,14 @@ def run_all_scan():
     for sid, sname in stock_dict.items():
         try:
             result = scan_and_notify(sid, sname, DEFAULT_DISCORD_WEBHOOK, is_full_market)
-            
             if isinstance(result, dict):
                 daily_candidates.append(result)
                 elite_dict[sid] = sname
                 print(f"✅ {sname} 過關！分數：{result['score']}")
-                
             time.sleep(0.2) 
         except Exception as e:
             print(f"掃描 {sid} 發生錯誤: {e}")
 
-    # 寫入 radar_elite.json (供網頁端 Dashboard 顯示)
     if is_full_market and elite_dict:
         try:
             with open("radar_elite.json", "w", encoding="utf-8") as f:
@@ -388,42 +382,59 @@ def run_all_scan():
         except Exception as e:
             print(f"寫入 radar_elite.json 失敗: {e}")
 
-    # 修改 run_all_scan 的第二階段：
-    # 第二階段：擇優排序與推播
+    # =====================================================================
+    # 💥 第二階段：擇優排序與防重複推播機制 (V35.2 修正版)
+    # =====================================================================
     if daily_candidates:
         daily_candidates.sort(key=lambda x: x['score'], reverse=True)
         
-        # 讀取昨天的紀錄來比對「連續通報」
+        # 讀取昨天的紀錄
         last_day_path = "tracker_state.json"
-        last_day_signals = {}
+        tracker_data = {}
         if os.path.exists(last_day_path):
-            with open(last_day_path, 'r', encoding='utf-8') as f:
-                last_day_signals = json.load(f)
+            try:
+                with open(last_day_path, 'r', encoding='utf-8') as f:
+                    tracker_data = json.load(f)
+            except: pass
         
-        new_tracker_state = {}
+        # 取得上次掃描的日期與訊號
+        last_scan_date = tracker_data.get("date", "")
+        last_day_signals = tracker_data.get("signals", {})
+        
+        tz_tw = datetime.timezone(datetime.timedelta(hours=8))
+        today_date_str = datetime.datetime.now(tz_tw).strftime('%Y-%m-%d')
+        
+        new_signals = {}
         
         for stock in daily_candidates:
-            # 1. 全部都寫入 CSV (這樣前 10 名以外的股票也會有紀錄)
+            ticker = stock['sid']
+            signal_type = stock['status_msg']  # 💥 修正：使用純文字狀態比對，不使用 embed
+            
+            # 1. 全部寫入 CSV 留存歷史紀錄
             log_signal_to_csv(stock['sid'], stock['sname'], stock['current_price'], stock['embed'])
             
-            # 2. 檢測連續通報
-            ticker = stock['sid']
-            signal_type = stock['embed'] # 假設 embed 包含形態訊息
-            if ticker in last_day_signals and last_day_signals[ticker] == signal_type:
-                # 這裡發送一個特殊的 Discord 訊息，標註「連續通報」
-                send_discord_webhook(DEFAULT_DISCORD_WEBHOOK, f"🔥 **【連續鎖碼通知】** {stock['sname']} 連續兩日上榜！")
+            # 2. 檢測跨日連續通報 (必須是「不同天」掃描才算連續上榜)
+            if last_scan_date != today_date_str:
+                if ticker in last_day_signals and last_day_signals[ticker] == signal_type:
+                    send_discord_webhook(DEFAULT_DISCORD_WEBHOOK, f"🔥 **【連續鎖碼通知】** {stock['sname']} 連續多日維持 {signal_type}！")
             
-            new_tracker_state[ticker] = signal_type
+            new_signals[ticker] = signal_type
 
-            # 3. 只有 Top 10 才做 Discord 圖卡推播 (避免洗版)
+            # 3. Top 10 推播與「同日防洗版」攔截
             if stock in daily_candidates[:10]:
-                send_discord_webhook(DEFAULT_DISCORD_WEBHOOK, stock['embed'])
+                # 如果今天已經掃描過，且這檔股票的狀態跟剛才一模一樣，就攔截不發送！
+                is_duplicate_today = (last_scan_date == today_date_str) and (last_day_signals.get(ticker) == signal_type)
+                
+                if not is_duplicate_today:
+                    send_discord_webhook(DEFAULT_DISCORD_WEBHOOK, stock['embed'])
+                else:
+                    print(f"🛑 攔截重複推播：{stock['sname']} 今日已發送過相同狀態。")
             
             time.sleep(1)
         
-        # 儲存今天的狀態供明天比對
+        # 💥 將日期與訊號一併打包存檔，供下次檢查
         with open(last_day_path, 'w', encoding='utf-8') as f:
-            json.dump(new_tracker_state, f, ensure_ascii=False)           
+            json.dump({"date": today_date_str, "signals": new_signals}, f, ensure_ascii=False)            
         print("✅ 今日全體記錄與精華推播完成！")
 
 if __name__ == "__main__":
