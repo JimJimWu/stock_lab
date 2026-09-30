@@ -1743,8 +1743,7 @@ if df is not None and not df.empty:
                 success, msg = send_discord_webhook(DEFAULT_DISCORD_WEBHOOK, test_embed)
                 if success: st.success("✅ " + msg)
                 else: st.error("❌ " + msg)
-
-       with col_scan_btn:
+		with col_test_btn:
             if st.button("🔍 執行全體雷達大掃描", use_container_width=True, help="對自選清單進行全面掃描，並依照【綜合火力評分】排序，僅推播前 10 名最精華標的。"):
                 with st.spinner("🚀 雷達深度掃描與火力評分中..."):
                     daily_candidates = []
