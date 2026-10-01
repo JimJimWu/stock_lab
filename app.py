@@ -364,9 +364,9 @@ def log_signal_to_csv(sid, sname, price, embed):
         if "(" in sname and ")" in sname:
             pure_sname = sname.split("(")[1].split(")")[0]
             
-        # 萃取數據 (移除幽靈趨勢欄位)
-        desc = embed.get("description", "").replace("*", "").replace("`", "")
-        tech_vol = ""
+        # 💥 關鍵修復：為 description 加上 .replace("\n", " | ") 防止 CSV 跑版
+        desc = embed.get("description", "").replace("*", "").replace("`", "").replace("\n", " | ")
+        tech_v	ol = ""
         
         # 只抓取 Discord 實際有發送的「技術」欄位
         for field in embed.get("fields", []):
