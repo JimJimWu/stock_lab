@@ -35,7 +35,9 @@ def run_radar_backtest():
     print(f"🎬 開始執行多週期量化績效回補，總計 {total_signals} 筆訊號...\n")
 
     for idx, row in df.iterrows():
-        sid = str(row["股票代號"]).strip()
+        raw_sid = str(row["股票代號"]).strip()
+        # 💥 關鍵修復：強制剝除可能自帶的 .TW 或 .TWO，防止變成 2836.TW.TW
+        sid = raw_sid.split('.')[0]
         trigger_price = float(row["觸發價格"])
         trigger_time_str = str(row["日期時間"])
         
