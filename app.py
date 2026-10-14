@@ -853,7 +853,7 @@ def render_backtest_dashboard():
         """, unsafe_allow_html=True)
 
     with col_main:
-		# 💥 【即時修復】改讀取 0 時差即時日誌，保證永遠抓到最新鮮的盤前/盤中訊號
+        # 💥 【即時修復】改讀取 0 時差即時日誌，保證永遠抓到最新鮮的盤前/盤中訊號
         log_file_path = "signal_history.csv"
         
         if os.path.exists(log_file_path):
@@ -945,13 +945,7 @@ def render_backtest_dashboard():
                 st.error(f"連續偵測運算發生錯誤: {e}")
         else:
             st.warning("尚未產生回測日誌，無法進行連續偵測。")
-		
-    # --- 【新增：強制檢查模式】 ---(暫時註解，測是用)
-    #st.subheader("🛠️ 系統診斷模式")
-    #current_dir = os.getcwd()
-    #st.write(f"當前工作目錄: {current_dir}")
-    #st.write("目錄下的檔案列表:", os.listdir(current_dir))
-    
+
     st.markdown("---")
     st.markdown("## 📈 策略多週期持股勝率模擬分析儀")
     
@@ -960,81 +954,57 @@ def render_backtest_dashboard():
         st.warning(f"尚未偵測到 {file_path}，請確認回測引擎是否已執行完畢。")
         return    
     try:
-        # 強制讀取並忽略可能的解析錯誤
+        # 1. 讀取並清洗訊號名稱
         df = pd.read_csv(file_path, encoding="utf-8-sig", on_bad_lines='skip')
-        
-        # 自動找到訊號欄位
         signal_col = "核心訊號" if "核心訊號" in df.columns else ("訊號" if "訊號" in df.columns else None)
         if not signal_col:
             st.error(f"找不到『核心訊號』欄位。目前欄位: {df.columns.tolist()}")
             return
-
         df[signal_col] = df[signal_col].apply(force_clean)
-		# 2. 準備繪圖專用的乾淨 DataFrame (這就是 df_plot 的定義！)
-        reward_cols = [c for c in df.columns if "報酬率(%)" in c]
-        df_plot = df[[signal_col] + reward_cols].copy()
-		# 3. 確保報酬率轉為數字 (防止 0.0% 問題)
-        for col in reward_cols:
-            df_plot[col] = pd.to_numeric(df_plot[col].astype(str).str.replace('%', ''), errors='coerce').fillna(0)
-        
-        # 顯示一下過濾後的結果，檢查是否只剩下我們定義的那四種 (暫時註解，測是用)
-        #st.write("✅ 成功篩選出的策略類別:", df[signal_col].unique().tolist())
-        # ==============================================================================
-        # 💥 【新增：戰情室動態數據篩選器】
-        # ==============================================================================
-        # 確保有日期時間欄位才能進行時間篩選
+
+        # 2. 處理時間欄位
         if "日期時間" in df.columns:
             df['日期時間'] = pd.to_datetime(df['日期時間'])
+        
+        # 3. 戰情室動態數據篩選器 UI
+        col1, col2 = st.columns(2)
+        with col1:
+            import datetime
+            min_date = df['日期時間'].dt.date.min()
+            max_date = df['日期時間'].dt.date.max()
+            default_start = max(min_date, max_date - datetime.timedelta(days=30))
             
-            col1, col2 = st.columns(2)
-            with col1:
-                import datetime
-                min_date = df['日期時間'].dt.date.min()
-                max_date = df['日期時間'].dt.date.max()
-                # 如果歷史資料不足30天，就取最小日期
-                default_start = max(min_date, max_date - datetime.timedelta(days=30))
-                
-                selected_dates = st.date_input(
-                    "🗓️ 選擇回測區間",
-                    value=[default_start, max_date],
-                    min_value=min_date,
-                    max_value=max_date
-                )
+            selected_dates = st.date_input("🗓️ 選擇回測區間", value=[default_start, max_date], min_value=min_date, max_value=max_date)
 
-            with col2:
-                available_signals = df[signal_col].dropna().unique().tolist()
-                selected_signals = st.multiselect(
-                    "🎯 選擇欲分析的訊號型態",
-                    options=available_signals,
-                    default=available_signals
-                )
+        with col2:
+            available_signals = df[signal_col].dropna().unique().tolist()
+            selected_signals = st.multiselect("🎯 選擇欲分析的訊號型態", options=available_signals, default=available_signals)
 
-            # 執行 DataFrame 覆寫過濾
-            if len(selected_dates) == 2:
-                start_date, end_date = selected_dates
-                df = df[
-                    (df['日期時間'].dt.date >= start_date) & 
-                    (df['日期時間'].dt.date <= end_date) &
-                    (df[signal_col].isin(selected_signals))
-                ]
-            elif len(selected_dates) == 1:
-                start_date = selected_dates[0]
-                df = df[
-                    (df['日期時間'].dt.date == start_date) &
-                    (df[signal_col].isin(selected_signals))
-                ]
-                
-        # 🛡️ 防呆：如果篩選後沒有任何資料，提早結束避免畫圖報錯
+        # 4. 執行 DataFrame 過濾
+        if len(selected_dates) == 2:
+            start_date, end_date = selected_dates
+            df = df[(df['日期時間'].dt.date >= start_date) & (df['日期時間'].dt.date <= end_date) & (df[signal_col].isin(selected_signals))]
+        elif len(selected_dates) == 1:
+            start_date = selected_dates[0]
+            df = df[(df['日期時間'].dt.date == start_date) & (df[signal_col].isin(selected_signals))]
+            
         if df.empty:
             st.warning("⚠️ 在目前的篩選條件下，沒有找到任何符合的回測數據。")
             return
-        # ==============================================================================
-            
-       # 4. 繪圖
+
+        # 💥 5. 關鍵修復：把準備 df_plot 的動作，移到「過濾完成之後」才執行！
+        reward_cols = [c for c in df.columns if "報酬率(%)" in c]
+        df_plot = df[[signal_col] + reward_cols].copy()
+        
+        # 確保報酬率轉為數字 (防止 0.0% 或字串問題)
+        for col in reward_cols:
+            df_plot[col] = pd.to_numeric(df_plot[col].astype(str).str.replace('%', ''), errors='coerce').fillna(0)
+
+        # 6. 繪圖
         periods = ["T+1", "T+3", "T+5", "T+10", "T+20"]
         fig = go.Figure()
-        colors = ["#FF4B4B", "#00CC96", "#AB63FA", "#FFA15A", "#FFD700"]	
-        
+        colors = ["#FF4B4B", "#00CC96", "#AB63FA", "#FFA15A", "#FFD700"] 
+
         grouped = df_plot.groupby(signal_col)
         for i, (signal_name, group_df) in enumerate(grouped):
             win_rates = []
@@ -1054,23 +1024,20 @@ def render_backtest_dashboard():
                 marker=dict(size=10)
             ))
             
-# 💥 請確保 fig 的 f，跟上面 for 的 f 完美垂直對齊！
         fig.update_layout(
             title="不同訊號之多週期勝率演變交叉圖", 
             xaxis_title="持有週期", 
             yaxis_title="勝率 (%)",
-            yaxis=dict(range=[0, 110]), 	
+            yaxis=dict(range=[0, 110]),     
             hovermode="x unified",
             legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5),
             margin=dict(l=20, r=20, t=60, b=120)
         )
         
-        # 下方的 st.plotly_chart 也要跟著對齊
         st.plotly_chart(fig, use_container_width=True)
         st.info("💡 **分析洞察**：觀察兩條線的交叉點。若『量能爆發』在中後期勝率快速下滑，而『大戶惜售』勝率穩步上升，即完美印證了短跑選手與馬拉松選手的策略差異。")
     except Exception as e:
         st.error(f"儀表板渲染失敗: {e}")
-
 # ==============================================================================
 # 側邊欄與視角切換控制
 # ==============================================================================
@@ -1412,9 +1379,7 @@ with st.sidebar:
                 except Exception as e:
                     st.error(f"上傳失敗: {e}")
         else:
-            st.info("💡 雲端尚未生成回測紀錄。")
-            
-               
+            st.info("💡 雲端尚未生成回測紀錄。")                          
 # ==============================================================================
 # --- 數據加載線 (外掛 - 必須靠最左邊) ---
 # ==============================================================================
