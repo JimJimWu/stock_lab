@@ -605,25 +605,119 @@ def get_yahoo_web_quote_from_df(sid, df):
             
     return quote
 # 獲取 yfinance 基本面數據
-@st.cache_data(ttl=600) 
-def get_analysis_data(sid):
+@st.cache_data(ttl=3600) # 財報數據變動頻率低，快取 1 小時節省資源
+def get_financial_margin_trend(sid):
+    """
+    抓取近 3~4 年【年度毛利率趨勢】與【近四季季度毛利率】，
+    實作『跨年成長趨勢 + 單季逆風容錯』判定邏輯。
+    """
+    sid = str(sid).split('(')[0].split(' ')[0].strip()
     suffixes = [".TWO", ".TW"] if sid in ["3595", "7853", "3081"] or len(sid) == 6 else [".TW", ".TWO"]
+    
+    result = {
+        "has_data": False,
+        "latest_gm": "N/A",           # 最新毛利率 (%)
+        "latest_opm": "N/A",          # 最新營業利益率 (%)
+        "annual_gm_dict": {},         # 歷年毛利率 {"2023": 25.1, "2024": 28.4, ...}
+        "quarterly_gm_dict": {},      # 近四季毛利率 {"2025Q3": 30.1, ...}
+        "gm_3y_diff": 0.0,            # 近幾年毛利率總成長幅度 (百分點)
+        "annual_rev_cagr": 0.0,       # 年度營收成長幅度 (%)
+        "is_long_term_growth": False, # 長線(年度)是否正成長
+        "is_q_dip_opportunity": False,# 是否為「單季下滑、長線成長」的季節性買點
+        "status_tag": "⚖️ 財報中性",
+        "diagnosis_text": "【資料不足，無法確認】"
+    }
+
     for suffix in suffixes:
         try:
             ticker = yf.Ticker(f"{sid}{suffix}")
-            info = ticker.info
-            if info:
-                eps_val = info.get("trailingEps")
-                return {
-                    "EPS": eps_val if eps_val else "N/A",
-                    "營久成長率": info.get('revenueGrowth', 0),
-                    "負債比": info.get('debtToEquity', 0),
-                    "ROE": f"{round(info.get('returnOnEquity', 0)*100, 2)}%" if info.get('returnOnEquity') else "N/A",
-                    "本益比": round(info.get("trailingPE", 0), 2) if info.get("trailingPE") else "N/A",
-                    "法人持股": (info.get("heldPercentInstitutions", 0) or 0) * 100
-                }
-        except: continue
-    return None
+            info = ticker.info or {}
+            
+            # 1. 先從 info 取得最新快照作為保底
+            if info.get("grossMargins"):
+                result["latest_gm"] = round(float(info["grossMargins"]) * 100, 2)
+            if info.get("operatingMargins"):
+                result["latest_opm"] = round(float(info["operatingMargins"]) * 100, 2)
+
+            # 2. 抓取【年度損益表】計算跨年毛利率與營收趨勢
+            ann_stmt = ticker.income_stmt
+            if ann_stmt is not None and not ann_stmt.empty:
+                if "Gross Profit" in ann_stmt.index and "Total Revenue" in ann_stmt.index:
+                    # 依時間由舊到新排序
+                    ann_cols = sorted(ann_stmt.columns)
+                    ann_gms = {}
+                    ann_revs = {}
+                    for col in ann_cols:
+                        yr_str = str(col.year)
+                        gp = ann_stmt.loc["Gross Profit", col]
+                        rev = ann_stmt.loc["Total Revenue", col]
+                        if pd.notna(gp) and pd.notna(rev) and float(rev) > 0:
+                            ann_gms[yr_str] = round((float(gp) / float(rev)) * 100, 2)
+                            ann_revs[yr_str] = float(rev)
+                    
+                    if len(ann_gms) >= 2:
+                        result["has_data"] = True
+                        result["annual_gm_dict"] = ann_gms
+                        yrs = list(ann_gms.keys())
+                        
+                        # 計算跨年度毛利率變化 (最新完整年度 vs 最早年度 或 前一年度)
+                        first_gm, last_gm = ann_gms[yrs[0]], ann_gms[yrs[-1]]
+                        prev_gm = ann_gms[yrs[-2]]
+                        result["gm_3y_diff"] = round(last_gm - first_gm, 2)
+                        
+                        # 計算年度營收成長率
+                        first_rev, last_rev = ann_revs[yrs[0]], ann_revs[yrs[-1]]
+                        if first_rev > 0:
+                            result["annual_rev_cagr"] = round(((last_rev - first_rev) / first_rev) * 100, 2)
+                        
+                        # 判定長線是否成長：最新年度毛利率高於首年(或前年)，且年度營收正成長
+                        if (last_gm >= first_gm or last_gm >= prev_gm) and result["annual_rev_cagr"] > 0:
+                            result["is_long_term_growth"] = True
+
+            # 3. 抓取【季度損益表】檢視單季波動 (Q1~Q4 季節性檢驗)
+            q_stmt = ticker.quarterly_income_stmt
+            q_rev_yoy = info.get("revenueGrowth", 0) or 0
+            if q_stmt is not None and not q_stmt.empty:
+                if "Gross Profit" in q_stmt.index and "Total Revenue" in q_stmt.index:
+                    q_cols = sorted(q_stmt.columns)[-4:] # 取最近四季
+                    q_gms = {}
+                    for col in q_cols:
+                        q_label = f"{col.year}-Q{(col.month-1)//3 + 1}"
+                        gp = q_stmt.loc["Gross Profit", col]
+                        rev = q_stmt.loc["Total Revenue", col]
+                        if pd.notna(gp) and pd.notna(rev) and float(rev) > 0:
+                            q_gms[q_label] = round((float(gp) / float(rev)) * 100, 2)
+                    result["quarterly_gm_dict"] = q_gms
+
+            # 4. 綜合判定：區分「全面爆發」、「單季逆風但整年成長(黃金坑)」、「結構衰退」
+            if result["has_data"]:
+                q_vals = list(result["quarterly_gm_dict"].values())
+                is_recent_q_dip = (q_rev_yoy < 0) or (len(q_vals) >= 2 and q_vals[-1] < q_vals[-2])
+                
+                if result["is_long_term_growth"] and not is_recent_q_dip:
+                    result["status_tag"] = "🚀 長線毛利與營收雙成長"
+                    result["diagnosis_text"] = (
+                        f"歷年毛利率變動 {result['gm_3y_diff']:+.2f}%，多年度營收成長 {result['annual_rev_cagr']:+.1f}%。\n"
+                        "長線與單季基本面同步擴張，具備強勁基本面推升動能！"
+                    )
+                elif result["is_long_term_growth"] and is_recent_q_dip:
+                    result["is_q_dip_opportunity"] = True
+                    result["status_tag"] = "💎 長線成長・單季逆風黃金坑"
+                    result["diagnosis_text"] = (
+                        f"雖近期單季表現短暫回檔，但跨年度毛利率成長 {result['gm_3y_diff']:+.2f}%、整年度營收趨勢正成長 ({result['annual_rev_cagr']:+.1f}%)。\n"
+                        "符合『單季休整、全年正相關』特徵，回測均線支撐時具長線保護傘！"
+                    )
+                else:
+                    result["status_tag"] = "⚠️ 長線毛利或營收趨緩"
+                    result["diagnosis_text"] = (
+                        f"跨年度毛利率變動 {result['gm_3y_diff']:+.2f}%，年度營收變動 {result['annual_rev_cagr']:+.1f}%。\n"
+                        "目前尚未出現跨年度結構性擴張，操作宜嚴守技術面與籌碼防線。"
+                    )
+                break
+        except Exception as e:
+            continue
+
+    return result
 
 # 掛單專用 (💥 完全移除 10 倍乘數)
 @st.cache_data(ttl=5)
@@ -1665,7 +1759,9 @@ if df is not None and not df.empty:
                 chip_results["inst_card_type"]
             )
 
-        # 👉 右邊放財務卡片
+        # 👉 在數據加載線 (約第 472 行) 新增呼叫：
+		fin_trend = get_financial_margin_trend(clean_sid)
+		# 👉 右邊放財務卡片
         with col_fin_card:
             if a_data:
                 eps_val = a_data.get('EPS', 'N/A')
@@ -1674,16 +1770,32 @@ if df is not None and not df.empty:
                 debt_val = a_data.get('負債比')
                 inst_hold = a_data.get('法人持股')
                 debt_text = f"{round(debt_val, 1)}%" if (debt_val and isinstance(debt_val, (int, float)) and debt_val != 0) else "N/A"
-                
+				# 整合毛利率與跨年度趨勢
+				ann_gm_str = " ➔ ".join([f"{k[-2:]}年:{v}%" for k, v in fin_trend["annual_gm_dict"].items()]) if fin_trend["annual_gm_dict"] else f"最新: {fin_trend['latest_gm']}%"
+				card_color = "success" if fin_trend["is_long_term_growth"] else "warning"
+		
                 custom_diagnostic_card(
-                    "👥 主力大戶持股與核心財務",
-                    f"👥 法人大戶持股比： {round(inst_hold, 1) if (inst_hold and isinstance(inst_hold, (int,float))) else '0.0'}%\n"
+                    f"🏢 核心財報與毛利趨勢：{fin_trend['status_tag']}",
+					f"📈 歷年毛利率軌跡： {ann_gm_str}\n"
+					f"🎯 跨年成長診斷： {fin_trend['diagnosis_text']}\n"
+					f"───────────────\n"
+                    f"👥 法人大戶持股比： {round(inst_hold, 1) if (inst_hold and isinstance(inst_hold, (int,float))) else '0.0'}%  |  💵 預估年化 EPS： {eps_val} 元\n"
                     f"💵 預估年化 EPS： {eps_val if eps_val != 'N/A' else 'N/A'} 元\n"
                     f"📊 股東權益報酬率 ROE： {roe_val if roe_val != 'N/A' else 'N/A'}\n"
-                    f"⚡ 市場預估本益比 PE： {pe_val if pe_val != 'N/A' else 'N/A'} 倍\n"
-                    f"⚖️ 企業負債比率： {debt_text}",
-                    "warning"
+                    f"📊 股東權益報酬 ROE： {roe_val}  |  ⚡ 預估本益比 PE： {pe_val} 倍",
+					card_color
                 )
+				if fin_trend["annual_gm_dict"] or fin_trend["quarterly_gm_dict"]:
+					with st.expander("📊 點擊展開【跨年度 vs 近四季毛利率】對照圖（檢視單季淡旺季與全年趨勢）"):
+						t_col1, t_col2 = st.columns(2)
+						with t_col1:
+							st.caption("📅 近幾年【整年度】毛利率趨勢 (%)")
+							if fin_trend["annual_gm_dict"]:
+								st.bar_chart(pd.Series(fin_trend["annual_gm_dict"], name="年度毛利率(%)"))
+								with t_col2:
+									st.caption("📆 最近四季【單季】毛利率波動 (%)")
+									if fin_trend["quarterly_gm_dict"]:
+										st.line_chart(pd.Series(fin_trend["quarterly_gm_dict"], name="單季毛利率(%)"))
 		# 戰情推播控制台 - 移至右側圖表下方
         st.divider() 
         st.markdown("""<div style="background: linear-gradient(135deg, #1e293b, #0f172a); padding: 20px; border-radius: 12px; border: 1px solid #475569; margin-top: 15px;">
