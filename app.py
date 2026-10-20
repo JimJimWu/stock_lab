@@ -1759,11 +1759,9 @@ if df is not None and not df.empty:
                 chip_results["inst_card_type"]
             )
 
-        
-		# 👉 右邊放財務卡片
+        # 👉 右邊放財務卡片
         with col_fin_card:
-			# 👉 在數據加載線 (約第 472 行) 新增呼叫：
-			fin_trend = get_financial_margin_trend(clean_sid)
+            fin_trend = get_financial_margin_trend(clean_sid)
             if a_data:
                 eps_val = a_data.get('EPS', 'N/A')
                 roe_val = a_data.get('ROE', 'N/A')
@@ -1771,32 +1769,34 @@ if df is not None and not df.empty:
                 debt_val = a_data.get('負債比')
                 inst_hold = a_data.get('法人持股')
                 debt_text = f"{round(debt_val, 1)}%" if (debt_val and isinstance(debt_val, (int, float)) and debt_val != 0) else "N/A"
-				# 整合毛利率與跨年度趨勢
-				ann_gm_str = " ➔ ".join([f"{k[-2:]}年:{v}%" for k, v in fin_trend["annual_gm_dict"].items()]) if fin_trend["annual_gm_dict"] else f"最新: {fin_trend['latest_gm']}%"
-				card_color = "success" if fin_trend["is_long_term_growth"] else "warning"
-		
+                
+                # 整合毛利率與跨年度趨勢
+                ann_gm_str = " ➔ ".join([f"{k[-2:]}年:{v}%" for k, v in fin_trend["annual_gm_dict"].items()]) if fin_trend["annual_gm_dict"] else f"最新: {fin_trend['latest_gm']}%"
+                card_color = "success" if fin_trend["is_long_term_growth"] else "warning"
+
                 custom_diagnostic_card(
                     f"🏢 核心財報與毛利趨勢：{fin_trend['status_tag']}",
-					f"📈 歷年毛利率軌跡： {ann_gm_str}\n"
-					f"🎯 跨年成長診斷： {fin_trend['diagnosis_text']}\n"
-					f"───────────────\n"
+                    f"📈 歷年毛利率軌跡： {ann_gm_str}\n"
+                    f"🎯 跨年成長診斷： {fin_trend['diagnosis_text']}\n"
+                    f"───────────────\n"
                     f"👥 法人大戶持股比： {round(inst_hold, 1) if (inst_hold and isinstance(inst_hold, (int,float))) else '0.0'}%  |  💵 預估年化 EPS： {eps_val} 元\n"
-                    f"💵 預估年化 EPS： {eps_val if eps_val != 'N/A' else 'N/A'} 元\n"
-                    f"📊 股東權益報酬率 ROE： {roe_val if roe_val != 'N/A' else 'N/A'}\n"
-                    f"📊 股東權益報酬 ROE： {roe_val}  |  ⚡ 預估本益比 PE： {pe_val} 倍",
-					card_color
+                    f"📊 股東權益報酬 ROE： {roe_val}  |  ⚡ 預估本益比 PE： {pe_val} 倍\n"
+                    f"⚖️ 企業負債比率： {debt_text}",
+                    card_color
                 )
-				if fin_trend["annual_gm_dict"] or fin_trend["quarterly_gm_dict"]:
-					with st.expander("📊 點擊展開【跨年度 vs 近四季毛利率】對照圖（檢視單季淡旺季與全年趨勢）"):
-						t_col1, t_col2 = st.columns(2)
-						with t_col1:
-							st.caption("📅 近幾年【整年度】毛利率趨勢 (%)")
-							if fin_trend["annual_gm_dict"]:
-								st.bar_chart(pd.Series(fin_trend["annual_gm_dict"], name="年度毛利率(%)"))
-								with t_col2:
-									st.caption("📆 最近四季【單季】毛利率波動 (%)")
-									if fin_trend["quarterly_gm_dict"]:
-										st.line_chart(pd.Series(fin_trend["quarterly_gm_dict"], name="單季毛利率(%)"))
+                
+                # 展開查看「年度 vs 單季」毛利率對照小圖表
+                if fin_trend["annual_gm_dict"] or fin_trend["quarterly_gm_dict"]:
+                    with st.expander("📊 點擊展開【跨年度 vs 近四季毛利率】對照圖（檢視單季淡旺季與全年趨勢）"):
+                        t_col1, t_col2 = st.columns(2)
+                        with t_col1:
+                            st.caption("📅 近幾年【整年度】毛利率趨勢 (%)")
+                            if fin_trend["annual_gm_dict"]:
+                                st.bar_chart(pd.Series(fin_trend["annual_gm_dict"], name="年度毛利率(%)"))
+                        with t_col2:
+                            st.caption("📆 最近四季【單季】毛利率波動 (%)")
+                            if fin_trend["quarterly_gm_dict"]:
+                                st.line_chart(pd.Series(fin_trend["quarterly_gm_dict"], name="單季毛利率(%)"))
 		# 戰情推播控制台 - 移至右側圖表下方
         st.divider() 
         st.markdown("""<div style="background: linear-gradient(135deg, #1e293b, #0f172a); padding: 20px; border-radius: 12px; border: 1px solid #475569; margin-top: 15px;">
