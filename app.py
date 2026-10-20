@@ -1760,7 +1760,7 @@ if df is not None and not df.empty:
             )
 
         # 👉 在數據加載線 (約第 472 行) 新增呼叫：
-		fin_trend = get_financial_margin_trend(clean_sid)
+fin_trend = get_financial_margin_trend(clean_sid)
 		# 👉 右邊放財務卡片
         with col_fin_card:
             if a_data:
