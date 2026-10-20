@@ -604,6 +604,26 @@ def get_yahoo_web_quote_from_df(sid, df):
             quote["prev_close"] = float(df.iloc[-2]['Close'])
             
     return quote
+@st.cache_data(ttl=600)
+def get_analysis_data(sid):
+    suffixes = [".TWO", ".TW"] if sid in ["3595", "7853", "3081"] or len(sid) == 6 else [".TW", ".TWO"]
+    for suffix in suffixes:
+        try:
+            ticker = yf.Ticker(f"{sid}{suffix}")
+            info = ticker.info
+            if info:
+                eps_val = info.get("trailingEps")
+                return {
+                    "EPS": eps_val if eps_val else "N/A",
+                    "營收成長率": info.get('revenueGrowth', 0),
+                    "負債比": info.get('debtToEquity', 0),
+                    "ROE": f"{round(info.get('returnOnEquity', 0)*100, 2)}%" if info.get('returnOnEquity') else "N/A",
+                    "本益比": round(info.get("trailingPE", 0), 2) if info.get("trailingPE") else "N/A",
+                    "法人持股": (info.get("heldPercentInstitutions", 0) or 0) * 100
+                }
+        except Exception:
+            continue
+    return None	
 # 獲取 yfinance 基本面數據
 @st.cache_data(ttl=3600) # 財報數據變動頻率低，快取 1 小時節省資源
 def get_financial_margin_trend(sid):
