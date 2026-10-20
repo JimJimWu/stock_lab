@@ -184,15 +184,18 @@ def send_discord_webhook(webhook_url, embed_data):
         print(f"發送 Discord 失敗: {e}")
         return False
 
-# 💥 【V34.1 新增：綜合爆發力評分引擎 (籌碼 60% / 量能 40%)】
-def calculate_composite_score(net_5d, volume_ratio):
+def calculate_composite_score(net_5d, volume_ratio, is_long_term_growth=False, is_q_dip=False):
     if net_5d is None: net_5d = 0
     if volume_ratio is None: volume_ratio = 1.0
 
     chip_score = min(max((net_5d / 3000.0) * 100, 0), 100)
     vol_score = min(max((volume_ratio - 1.15) / (3.0 - 1.15) * 100, 0), 100)
-    total_score = (chip_score * 0.6) + (vol_score * 0.4)
-    return round(total_score, 2)
+
+    # 基礎技術籌碼分 (85% 權重) + 財報毛利長線成長加分 (15% 權重)
+    base_score = (chip_score * 0.5) + (vol_score * 0.35)
+    fin_bonus = 15.0 if is_long_term_growth else (10.0 if is_q_dip else 0.0)
+
+    return round(min(base_score + fin_bonus, 100.0), 2)
 
 # 💥 【V35.0 完美同步：自動化背景監控引擎 (Top 10 版本)】
 def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
