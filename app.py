@@ -1759,10 +1759,11 @@ if df is not None and not df.empty:
                 chip_results["inst_card_type"]
             )
 
-        # 👉 在數據加載線 (約第 472 行) 新增呼叫：
-fin_trend = get_financial_margin_trend(clean_sid)
+        
 		# 👉 右邊放財務卡片
         with col_fin_card:
+			# 👉 在數據加載線 (約第 472 行) 新增呼叫：
+			fin_trend = get_financial_margin_trend(clean_sid)
             if a_data:
                 eps_val = a_data.get('EPS', 'N/A')
                 roe_val = a_data.get('ROE', 'N/A')
