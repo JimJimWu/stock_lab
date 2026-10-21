@@ -136,7 +136,13 @@ def generate_ai_insights(company_name, summary):
     source_url = f"https://www.google.com/search?q=台股+{ticker}+{pure_name}+產業分析"
 
     # 備援模型清單：2.5-flash 額度耗盡時，依序自動切換
-    candidate_models = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-1.5-pro']
+    # 修正相容名稱，避免 404
+    candidate_models = [
+        'gemini-2.5-flash',
+        'gemini-2.0-flash',
+        'gemini-1.5-flash-latest',
+        'gemini-pro'
+    ]
     
     last_err = ""
     for model_name in candidate_models:
