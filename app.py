@@ -1551,26 +1551,158 @@ if df is not None and not df.empty:
     clean_prices = get_yahoo_web_quote_from_df(clean_sid, df)
     current_price = clean_prices["current"]
     prev_price = clean_prices["prev_close"]
-        
+    
     diff = round(current_price - prev_price, 2)
-    m_color = "normal" if diff >= 0 else "inverse"
+    diff_pct = round((diff / prev_price) * 100, 2) if prev_price > 0 else 0
+    price_color = "#ef4444" if diff > 0 else ("#10b981" if diff < 0 else "white")
+    arrow = "▲" if diff > 0 else ("▼" if diff < 0 else "-")
     
-    # 💥 全局唯一一次的分欄宣告！
-    col_left, col_right = st.columns([1, 3])
+    today_open = float(last['Open'])
+    today_high = float(last['High'])
+    today_low = float(last['Low'])
+    today_volume = last['Volume']
+    vol_ma5 = last['Vol_MA5']
     
-    # ==========================================
-    # 👈 【左側區塊】：放所有的文字、數據、卡片
-    # ==========================================
-    with col_left:
-        #st.markdown("### 🛡️ 技術防線")
+    vol_ratio = (today_volume / vol_ma5) if vol_ma5 > 0 else 1
+    vol_ratio_pct = round(vol_ratio * 100, 1)
+
+    # 1. 莊家防守成本線計算
+    try:
+        temp_df = df.tail(60).copy()
+        top_3_vol_days = temp_df.nlargest(3, 'Volume')
+        calculated_support = round(top_3_vol_days['Low'].mean(), 1)
+        if 0.75 * current_price <= calculated_support <= 1.02 * current_price:
+            weighted_support = calculated_support
+        else:
+            recent_low = round(df.tail(10)['Low'].min(), 1)
+            if 0.75 * current_price <= recent_low <= 1.02 * current_price:
+                weighted_support = recent_low
+            else:
+                weighted_support = round(current_price * 0.95, 1)
+    except Exception:
+        weighted_support = round(current_price * 0.95, 1)
+
+    # 2. 量能動態標籤判定
+    if vol_ratio > 1.5:
+        vol_diag_msg = "⚡ 量能爆發"
+        vol_diag_card_info = ("⚡ 【量能爆發】", "多空強烈表態，留意高階突破動能！", "success")
+    elif vol_ratio < 0.7:
+        is_above_ma5 = current_price >= last['MA5']
+        is_strong_rsi = last['RSI'] >= 50
+        inst_percent = a_data['法人持股'] if (a_data and a_data['法人持股'] != 'N/A') else 0
+        if is_above_ma5 and (is_strong_rsi or inst_percent > 15):
+            vol_diag_msg = "💎 大戶惜售 / 籌碼鎖定"
+            vol_diag_card_info = (
+                "💤 【量能明顯萎縮】",
+                "💎 診斷：【大戶惜售 / 籌碼鎖定】\n\n• 現狀分析：量能大幅萎縮，但價格頑強守在 MA5 防線之上，顯示籌碼已被莊家大戶鎖死，散戶賣壓基本出盡。\n• 戰術提示：此處的突破有 90% 以上為「洗盤後的真突破」。建議沿著 MA5 / MA10 移動停利，偏多看待。",
+                "warning"
+            )
+        else:
+            vol_diag_msg = "🥶 人氣退潮"
+            vol_diag_card_info = (
+                "💤 【量能明顯萎縮】",
+                "🥶 診斷：【人氣退潮 / 無人關注】\n\n• 現狀分析：量能萎縮且股價無力，跌破短期重要均線，市場炒作熱度退潮。\n• 戰術提示：此處拉高極大概率為「主力出貨的假突破」。建議嚴守紀律，切勿在此冒險接刀抄底。",
+                "error"
+            )
+    else:
+        vol_diag_msg = "⚖️ 量能溫和"
+        vol_diag_card_info = ("⚖️ 【量能溫和】", "正常健康換手，股價沿著原有技術阻力平穩震盪中。", "info")
+
+    # 3. 股票名稱與 RSI 狀態
+    plot_df = df.tail(view_days)
+    rsi_val = round(plot_df['RSI'].dropna().iloc[-1], 2) if not plot_df['RSI'].dropna().empty else 50.0
+    inst_val = a_data.get('法人持股', 0) if a_data else 0
+    chip_advice = " (大戶鎖碼中)" if inst_val > 25 else " (散戶主導中)"
+    
+    if rsi_val > 80: color, msg = "#ef4444", f"⚠️【高檔過熱：禁止追高{chip_advice}】"
+    elif rsi_val < 40: color, msg = "#10b981", f"✅【低檔安全：留意佈局{chip_advice}】"
+    else: color, msg = "#f59e0b", f"⚖️【區間震盪：觀望趨勢{chip_advice}】"
+
+    current_dict = load_stock_dict()
+    if clean_sid in current_dict:
+        sname = current_dict[clean_sid]
+        display_name = sname if clean_sid in sname else f"{clean_sid} {sname}"
+    else:
+        display_name = str(target_sid)
+
+    # ==============================================================================
+    # 🌟 【第 1 層：頂部全寬戰情大看板】(不再偏右，大器全寬置頂！)
+    # ==============================================================================
+    st.markdown(f"""<div style="background: linear-gradient(90deg, #111827, #000000); border-left: 10px solid {color}; padding: 18px 25px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 15px; border-top: 1px solid #1e293b; border-right: 1px solid #1e293b; border-bottom: 1px solid #1e293b;">
+<div style="min-width: 320px; display: flex; flex-direction: column; justify-content: space-between;">
+<div style="display: flex; align-items: baseline; gap: 15px; margin-bottom: 5px;">
+<h2 style="color:white; font-size: 32px; font-weight: 900; margin:0; letter-spacing: 1px;">{display_name}</h2>
+<span style="font-size: 18px; color: {color}; font-weight: bold; background-color: rgba(255,255,255,0.05); padding: 2px 10px; border-radius: 20px;">RSI: {rsi_val}</span>
+</div>
+<p style="color:{color}; font-size: 20px; font-weight: bold; margin: 5px 0 0 0;">
+{msg} <span style="color: #475569; margin: 0 10px;">|</span> 
+<span style="color: #e2e8f0; font-size: 16px; background-color: #1e293b; padding: 4px 12px; border-radius: 6px; border: 1px solid #475569; display: inline-block; vertical-align: middle;">{vol_diag_msg}</span>
+</p>
+</div>
+<div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap; justify-content: flex-end;">
+<div style="text-align: right; padding-right: 20px; border-right: 2px solid #334155;">
+<p style="color: #94a3b8; font-size: 12px; margin: 0 0 4px 0; font-weight: bold;">最新報價</p>
+<div style="display: flex; align-items: baseline; gap: 10px; justify-content: flex-end;">
+<span style="color: {price_color}; font-size: 38px; font-weight: 900; line-height: 1;">{round(current_price, 2)}</span>
+<span style="color: {price_color}; font-size: 18px; font-weight: bold;">{arrow} {abs(diff)} ({diff_pct}%)</span>
+</div>
+</div>
+<div style="display: flex; gap: 8px;">
+ <div style="background-color: #1e293b; width: 75px; padding: 8px 5px; border-radius: 8px; border: 1px solid #94a3b8; text-align: center;">
+ <p style="color: #cbd5e1; font-size: 11px; margin: 0;">昨收</p>
+ <p style="color: #e2e8f0; font-size: 17px; font-weight: bold; margin: 4px 0 0 0;">{round(prev_price, 2)}</p>
+ </div>
+ <div style="background-color: #1e293b; width: 75px; padding: 8px 5px; border-radius: 8px; border: 1px solid #38bdf8; text-align: center;">
+ <p style="color: #38bdf8; font-size: 11px; margin: 0;">開盤</p>
+ <p style="color: white; font-size: 17px; font-weight: bold; margin: 4px 0 0 0;">{round(today_open, 2)}</p>
+ </div>
+ <div style="background-color: #1e293b; width: 75px; padding: 8px 5px; border-radius: 8px; border: 1px solid #ef4444; text-align: center;">
+ <p style="color: #ef4444; font-size: 11px; margin: 0;">最高</p>
+ <p style="color: white; font-size: 17px; font-weight: bold; margin: 4px 0 0 0;">{round(today_high, 2)}</p>
+ </div>
+ <div style="background-color: #1e293b; width: 75px; padding: 8px 5px; border-radius: 8px; border: 1px solid #10b981; text-align: center;">
+ <p style="color: #10b981; font-size: 11px; margin: 0;">最低</p>
+ <p style="color: white; font-size: 17px; font-weight: bold; margin: 4px 0 0 0;">{round(today_low, 2)}</p>
+ </div>
+</div>
+</div>
+</div>""", unsafe_allow_html=True)
+
+    # ==============================================================================
+    # 🌟 【第 2 層：核心交易雙屏對齊】(左側 K線主圖 65% ＋ 右側即時盤口 35%)
+    # ==============================================================================
+    col_chart, col_telemetry = st.columns([2.6, 1.4])
+    
+    with col_chart:
+        fig = make_subplots(rows=4, cols=1, shared_xaxes=True, vertical_spacing=0.03, row_heights=[0.42, 0.12, 0.23, 0.23])
+        fig.add_trace(go.Candlestick(x=plot_df.index, open=plot_df['Open'], high=plot_df['High'], low=plot_df['Low'], close=plot_df['Close'], name="K線",
+            decreasing=dict(fillcolor='#10b981', line=dict(color='#10b981')),
+            increasing=dict(fillcolor='#ef4444', line=dict(color='#ef4444'))), row=1, col=1)
+        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA5'], name="5MA", line=dict(color='orange', width=1.5)), row=1, col=1)
+        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA10'], name="10MA", line=dict(color='#60a5fa', width=1.5)), row=1, col=1)
+        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA20'], name="20MA", line=dict(color='violet', width=1.5)), row=1, col=1)
+        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA60'], name="60MA (季線)", line=dict(color='#2dd4bf', width=2)), row=1, col=1)
+        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA240'], name="240MA (年線)", line=dict(color='#cbd5e1', width=2, dash='dot')), row=1, col=1)
+        fig.add_trace(go.Bar(x=plot_df.index, y=plot_df['Volume'], name="成交量", marker_color='#334155'), row=2, col=1)
         
-         #col_price_1, col_price_2 = st.columns(2)
-         #with col_price_1:
-             #st.metric("最新報價", f"{round(current_price, 2)}", f"{diff}", delta_color=m_color)
-         #with col_price_2:
-             #st.metric("昨日收盤", f"{round(prev_price, 2)}")
-        # 買賣掛單監控
-        st.divider()
+        m_colors = ['#ef4444' if x > 0 else '#10b981' for x in plot_df['MACD_Hist']]
+        fig.add_trace(go.Bar(x=plot_df.index, y=plot_df['MACD_Hist'], name="MACD柱", marker_color=m_colors), row=3, col=1)
+        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['DIF'], name="DIF", line=dict(color='cyan')), row=3, col=1)
+        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['DEA'], name="DEA", line=dict(color='yellow')), row=3, col=1)
+        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['K'], name="K值", line=dict(color='white')), row=4, col=1)
+        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['D'], name="D值", line=dict(color='yellow')), row=4, col=1)
+        
+        fig.update_layout(height=780, template="plotly_dark", xaxis_rangeslider_visible=False, hovermode="x unified",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+            margin=dict(l=10, r=10, t=40, b=10))
+        fig.update_xaxes(showspikes=True, spikecolor="gray", spikesnap="cursor", spikemode="across")
+        fig.update_yaxes(showspikes=True, spikecolor="gray", spikethickness=1)
+        for ax in fig.select_xaxes(): ax.update(showticklabels=True)
+        
+        st.plotly_chart(fig, use_container_width=True)
+
+    with col_telemetry:
+        # 1. 買賣掛單監控
         st.subheader("⚖️ 買賣掛單監控")
         col_b, col_a = st.columns(2)
         with col_b:
@@ -1589,85 +1721,25 @@ if df is not None and not df.empty:
             st.write("委買比例: `50.0%` vs 委賣比例: `50.0%`")
             st.progress(0.5)
 
-        # 量能動態診斷
+        # 2. 量能動態診斷
         st.divider()
         st.subheader("📊 量能動態診斷")
-        
-        today_volume = last['Volume']
-        vol_ma5 = last['Vol_MA5']
-        
-        vol_ratio = (today_volume / vol_ma5) if vol_ma5 > 0 else 1
-        vol_ratio_pct = round(vol_ratio * 100, 1)
-        st.write(f"今日成交量：`{round(today_volume, 1)}` 張")
-        st.write(f"5日均量：`{round(vol_ma5, 1)}` 張")
-        st.write(f"量能佔比：`{vol_ratio_pct}%`")
-        
-        # 莊家防守成本線
-        try:
-            temp_df = df.tail(60).copy()
-            top_3_vol_days = temp_df.nlargest(3, 'Volume')
-            calculated_support = round(top_3_vol_days['Low'].mean(), 1)
-            
-            if 0.75 * current_price <= calculated_support <= 1.02 * current_price:
-                weighted_support = calculated_support
-            else:
-                recent_low = round(df.tail(10)['Low'].min(), 1)
-                if 0.75 * current_price <= recent_low <= 1.02 * current_price:
-                    weighted_support = recent_low
-                else:
-                    weighted_support = round(current_price * 0.95, 1)
-        except:
-            weighted_support = round(current_price * 0.95, 1)
-            
-        if vol_ratio > 1.5:
-            vol_diag_msg = "⚡ 量能爆發"
-            custom_diagnostic_card("⚡ 【量能爆發】", "多空強烈表態，留意高階突破動能！", "success")
-        elif vol_ratio < 0.7:
-            is_above_ma5 = current_price >= last['MA5']
-            is_strong_rsi = last['RSI'] >= 50
-            inst_percent = a_data['法人持股'] if (a_data and a_data['法人持股'] != 'N/A') else 0
-            
-            if is_above_ma5 and (is_strong_rsi or inst_percent > 15):
-                vol_diag_msg = "💎 大戶惜售 / 籌碼鎖定"
-                custom_diagnostic_card(
-                    "💤 【量能明顯萎縮】",
-                    "💎 診斷：【大戶惜售 / 籌碼鎖定】\n\n"
-                    "• 現狀分析：量能大幅萎縮，但價格頑強守在 MA5 防線之上，顯示籌碼已被莊家大戶鎖死，散戶賣壓基本出盡。\n"
-                    "• 戰術提示：此處的突破有 90% 以上為「洗盤後的真突破」。建議沿著 MA5 / MA10 移動停利，偏多看待。",
-                    "warning" 
-                )
-            else:
-                vol_diag_msg = "🥶 人氣退潮"
-                st.warning("💤 【量能明顯萎縮】")  
-                custom_diagnostic_card(
-                    "💤 【量能明顯萎縮】",
-                    "🥶 診斷：【人氣退潮 / 無人關注】\n\n"
-                    "• 現狀分析：量能萎縮且股價無力，跌破短期重要均線，市場炒作熱度退潮。\n"
-                    "• 戰術提示：此處拉高極大概率為「主力出貨的假突破」。建議嚴守紀律，切勿在此冒險接刀抄底。",
-                    "error"
-                )
-        else:
-            vol_diag_msg = "⚖️ 量能溫和"
-            custom_diagnostic_card("⚖️ 【量能溫和】", "正常健康換手，股價沿著原有技術阻力平穩震盪中。", "info")
+        st.write(f"今日成交量：`{round(today_volume, 1)}` 張  |  5日均量：`{round(vol_ma5, 1)}` 張  |  量能佔比：`{vol_ratio_pct}%`")
+        custom_diagnostic_card(vol_diag_card_info[0], vol_diag_card_info[1], vol_diag_card_info[2])
 
-        # 指標與籌碼診斷
+        # 3. 莊家防線與技術狀態
         st.divider()
-        st.subheader("📈 指標與籌碼診斷")
-        
+        st.subheader("🛡️ 莊家大戶防線與技術指標")
         if current_price >= weighted_support:
-            support_status = f"🟢 莊家防線守住 ({weighted_support} 元)"
             custom_diagnostic_card(
                 "🛡️ 莊家大戶籌碼防線",
-                f"🟢 防線守住 ({weighted_support} 元)\n\n"
-                "目前股價高於 60 日最大量之大戶加權成本成本線，代表多方莊家正在強力護盤，屬安全低接位階！",
+                f"🟢 防線守住 ({weighted_support} 元)\n股價守於大戶加權成本線之上，莊家持續護盤，屬安全低接位階！",
                 "success"
             )
         else:
-            support_status = f"🔴 防線跌破、留意續跌 ({weighted_support} 元)"
             custom_diagnostic_card(
                 "🛡️ 莊家大戶籌碼防線",
-                f"🔴 防線失守 ({weighted_support} 元)\n\n"
-                "目前收盤價已無情擊穿大戶護盤成本，代表莊家已棄守，面臨主跌探底，不建議接刀！",
+                f"🔴 防線失守 ({weighted_support} 元)\n收盤擊穿大戶護盤成本，莊家棄守面臨探底，切忌盲目接刀！",
                 "error"
             )
 
@@ -1677,331 +1749,209 @@ if df is not None and not df.empty:
             past_min_rsi = df.iloc[-10:-1]['RSI'].min()
             if (current_price <= past_min_close) and (last['RSI'] > past_min_rsi) and (last['RSI'] < 40):
                 has_divergence = True
-                
+        
         if has_divergence:
-            custom_diagnostic_card("🔥 偵測到【低檔底背離】", "股價創下波段新低，但 RSI 指標強勢拒絕破底，代表下跌力道衰竭、大戶默默進場吸籌，高機率將觸發一波強力反彈！", "warning")
+            custom_diagnostic_card("🔥 偵測到【低檔底背離】", "股價創波段新低但 RSI 拒絕破底，下跌力竭、大戶低吸，醞釀強彈！", "warning")
 
-        st.write(f"**MA5：** :orange[{round(last['MA5'], 2)}]")
-        st.write(f"**MA10：** :blue[{round(last['MA10'], 2)}]") 
-        st.write(f"**MA20：** :violet[{round(last['MA20'], 2)}]")
-        st.write(f"**MACD：** {'🟢 金叉' if last['DIF'] > last['DEA'] else '🔴 死叉'}")
-        st.write(f"**KD 狀態：** {'🟢 金叉' if last['K'] > last['D'] else '🔴 死叉'}")
+        st.markdown(f"""
+        <div style="background-color: #0f172a; padding: 10px 14px; border-radius: 8px; border: 1px solid #334155; font-size: 13.5px; line-height: 1.8; color: #cbd5e1;">
+            <b>均線：</b> 5MA: <span style="color:orange;">{round(last['MA5'], 1)}</span> | 10MA: <span style="color:#60a5fa;">{round(last['MA10'], 1)}</span> | 20MA: <span style="color:violet;">{round(last['MA20'], 1)}</span><br>
+            <b>指標：</b> MACD: {'🟢 金叉' if last['DIF'] > last['DEA'] else '🔴 死叉'} | KD: {'🟢 金叉' if last['K'] > last['D'] else '🔴 死叉'}
+        </div>
+        """, unsafe_allow_html=True)
 
+    # ==============================================================================
+    # 🌟 【第 3 層：全寬深度決策戰情室】(100% 寬度對稱雙欄，徹底填滿下方螢幕！)
+    # ==============================================================================
+    st.divider()
+    st.subheader("📊 籌碼流向、基本面毛利與實戰決策")
+    
+    col_chip_card, col_fin_card = st.columns(2)
+    
+    with col_chip_card:
+        chip_results = get_institutional_chips(clean_sid, df)
+        custom_diagnostic_card(
+            chip_results["inst_status"],
+            "【三大法人資金與籌碼流向診斷】\n\n"
+            f"🚀 近 5 日主力籌碼淨向： {chip_results['net_buy_5d']}\n"
+            f"📊 近 10 日主力籌碼淨向： {chip_results['net_buy_10d']}\n\n"
+            f"💡 籌碼解讀： {chip_results['major_force_status']}",
+            chip_results["inst_card_type"]
+        )
 
-
-    # ==========================================
-    # 👉 【右側區塊】：放 大看板、圖表、控制台
-    # ==========================================
-    with col_right:
-        # 確保資料存在才執行畫圖邏輯
-        if len(df) > 0:
-            plot_df = df.tail(view_days)
+    with col_fin_card:
+        fin_trend = get_financial_margin_trend(clean_sid)
+        if a_data:
+            eps_val = a_data.get('EPS', 'N/A')
+            roe_val = a_data.get('ROE', 'N/A')
+            pe_val = a_data.get('本益比', 'N/A')   
+            debt_val = a_data.get('負債比')
+            inst_hold = a_data.get('法人持股')
+            debt_text = f"{round(debt_val, 1)}%" if (debt_val and isinstance(debt_val, (int, float)) and debt_val != 0) else "N/A"
             
-            # --- 數據計算區 ---
-            rsi_val = round(plot_df['RSI'].dropna().iloc[-1], 2) if not plot_df['RSI'].dropna().empty else 50.0
-            inst_val = a_data.get('法人持股', 0) if a_data else 0
-            chip_advice = " (大戶鎖碼中)" if inst_val > 25 else " (散戶主導中)"
-            
-            if rsi_val > 80: color, msg = "#ef4444", f"⚠️【高檔過熱：禁止追高{chip_advice}】"
-            elif rsi_val < 40: color, msg = "#10b981", f"✅【低檔安全：留意佈局{chip_advice}】"
-            else: color, msg = "#f59e0b", f"⚖️【區間震盪：觀望趨勢{chip_advice}】"
-            
-            today_open = float(last['Open'])
-            today_high = float(last['High'])
-            today_low = float(last['Low'])
+            ann_gm_str = " ➔ ".join([f"{k[-2:]}年:{v}%" for k, v in fin_trend["annual_gm_dict"].items()]) if fin_trend["annual_gm_dict"] else f"最新: {fin_trend['latest_gm']}"
+            card_color = "success" if fin_trend["is_long_term_growth"] else "warning"
 
-            # 大看板
-            # --- 處理股票名稱 (解決重複顯示代號的問題) ---
-            # 確保乾淨抓出代號 (例如 "7853")
-            clean_sid = str(target_sid).split(' ')[0].split('(')[0].strip()
-            
-            # 從字典抓取名稱，如果字典裡的名稱已經自帶代號，就直接使用，避免重複
-            current_dict = load_stock_dict()
-            if clean_sid in current_dict:
-                sname = current_dict[clean_sid]
-                display_name = sname if clean_sid in sname else f"{clean_sid} {sname}"
-            else:
-                display_name = str(target_sid)
-
-            # --- 計算漲跌幅百分比 ---
-            diff_pct = round((diff / prev_price) * 100, 2) if prev_price > 0 else 0
-            price_color = "#ef4444" if diff > 0 else ("#10b981" if diff < 0 else "white")
-            arrow = "▲" if diff > 0 else ("▼" if diff < 0 else "-")
-
-            # 大看板 HTML 重構 (已將昨收獨立成方塊)
-            st.markdown(f"""<div style="background: linear-gradient(90deg, #111827, #000000); border-left: 10px solid {color}; padding: 20px 25px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
-<div style="min-width: 300px; display: flex; flex-direction: column; justify-content: space-between;">
-<div style="display: flex; align-items: baseline; gap: 15px; margin-bottom: 5px;">
-<h2 style="color:white; font-size: 32px; font-weight: 900; margin:0; letter-spacing: 1px;">{display_name}</h2>
-<span style="font-size: 20px; color: {color}; font-weight: bold; background-color: rgba(255,255,255,0.05); padding: 2px 10px; border-radius: 20px;">RSI: {rsi_val}</span>
-</div>
-<p style="color:{color}; font-size: 22px; font-weight: bold; margin: 5px 0 0 0;">
-{msg} <span style="color: #475569; margin: 0 10px;">|</span> 
-<span style="color: #e2e8f0; font-size: 18px; background-color: #1e293b; padding: 4px 12px; border-radius: 6px; border: 1px solid #475569; display: inline-block; vertical-align: middle;">{vol_diag_msg}</span>
-</p>
-</div>
-<div style="display: flex; align-items: center; gap: 25px; flex-wrap: wrap; justify-content: flex-end;">
-<div style="text-align: right; padding-right: 20px; border-right: 2px solid #334155;">
-<p style="color: #94a3b8; font-size: 13px; margin: 0 0 5px 0; font-weight: bold;">最新報價</p>
-<div style="display: flex; align-items: baseline; gap: 10px; justify-content: flex-end;">
-<span style="color: {price_color}; font-size: 42px; font-weight: 900; line-height: 1;">{round(current_price, 2)}</span>
-<span style="color: {price_color}; font-size: 20px; font-weight: bold;">{arrow} {abs(diff)} ({diff_pct}%)</span>
-</div>
-</div>
-<div style="display: flex; gap: 8px;">
-    <div style="background-color: #1e293b; width: 75px; padding: 8px 5px; border-radius: 8px; border: 1px solid #94a3b8; text-align: center;">
-        <p style="color: #cbd5e1; font-size: 11px; margin: 0;">昨收</p>
-        <p style="color: #e2e8f0; font-size: 18px; font-weight: bold; margin: 4px 0 0 0;">{round(prev_price, 2)}</p>
-    </div>
-    <div style="background-color: #1e293b; width: 75px; padding: 8px 5px; border-radius: 8px; border: 1px solid #38bdf8; text-align: center;">
-        <p style="color: #38bdf8; font-size: 11px; margin: 0;">開盤</p>
-        <p style="color: white; font-size: 18px; font-weight: bold; margin: 4px 0 0 0;">{round(today_open, 2)}</p>
-    </div>
-    <div style="background-color: #1e293b; width: 75px; padding: 8px 5px; border-radius: 8px; border: 1px solid #ef4444; text-align: center;">
-        <p style="color: #ef4444; font-size: 11px; margin: 0;">最高</p>
-        <p style="color: white; font-size: 18px; font-weight: bold; margin: 4px 0 0 0;">{round(today_high, 2)}</p>
-    </div>
-    <div style="background-color: #1e293b; width: 75px; padding: 8px 5px; border-radius: 8px; border: 1px solid #10b981; text-align: center;">
-        <p style="color: #10b981; font-size: 11px; margin: 0;">最低</p>
-        <p style="color: white; font-size: 18px; font-weight: bold; margin: 4px 0 0 0;">{round(today_low, 2)}</p>
-    </div>
-</div>
-</div>
-</div>
-</div>""", unsafe_allow_html=True)
-			
-            # 圖表繪製
-            fig = make_subplots(rows=4, cols=1, shared_xaxes=True, vertical_spacing=0.04, row_heights=[0.4, 0.1, 0.2, 0.2])
-            fig.add_trace(go.Candlestick(x=plot_df.index, open=plot_df['Open'], high=plot_df['High'], low=plot_df['Low'], close=plot_df['Close'], name="K線",
-                                       decreasing=dict(fillcolor='#10b981', line=dict(color='#10b981')),
-                                       increasing=dict(fillcolor='#ef4444', line=dict(color='#ef4444'))), row=1, col=1)
-            fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA5'], name="5MA", line=dict(color='orange', width=1.5)), row=1, col=1)
-            fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA10'], name="10MA", line=dict(color='#60a5fa', width=1.5)), row=1, col=1)
-            fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA20'], name="20MA", line=dict(color='violet', width=1.5)), row=1, col=1)
-            fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA60'], name="60MA (季線)", line=dict(color='#2dd4bf', width=2)), row=1, col=1)
-            fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA240'], name="240MA (年線)", line=dict(color='#cbd5e1', width=2, dash='dot')), row=1, col=1)
-            fig.add_trace(go.Bar(x=plot_df.index, y=plot_df['Volume'], name="成交量", marker_color='#334155'), row=2, col=1)
-            
-            m_colors = ['#ef4444' if x > 0 else '#10b981' for x in plot_df['MACD_Hist']]
-            fig.add_trace(go.Bar(x=plot_df.index, y=plot_df['MACD_Hist'], name="MACD柱", marker_color=m_colors), row=3, col=1)
-            fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['DIF'], name="DIF", line=dict(color='cyan')), row=3, col=1)
-            fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['DEA'], name="DEA", line=dict(color='yellow')), row=3, col=1)
-            fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['K'], name="K值", line=dict(color='white')), row=4, col=1)
-            fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['D'], name="D值", line=dict(color='yellow')), row=4, col=1)
-            
-            fig.update_layout(height=800, template="plotly_dark", xaxis_rangeslider_visible=False, hovermode="x unified",
-                            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
-                            margin=dict(l=10, r=10, t=65, b=10))
-            fig.update_xaxes(showspikes=True, spikecolor="gray", spikesnap="cursor", spikemode="across")
-            fig.update_yaxes(showspikes=True, spikecolor="gray", spikethickness=1)
-            for ax in fig.select_xaxes(): ax.update(showticklabels=True)
-            
-            st.plotly_chart(fig, use_container_width=True)
-
-        # 籌碼與主力完全體卡片 (直接接在左側下方)
-        st.divider()
-        st.subheader("📊 籌碼與核心財務總覽")
-        
-        # 💥 關鍵修改：在右側大空間中，切出兩個等寬的子欄位
-        col_chip_card, col_fin_card = st.columns(2)
-        
-        # 👈 左邊放籌碼卡片
-        with col_chip_card:
-            chip_results = get_institutional_chips(clean_sid, df)
             custom_diagnostic_card(
-                chip_results["inst_status"],
-                "【三大法人資金與籌碼流向診斷】\n\n"
-                f"🚀 近 5 日主力籌碼淨向： {chip_results['net_buy_5d']}\n"
-                f"📊 近 10 日主力籌碼淨向： {chip_results['net_buy_10d']}\n\n"
-                f"💡 籌碼解讀： {chip_results['major_force_status']}",
-                chip_results["inst_card_type"]
+                f"🏢 核心財報與毛利趨勢：{fin_trend['status_tag']}",
+                f"📈 歷年毛利率軌跡： {ann_gm_str}\n"
+                f"🎯 跨年成長診斷： {fin_trend['diagnosis_text']}\n"
+                f"───────────────\n"
+                f"👥 法人大戶持股比： {round(inst_hold, 1) if (inst_hold and isinstance(inst_hold, (int,float))) else '0.0'}%  |  💵 預估年化 EPS： {eps_val} 元\n"
+                f"📊 股東權益報酬 ROE： {roe_val}  |  ⚡ 預估本益比 PE： {pe_val} 倍\n"
+                f"⚖️ 企業負債比率： {debt_text}",
+                card_color
             )
+            
+            if fin_trend["annual_gm_dict"] or fin_trend["quarterly_gm_dict"]:
+                with st.expander("📊 點擊展開【跨年度 vs 近四季毛利率】對照圖（檢視單季淡旺季與全年趨勢）"):
+                    t_col1, t_col2 = st.columns(2)
+                    with t_col1:
+                        st.caption("📅 近幾年【整年度】毛利率趨勢 (%)")
+                        if fin_trend["annual_gm_dict"]:
+                            st.bar_chart(pd.Series(fin_trend["annual_gm_dict"], name="年度毛利率(%)"))
+                    with t_col2:
+                        st.caption("📆 最近四季【單季】毛利率波動 (%)")
+                        if fin_trend["quarterly_gm_dict"]:
+                            st.line_chart(pd.Series(fin_trend["quarterly_gm_dict"], name="單季毛利率(%)"))
 
-        # 👉 右邊放財務卡片
-        with col_fin_card:
-            fin_trend = get_financial_margin_trend(clean_sid)
-            if a_data:
-                eps_val = a_data.get('EPS', 'N/A')
-                roe_val = a_data.get('ROE', 'N/A')
-                pe_val = a_data.get('本益比', 'N/A')   
-                debt_val = a_data.get('負債比')
-                inst_hold = a_data.get('法人持股')
-                debt_text = f"{round(debt_val, 1)}%" if (debt_val and isinstance(debt_val, (int, float)) and debt_val != 0) else "N/A"
-                
-                # 整合毛利率與跨年度趨勢
-                ann_gm_str = " ➔ ".join([f"{k[-2:]}年:{v}%" for k, v in fin_trend["annual_gm_dict"].items()]) if fin_trend["annual_gm_dict"] else f"最新: {fin_trend['latest_gm']}%"
-                card_color = "success" if fin_trend["is_long_term_growth"] else "warning"
+    # 風報比與 3-3-4 建倉試算
+    st.divider()
+    st.subheader("🎯 實戰買進決策與風報比試算")
+    
+    ma5_val = round(float(last['MA5']), 2) if pd.notna(last['MA5']) else current_price
+    ma20_val = round(float(last['MA20']), 2) if pd.notna(last['MA20']) else current_price
+    ma60_val = round(float(last['MA60']), 2) if pd.notna(last['MA60']) else current_price
+    
+    bias_20 = round(((current_price - ma20_val) / ma20_val) * 100, 2) if ma20_val > 0 else 0.0
+    ma_max = max(ma5_val, float(last['MA10']), ma20_val)
+    ma_min = min(ma5_val, float(last['MA10']), ma20_val)
+    ma_spread_pct = round(((ma_max - ma_min) / ma_min) * 100, 2) if ma_min > 0 else 99.0
+    
+    high_60d = round(float(df.tail(60)['High'].max()), 2)
+    upside_pct = max(round(((high_60d - current_price) / current_price) * 100, 2), 1.0)
+    downside_pct = max(round(((current_price - weighted_support) / current_price) * 100, 2), 1.0)
+    rr_ratio = round(upside_pct / downside_pct, 2)
+    
+    col_rr, col_entry = st.columns(2)
+    with col_rr:
+        if bias_20 > 15.0:
+            rr_tag = "⚠️ 短線正乖離過大（嚴禁追高）"
+            rr_color = "error"
+        elif ma_spread_pct <= 3.0 and current_price >= ma20_val:
+            rr_tag = "🌟 均線極致糾結突破（黃金起漲點）"
+            rr_color = "success"
+        elif rr_ratio >= 2.0 and current_price >= weighted_support:
+            rr_tag = f"✅ 風報比極佳（盈虧比 1 : {rr_ratio}）"
+            rr_color = "success"
+        else:
+            rr_tag = f"⚖️ 區間博弈位階（盈虧比 1 : {rr_ratio}）"
+            rr_color = "info"
+            
+        custom_diagnostic_card(
+            f"📐 位階與風報比：{rr_tag}",
+            f"📏 月線乖離率 (20MA BIAS)： {bias_20:+.2f}%  |  🔗 均線糾結度： {ma_spread_pct}%\n"
+            f"🎯 上檔前高空間 ({high_60d}元)： +{upside_pct}%  |  🛡️ 下檔防線風險 ({weighted_support}元)： -{downside_pct}%\n"
+            f"💡 實戰判定： {'均線糾結壓縮完成，具備波段爆發力！' if ma_spread_pct <= 3.0 else ('正乖離過熱，建議等待拉回月線再佈局。' if bias_20 > 15 else '嚴守莊家防守線，盈虧比大於 2 倍時具高期望值。')}",
+            rr_color
+        )
+        
+    with col_entry:
+        p1_price = round(min(current_price, ma5_val), 2)
+        p2_price = ma20_val
+        p3_price = round(max(ma60_val, weighted_support), 2)
+        stop_loss_price = round(weighted_support * 0.97, 2)
+        
+        custom_diagnostic_card(
+            "🪜 3-3-4 機構分批建倉與停損試算",
+            f"🥇 第一批試單 (30% 資金・5MA 動能區)： 約 {p1_price} 元\n"
+            f"🥈 第二批加碼 (30% 資金・20MA 月線支撐)： 約 {p2_price} 元\n"
+            f"🥉 第三批重倉 (40% 資金・季線/莊家防線)： 約 {p3_price} 元\n"
+            f"🛑 鐵血停損線 (收盤實質跌破防線 3%)： {stop_loss_price} 元",
+            "warning"
+        )
 
-                custom_diagnostic_card(
-                    f"🏢 核心財報與毛利趨勢：{fin_trend['status_tag']}",
-                    f"📈 歷年毛利率軌跡： {ann_gm_str}\n"
-                    f"🎯 跨年成長診斷： {fin_trend['diagnosis_text']}\n"
-                    f"───────────────\n"
-                    f"👥 法人大戶持股比： {round(inst_hold, 1) if (inst_hold and isinstance(inst_hold, (int,float))) else '0.0'}%  |  💵 預估年化 EPS： {eps_val} 元\n"
-                    f"📊 股東權益報酬 ROE： {roe_val}  |  ⚡ 預估本益比 PE： {pe_val} 倍\n"
-                    f"⚖️ 企業負債比率： {debt_text}",
-                    card_color
-                )
+    # 🧠 一鍵召喚 Gemini AI 實戰買賣決策官
+    if st.button("🧠 召喚黑馬 AI 戰略官：產出今日買賣決策報告 (消耗 1 次額度)", use_container_width=True):
+        with st.spinner("🤖 黑馬戰略官正在綜合【技術乖離 + 主力籌碼 + 跨年毛利】進行深度推演..."):
+            try:
+                ai_model = genai.GenerativeModel("gemini-2.5-flash")
+                decision_prompt = f"""
+                你現在是『🐎 黑馬雷達』首席量化操盤手。請根據以下【確切已知事實】為吳秉諺產出簡潔犀利的買賣決策報告：
+                - 標的：{display_name}，現價：{current_price} 元（漲跌：{diff_pct}%）
+                - 均線與指標：5MA={ma5_val}, 20MA={ma20_val} (月線乖離率 {bias_20}%), 60MA={ma60_val}, RSI={rsi_val}, 均線糾結度={ma_spread_pct}%
+                - 量價與防線：今日量比={round(vol_ratio, 2)}x ({vol_diag_msg})，莊家防守線={weighted_support}元，盈虧比=1:{rr_ratio}
+                - 籌碼流向：近5日主力淨向={chip_results['net_buy_5d']} ({chip_results['inst_status']})，法人持股={round(inst_hold, 1) if isinstance(inst_hold, (int, float)) else 0}%
+                - 財報與毛利趨勢：{fin_trend['status_tag']}，歷年毛利={ann_gm_str}，營業利益率={fin_trend['latest_opm']}%，診斷={fin_trend['diagnosis_text']}
                 
-                # 展開查看「年度 vs 單季」毛利率對照小圖表
-                if fin_trend["annual_gm_dict"] or fin_trend["quarterly_gm_dict"]:
-                    with st.expander("📊 點擊展開【跨年度 vs 近四季毛利率】對照圖（檢視單季淡旺季與全年趨勢）"):
-                        t_col1, t_col2 = st.columns(2)
-                        with t_col1:
-                            st.caption("📅 近幾年【整年度】毛利率趨勢 (%)")
-                            if fin_trend["annual_gm_dict"]:
-                                st.bar_chart(pd.Series(fin_trend["annual_gm_dict"], name="年度毛利率(%)"))
-                        with t_col2:
-                            st.caption("📆 最近四季【單季】毛利率波動 (%)")
-                            if fin_trend["quarterly_gm_dict"]:
-                                st.line_chart(pd.Series(fin_trend["quarterly_gm_dict"], name="單季毛利率(%)"))
-		
-		        # ==============================================================================
-                # 🎯 【新增擴充】：實戰買進判斷依據 (盈虧比 R/R + 均線乖離 + 3-3-4 建倉試算)
-                # ==============================================================================
-                st.divider()
-                st.subheader("🎯 實戰買進決策與風報比試算")
+                請以繁體中文輸出 3 點結論（不超過 250 字，嚴禁模糊推測）：
+                1. 【多空位階總評】：（明確給出：積極買進 / 拉回分批佈局 / 觀望勿追 / 逢高減碼）
+                2. 【核心判斷依據】：（結合毛利保護傘、籌碼鎖碼與乖離率說明原因）
+                3. 【具體操作紀律】：（給出進場參考價、加碼條件與鐵血停損價）
+                """
+                ai_resp = ai_model.generate_content(decision_prompt)
+                st.info(ai_resp.text)
+            except Exception as ex:
+                st.error(f"AI 決策官連線異常：{ex}")
+
+    # ==============================================================================
+    # 🌟 【第 4 層：底部戰情推播控制台】
+    # ==============================================================================
+    st.divider() 
+    st.markdown("""<div style="background: linear-gradient(135deg, #1e293b, #0f172a); padding: 18px 20px; border-radius: 12px; border: 1px solid #475569; margin-top: 10px;">
+    <h3 style="color: #60a5fa; margin: 0 0 10px 0; font-size: 20px; display: flex; align-items: center; gap: 8px;">📡 戰情推播控制台</h3>
+    </div>""", unsafe_allow_html=True)
+
+    col_test_btn, col_scan_btn = st.columns(2)
+
+    with col_test_btn:
+        if st.button("🔗 發送 Discord 測試訊息", use_container_width=True, help="手動測試網頁與您的 Discord 頻道是否成功對接。"):
+            import datetime
+            tz_tw = datetime.timezone(datetime.timedelta(hours=8))
+            test_time = datetime.datetime.now(tz_tw).strftime('%Y-%m-%d %H:%M:%S')
+            test_embed = {
+                "title": "✅ 秉諺的黑馬雷達連線測試",
+                "description": "網頁主端控制台發送成功！手動推播管道運作良好。",
+                "color": 3447003,
+                "footer": {"text": f"測試時間: {test_time}"}
+            }
+            success, msg = send_discord_webhook(DEFAULT_DISCORD_WEBHOOK, test_embed)
+            if success: st.success("✅ " + msg)
+            else: st.error("❌ " + msg)
+
+    with col_scan_btn:
+        if st.button("🔍 執行全體雷達大掃描", use_container_width=True, help="立即對您自選清單裡的所有股票進行技術、籌碼與跨年毛利訊號的全面掃描。"):
+            with st.spinner("🚀 雷達深度掃描與毛利趨勢運算中..."):
+                daily_candidates = []
+                current_scan_dict = load_stock_dict()
+                for sid, sname in current_scan_dict.items():
+                    res = run_single_scan_signal(sid, sname, DEFAULT_DISCORD_WEBHOOK)
+                    if isinstance(res, dict) and 'score' in res:
+                        daily_candidates.append(res)
+                    time.sleep(0.2)
                 
-                ma5_val = round(float(last['MA5']), 2) if pd.notna(last['MA5']) else current_price
-                ma20_val = round(float(last['MA20']), 2) if pd.notna(last['MA20']) else current_price
-                ma60_val = round(float(last['MA60']), 2) if pd.notna(last['MA60']) else current_price
-                
-                # 1. 計算 20MA 月線乖離率與三線糾結度
-                bias_20 = round(((current_price - ma20_val) / ma20_val) * 100, 2) if ma20_val > 0 else 0.0
-                ma_max = max(ma5_val, float(last['MA10']), ma20_val)
-                ma_min = min(ma5_val, float(last['MA10']), ma20_val)
-                ma_spread_pct = round(((ma_max - ma_min) / ma_min) * 100, 2) if ma_min > 0 else 99.0
-                
-                # 2. 計算上檔壓力 (60日高點) 與下檔風險 (莊家防線)，求取盈虧比 (R/R Ratio)
-                high_60d = round(float(df.tail(60)['High'].max()), 2)
-                upside_pct = max(round(((high_60d - current_price) / current_price) * 100, 2), 1.0)
-                downside_pct = max(round(((current_price - weighted_support) / current_price) * 100, 2), 1.0)
-                rr_ratio = round(upside_pct / downside_pct, 2)
-                
-                col_rr, col_entry = st.columns(2)
-                with col_rr:
-                    if bias_20 > 15.0:
-                        rr_tag = "⚠️ 短線正乖離過大（嚴禁追高）"
-                        rr_color = "error"
-                    elif ma_spread_pct <= 3.0 and current_price >= ma20_val:
-                        rr_tag = "🌟 均線極致糾結突破（黃金起漲點）"
-                        rr_color = "success"
-                    elif rr_ratio >= 2.0 and current_price >= weighted_support:
-                        rr_tag = f"✅ 風報比極佳（盈虧比 1 : {rr_ratio}）"
-                        rr_color = "success"
-                    else:
-                        rr_tag = f"⚖️ 區間博弈位階（盈虧比 1 : {rr_ratio}）"
-                        rr_color = "info"
-                        
-                    custom_diagnostic_card(
-                        f"📐 位階與風報比：{rr_tag}",
-                        f"📏 月線乖離率 (20MA BIAS)： {bias_20:+.2f}%  |  🔗 均線糾結度： {ma_spread_pct}%\n"
-                        f"🎯 上檔前高空間 ({high_60d}元)： +{upside_pct}%  |  🛡️ 下檔防線風險 ({weighted_support}元)： -{downside_pct}%\n"
-                        f"💡 實戰判定： {'均線糾結壓縮完成，具備波段爆發力！' if ma_spread_pct <= 3.0 else ('正乖離過熱，建議等待拉回月線再佈局。' if bias_20 > 15 else '嚴守莊家防守線，盈虧比大於 2 倍時具高期望值。')}",
-                        rr_color
-                    )
+                if daily_candidates:
+                    daily_candidates.sort(key=lambda x: x.get('score', 0), reverse=True)
                     
-                with col_entry:
-                    p1_price = round(min(current_price, ma5_val), 2)
-                    p2_price = ma20_val
-                    p3_price = round(max(ma60_val, weighted_support), 2)
-                    stop_loss_price = round(weighted_support * 0.97, 2)
+                    for stock in daily_candidates:
+                        log_signal_to_csv(stock['sid'], stock['sname'], stock['current_price'], stock['embed'])
                     
-                    custom_diagnostic_card(
-                        "🪜 3-3-4 機構分批建倉與停損試算",
-                        f"🥇 第一批試單 (30% 資金・5MA 動能區)： 約 {p1_price} 元\n"
-                        f"🥈 第二批加碼 (30% 資金・20MA 月線支撐)： 約 {p2_price} 元\n"
-                        f"🥉 第三批重倉 (40% 資金・季線/莊家防線)： 約 {p3_price} 元\n"
-                        f"🛑 鐵血停損線 (收盤實質跌破防線 3%)： {stop_loss_price} 元",
-                        "warning"
-                    )
-
-                # 🧠 一鍵召喚 Gemini AI 實戰買賣決策官
-                if st.button("🧠 召喚黑馬 AI 戰略官：產出今日買賣決策報告 (消耗 1 次額度)", use_container_width=True):
-                    with st.spinner("🤖 黑馬戰略官正在綜合【技術乖離 + 主力籌碼 + 跨年毛利】進行深度推演..."):
-                        try:
-                            ai_model = genai.GenerativeModel("gemini-2.5-flash")
-                            decision_prompt = f"""
-                            你現在是『🐎 黑馬雷達』首席量化操盤手。請根據以下【確切已知事實】為吳秉諺產出簡潔犀利的買賣決策報告：
-                            - 標的：{display_name}，現價：{current_price} 元（漲跌：{diff_pct}%）
-                            - 均線與指標：5MA={ma5_val}, 20MA={ma20_val} (月線乖離率 {bias_20}%), 60MA={ma60_val}, RSI={rsi_val}, 均線糾結度={ma_spread_pct}%
-                            - 量價與防線：今日量比={round(vol_ratio, 2)}x ({vol_diag_msg})，莊家防守線={weighted_support}元，盈虧比=1:{rr_ratio}
-                            - 籌碼流向：近5日主力淨向={chip_results['net_buy_5d']} ({chip_results['inst_status']})，法人持股={round(inst_hold, 1) if isinstance(inst_hold, (int, float)) else 0}%
-                            - 財報與毛利趨勢：{fin_trend['status_tag']}，歷年毛利={ann_gm_str}，營業利益率={fin_trend['latest_opm']}%，診斷={fin_trend['diagnosis_text']}
-                            
-                            請以繁體中文輸出 3 點結論（不超過 250 字，嚴禁模糊推測）：
-                            1. 【多空位階總評】：（明確給出：積極買進 / 拉回分批佈局 / 觀望勿追 / 逢高減碼）
-                            2. 【核心判斷依據】：（結合毛利保護傘、籌碼鎖碼與乖離率說明原因）
-                            3. 【具體操作紀律】：（給出進場參考價、加碼條件與鐵血停損價）
-                            """
-                            ai_resp = ai_model.generate_content(decision_prompt)
-                            st.info(ai_resp.text)
-                        except Exception as ex:
-                            st.error(f"AI 決策官連線異常：{ex}")
-		
-		# 戰情推播控制台 - 移至右側圖表下方
-        st.divider() 
-        st.markdown("""<div style="background: linear-gradient(135deg, #1e293b, #0f172a); padding: 20px; border-radius: 12px; border: 1px solid #475569; margin-top: 15px;">
-                <h3 style="color: #60a5fa; margin: 0 0 10px 0; font-size: 20px; display: flex; align-items: center; gap: 8px;">📡 戰情推播控制台</h3>
-            </div>""", unsafe_allow_html=True)
-
-        # 💥 關鍵修改：在控制台區域也建立雙欄佈局
-        col_test_btn, col_scan_btn = st.columns(2)
-
-        with col_test_btn:
-            if st.button("🔗 發送 Discord 測試訊息", use_container_width=True, help="手動測試網頁與您的 Discord 頻道是否成功對接。"):
-                import datetime
-                tz_tw = datetime.timezone(datetime.timedelta(hours=8))
-                test_time = datetime.datetime.now(tz_tw).strftime('%Y-%m-%d %H:%M:%S')
-                
-                test_embed = {
-                    "title": "✅ 秉諺的黑馬雷達連線測試",
-                    "description": "網頁主端控制台發送成功！手動推播管道運作良好。",
-                    "color": 3447003,
-                    "footer": {"text": f"測試時間: {test_time}"}
-                }
-                success, msg = send_discord_webhook(DEFAULT_DISCORD_WEBHOOK, test_embed)
-                if success: st.success("✅ " + msg)
-                else: st.error("❌ " + msg)
-        with col_scan_btn:
-            if st.button("🔍 執行全體雷達大掃描", use_container_width=True, help="立即對您自選清單裡的所有股票進行技術、籌碼與跨年毛利訊號的全面掃描。"):
-                with st.spinner("🚀 雷達深度掃描與毛利趨勢運算中..."):
-                    daily_candidates = []
-                    current_scan_dict = load_stock_dict()
-                    for sid, sname in current_scan_dict.items():
-                        res = run_single_scan_signal(sid, sname, DEFAULT_DISCORD_WEBHOOK)
-                        if isinstance(res, dict) and 'score' in res:
-                            daily_candidates.append(res)
-                        time.sleep(0.2)
+                    top_targets = [s for s in daily_candidates if s.get('score', 0) >= 25.0][:5]
+                    for stock in top_targets:
+                        send_discord_webhook(DEFAULT_DISCORD_WEBHOOK, stock['embed'])
+                        time.sleep(0.5)
                     
-                    if daily_candidates:
-                        # 依綜合火力評分由高至低排序
-                        daily_candidates.sort(key=lambda x: x.get('score', 0), reverse=True)
-                        
-                        # 1. 全部寫入 CSV 留存完整回測紀錄
-                        for stock in daily_candidates:
-                            log_signal_to_csv(stock['sid'], stock['sname'], stock['current_price'], stock['embed'])
-                        
-                        # 2. 嚴選 Top 5 發送至 Discord 避免洗版
-                        top_targets = [s for s in daily_candidates if s.get('score', 0) >= 25.0][:5]
-                        for stock in top_targets:
-                            send_discord_webhook(DEFAULT_DISCORD_WEBHOOK, stock['embed'])
-                            time.sleep(0.5)
-                        
-                        st.success(f"🎉 掃描完成！共偵測到 {len(daily_candidates)} 檔訊號，已將火力最強 Top {len(top_targets)} 推播至 Discord。")
-                        st.toast(f"✅ 成功推送 Top {len(top_targets)} 檔黑馬至 Discord！", icon="🚀")
-                        st.balloons()
-                        time.sleep(2.5)
-                        st.rerun()
-                    else:
-                        st.info("💡 目前所有標的指標平穩，未達警報標準。")
-                        st.toast("💤 掃描完畢，目前無異常訊號。", icon="☕")
+                    st.success(f"🎉 掃描完成！共偵測到 {len(daily_candidates)} 檔訊號，已將達標精華 Top {len(top_targets)} 推播至 Discord。")
+                    st.toast(f"✅ 成功推送 Top {len(top_targets)} 檔黑馬至 Discord！", icon="🚀")
+                    st.balloons()
+                    time.sleep(2.5)
+                    st.rerun()
+                else:
+                    st.info("💡 目前所有標的指標平穩，未達警報標準。")
+                    st.toast("💤 掃描完畢，目前無異常訊號。", icon="☕")
 
-# ==============================================================================
-# 當 df 為空時的防呆處理 (與最外層的 if df is not None 對齊)
-# ==============================================================================
 else:
-    st.error(f"❌ 暫時無法加載技術數據，請確認標的代號。")
+    st.error("❌ 暫時無法加載技術數據，請確認標的代號。")
 	
 
 
