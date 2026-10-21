@@ -1673,31 +1673,136 @@ if df is not None and not df.empty:
     # ==============================================================================
     col_chart, col_telemetry = st.columns([2.6, 1.4])
     
-    with col_chart:
-        fig = make_subplots(rows=4, cols=1, shared_xaxes=True, vertical_spacing=0.03, row_heights=[0.42, 0.12, 0.23, 0.23])
-        fig.add_trace(go.Candlestick(x=plot_df.index, open=plot_df['Open'], high=plot_df['High'], low=plot_df['Low'], close=plot_df['Close'], name="K線",
-            decreasing=dict(fillcolor='#10b981', line=dict(color='#10b981')),
-            increasing=dict(fillcolor='#ef4444', line=dict(color='#ef4444'))), row=1, col=1)
-        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA5'], name="5MA", line=dict(color='orange', width=1.5)), row=1, col=1)
-        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA10'], name="10MA", line=dict(color='#60a5fa', width=1.5)), row=1, col=1)
-        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA20'], name="20MA", line=dict(color='violet', width=1.5)), row=1, col=1)
-        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA60'], name="60MA (季線)", line=dict(color='#2dd4bf', width=2)), row=1, col=1)
-        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA240'], name="240MA (年線)", line=dict(color='#cbd5e1', width=2, dash='dot')), row=1, col=1)
-        fig.add_trace(go.Bar(x=plot_df.index, y=plot_df['Volume'], name="成交量", marker_color='#334155'), row=2, col=1)
+   with col_chart:
+        # 計算布林通道 (20MA ± 2倍標準差)
+        bb_std = plot_df['Close'].rolling(20).std()
+        bb_upper = plot_df['MA20'] + (bb_std * 2)
+        bb_lower = plot_df['MA20'] - (bb_std * 2)
+
+        # 建立 5 層專業子圖表，並為每一層加上醒目小標題
+        fig = make_subplots(
+            rows=5, cols=1, shared_xaxes=True, vertical_spacing=0.045,
+            row_heights=[0.38, 0.15, 0.16, 0.16, 0.15],
+            subplot_titles=(
+                f"📈 {display_name} K線、均線與莊家防守線 ({weighted_support}元)",
+                "📊 成交量與 5日均量動能 (紅漲綠跌・橘金爆量突破)",
+                "🌊 MACD 波段趨勢動能 (▲ 活叉買點 / ▼ 死叉賣點)",
+                "⚡ KD 隨機轉折指標 (▲ 活叉 / ▼ 死叉・80超買 / 20超賣)",
+                "🎯 RSI (14) 相對強弱與背離監控 (80過熱警戒 / 40低檔超跌)"
+            )
+        )
+
+        # === 第 1 層：K線 + 均線 + 布林通道 + 莊家防守線 ===
+        fig.add_trace(go.Candlestick(
+            x=plot_df.index, open=plot_df['Open'], high=plot_df['High'],
+            low=plot_df['Low'], close=plot_df['Close'], name="K線",
+            decreasing=dict(fillcolor='#00e676', line=dict(color='#00e676')),
+            increasing=dict(fillcolor='#ff3b5c', line=dict(color='#ff3b5c'))
+        ), row=1, col=1)
+        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA5'], name="5MA", line=dict(color='#fb923c', width=1.5)), row=1, col=1)
+        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA10'], name="10MA", line=dict(color='#38bdf8', width=1.5)), row=1, col=1)
+        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA20'], name="20MA (月線)", line=dict(color='#c084fc', width=1.8)), row=1, col=1)
+        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA60'], name="60MA (季線)", line=dict(color='#2dd4bf', width=2.2)), row=1, col=1)
+        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA240'], name="240MA (年線)", line=dict(color='#e2e8f0', width=2, dash='dot')), row=1, col=1)
         
-        m_colors = ['#ef4444' if x > 0 else '#10b981' for x in plot_df['MACD_Hist']]
+        # 布林通道上下軌 (半透明虛線，可於上方圖例點擊開關)
+        fig.add_trace(go.Scatter(x=plot_df.index, y=bb_upper, name="布林上軌", line=dict(color='rgba(148, 163, 184, 0.45)', width=1, dash='dash')), row=1, col=1)
+        fig.add_trace(go.Scatter(x=plot_df.index, y=bb_lower, name="布林下軌", line=dict(color='rgba(148, 163, 184, 0.45)', width=1, dash='dash'), fill='tonexty', fillcolor='rgba(148, 163, 184, 0.04)'), row=1, col=1)
+
+        # 直接在主圖畫出莊家大戶防守成本線
+        fig.add_hline(
+            y=weighted_support, line_dash="dash", line_color="#facc15", line_width=1.8,
+            annotation_text=f"🛡️ 莊家防線 {weighted_support}元", annotation_position="bottom right",
+            annotation_font=dict(color="#facc15", size=12), row=1, col=1
+        )
+
+        # === 第 2 層：高顯眼度三色成交量 + 5日均量線 ===
+        vol_colors = []
+        for idx_v, r_v in plot_df.iterrows():
+            is_up = r_v['Close'] >= r_v['Open']
+            is_burst = pd.notna(r_v['Vol_MA5']) and r_v['Vol_MA5'] > 0 and (r_v['Volume'] >= r_v['Vol_MA5'] * 1.15)
+            if is_up and is_burst:
+                vol_colors.append('#f59e0b')  # 爆量攻擊紅K：亮金橘色高亮
+            elif is_up:
+                vol_colors.append('#ff3b5c')  # 一般紅K：高飽和霓虹亮紅
+            else:
+                vol_colors.append('#00e676')  # 黑K：高對比翡翠亮綠
+
+        fig.add_trace(go.Bar(x=plot_df.index, y=plot_df['Volume'], name="成交量(張)", marker_color=vol_colors, opacity=0.92), row=2, col=1)
+        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['Vol_MA5'], name="5日均量", line=dict(color='#fef08a', width=2)), row=2, col=1)
+
+        # === 第 3 層：MACD + 活叉(金叉)/死叉自動標記 ===
+        m_colors = ['#ff3b5c' if x > 0 else '#00e676' for x in plot_df['MACD_Hist']]
         fig.add_trace(go.Bar(x=plot_df.index, y=plot_df['MACD_Hist'], name="MACD柱", marker_color=m_colors), row=3, col=1)
-        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['DIF'], name="DIF", line=dict(color='cyan')), row=3, col=1)
-        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['DEA'], name="DEA", line=dict(color='yellow')), row=3, col=1)
-        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['K'], name="K值", line=dict(color='white')), row=4, col=1)
-        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['D'], name="D值", line=dict(color='yellow')), row=4, col=1)
-        
-        fig.update_layout(height=780, template="plotly_dark", xaxis_rangeslider_visible=False, hovermode="x unified",
+        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['DIF'], name="DIF快線", line=dict(color='#38bdf8', width=1.8)), row=3, col=1)
+        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['DEA'], name="DEA慢線", line=dict(color='#facc15', width=1.8)), row=3, col=1)
+
+        macd_gold = plot_df[(plot_df['DIF'] > plot_df['DEA']) & (plot_df['DIF'].shift(1) <= plot_df['DEA'].shift(1))]
+        macd_dead = plot_df[(plot_df['DIF'] < plot_df['DEA']) & (plot_df['DIF'].shift(1) >= plot_df['DEA'].shift(1))]
+        if not macd_gold.empty:
+            fig.add_trace(go.Scatter(
+                x=macd_gold.index, y=macd_gold['DIF'], mode='markers+text', name="MACD活叉",
+                text=["▲活叉"] * len(macd_gold), textposition="bottom center",
+                textfont=dict(color='#fde047', size=11),
+                marker=dict(symbol='triangle-up', size=11, color='#fde047', line=dict(color='#000000', width=1))
+            ), row=3, col=1)
+        if not macd_dead.empty:
+            fig.add_trace(go.Scatter(
+                x=macd_dead.index, y=macd_dead['DIF'], mode='markers+text', name="MACD死叉",
+                text=["▼死叉"] * len(macd_dead), textposition="top center",
+                textfont=dict(color='#67e8f9', size=11),
+                marker=dict(symbol='triangle-down', size=11, color='#06b6d4', line=dict(color='#000000', width=1))
+            ), row=3, col=1)
+
+        # === 第 4 層：KD 隨機指標 + 活叉(金叉)/死叉自動標記 ===
+        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['K'], name="K值", line=dict(color='#ffffff', width=1.8)), row=4, col=1)
+        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['D'], name="D值", line=dict(color='#facc15', width=1.8)), row=4, col=1)
+        fig.add_hline(y=80, line_dash="dot", line_color="rgba(239, 68, 68, 0.5)", row=4, col=1)
+        fig.add_hline(y=20, line_dash="dot", line_color="rgba(16, 185, 129, 0.5)", row=4, col=1)
+
+        kd_gold = plot_df[(plot_df['K'] > plot_df['D']) & (plot_df['K'].shift(1) <= plot_df['D'].shift(1))]
+        kd_dead = plot_df[(plot_df['K'] < plot_df['D']) & (plot_df['K'].shift(1) >= plot_df['D'].shift(1))]
+        if not kd_gold.empty:
+            fig.add_trace(go.Scatter(
+                x=kd_gold.index, y=kd_gold['K'], mode='markers+text', name="KD活叉",
+                text=["▲活叉"] * len(kd_gold), textposition="bottom center",
+                textfont=dict(color='#fde047', size=11),
+                marker=dict(symbol='triangle-up', size=10, color='#fde047', line=dict(color='#000000', width=1))
+            ), row=4, col=1)
+        if not kd_dead.empty:
+            fig.add_trace(go.Scatter(
+                x=kd_dead.index, y=kd_dead['K'], mode='markers+text', name="KD死叉",
+                text=["▼死叉"] * len(kd_dead), textposition="top center",
+                textfont=dict(color='#67e8f9', size=11),
+                marker=dict(symbol='triangle-down', size=10, color='#06b6d4', line=dict(color='#000000', width=1))
+            ), row=4, col=1)
+
+        # === 第 5 層：新增 RSI (14) 強弱與底背離監控子圖 ===
+        fig.add_trace(go.Scatter(
+            x=plot_df.index, y=plot_df['RSI'], name="RSI(14)",
+            line=dict(color='#c084fc', width=2),
+            fill='tozeroy', fillcolor='rgba(192, 132, 252, 0.08)'
+        ), row=5, col=1)
+        fig.add_hline(y=80, line_dash="dash", line_color="#ef4444", annotation_text="80 過熱", annotation_position="top right", annotation_font=dict(color="#ef4444", size=10), row=5, col=1)
+        fig.add_hline(y=50, line_dash="dot", line_color="#64748b", row=5, col=1)
+        fig.add_hline(y=40, line_dash="dash", line_color="#10b981", annotation_text="40 背離低接區", annotation_position="bottom right", annotation_font=dict(color="#10b981", size=10), row=5, col=1)
+
+        # 調整每一層子圖的小標題樣式 (靠左對齊、亮青色粗體 14px)
+        for annotation in fig['layout']['annotations']:
+            if annotation['text'].startswith(('📈', '📊', '🌊', '⚡', '🎯')):
+                annotation['x'] = 0.0
+                annotation['xanchor'] = 'left'
+                annotation['font'] = dict(size=14, color='#38bdf8', family='Microsoft JhengHei')
+
+        fig.update_layout(
+            height=920, template="plotly_dark", xaxis_rangeslider_visible=False, hovermode="x unified",
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
-            margin=dict(l=10, r=10, t=40, b=10))
+            margin=dict(l=10, r=10, t=55, b=10)
+        )
         fig.update_xaxes(showspikes=True, spikecolor="gray", spikesnap="cursor", spikemode="across")
         fig.update_yaxes(showspikes=True, spikecolor="gray", spikethickness=1)
-        for ax in fig.select_xaxes(): ax.update(showticklabels=True)
+        for ax in fig.select_xaxes():
+            ax.update(showticklabels=True)
         
         st.plotly_chart(fig, use_container_width=True)
 
