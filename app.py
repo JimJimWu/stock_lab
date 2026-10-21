@@ -1626,7 +1626,7 @@ if df is not None and not df.empty:
         display_name = str(target_sid)
 
     # ==============================================================================
-    # 🌟 【第 1 層：頂部全寬戰情大看板】(不再偏右，大器全寬置頂！)
+    # 🌟 【第 1 層：頂部全寬戰情大看板】(大器全寬置頂)
     # ==============================================================================
     st.markdown(f"""<div style="background: linear-gradient(90deg, #111827, #000000); border-left: 10px solid {color}; padding: 18px 25px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 15px; border-top: 1px solid #1e293b; border-right: 1px solid #1e293b; border-bottom: 1px solid #1e293b;">
 <div style="min-width: 320px; display: flex; flex-direction: column; justify-content: space-between;">
@@ -1669,17 +1669,15 @@ if df is not None and not df.empty:
 </div>""", unsafe_allow_html=True)
 
     # ==============================================================================
-    # 🌟 【第 2 層：核心交易雙屏對齊】(左側 K線主圖 65% ＋ 右側即時盤口 35%)
+    # 🌟 【第 2 層：核心交易雙屏對齊】(左側 5層K線圖 65% ＋ 右側即時盤口 35%)
     # ==============================================================================
     col_chart, col_telemetry = st.columns([2.6, 1.4])
     
-   with col_chart:
-        # 計算布林通道 (20MA ± 2倍標準差)
+    with col_chart:
         bb_std = plot_df['Close'].rolling(20).std()
         bb_upper = plot_df['MA20'] + (bb_std * 2)
         bb_lower = plot_df['MA20'] - (bb_std * 2)
 
-        # 建立 5 層專業子圖表，並為每一層加上醒目小標題
         fig = make_subplots(
             rows=5, cols=1, shared_xaxes=True, vertical_spacing=0.045,
             row_heights=[0.38, 0.15, 0.16, 0.16, 0.15],
@@ -1692,7 +1690,7 @@ if df is not None and not df.empty:
             )
         )
 
-        # === 第 1 層：K線 + 均線 + 布林通道 + 莊家防守線 ===
+        # 第 1 層：K線 + 均線 + 布林通道 + 莊家防守線
         fig.add_trace(go.Candlestick(
             x=plot_df.index, open=plot_df['Open'], high=plot_df['High'],
             low=plot_df['Low'], close=plot_df['Close'], name="K線",
@@ -1705,33 +1703,31 @@ if df is not None and not df.empty:
         fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA60'], name="60MA (季線)", line=dict(color='#2dd4bf', width=2.2)), row=1, col=1)
         fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MA240'], name="240MA (年線)", line=dict(color='#e2e8f0', width=2, dash='dot')), row=1, col=1)
         
-        # 布林通道上下軌 (半透明虛線，可於上方圖例點擊開關)
         fig.add_trace(go.Scatter(x=plot_df.index, y=bb_upper, name="布林上軌", line=dict(color='rgba(148, 163, 184, 0.45)', width=1, dash='dash')), row=1, col=1)
         fig.add_trace(go.Scatter(x=plot_df.index, y=bb_lower, name="布林下軌", line=dict(color='rgba(148, 163, 184, 0.45)', width=1, dash='dash'), fill='tonexty', fillcolor='rgba(148, 163, 184, 0.04)'), row=1, col=1)
 
-        # 直接在主圖畫出莊家大戶防守成本線
         fig.add_hline(
             y=weighted_support, line_dash="dash", line_color="#facc15", line_width=1.8,
             annotation_text=f"🛡️ 莊家防線 {weighted_support}元", annotation_position="bottom right",
             annotation_font=dict(color="#facc15", size=12), row=1, col=1
         )
 
-        # === 第 2 層：高顯眼度三色成交量 + 5日均量線 ===
+        # 第 2 層：高顯眼度三色成交量 + 5日均量線
         vol_colors = []
         for idx_v, r_v in plot_df.iterrows():
             is_up = r_v['Close'] >= r_v['Open']
             is_burst = pd.notna(r_v['Vol_MA5']) and r_v['Vol_MA5'] > 0 and (r_v['Volume'] >= r_v['Vol_MA5'] * 1.15)
             if is_up and is_burst:
-                vol_colors.append('#f59e0b')  # 爆量攻擊紅K：亮金橘色高亮
+                vol_colors.append('#f59e0b')  # 爆量攻擊紅K：亮金橘色
             elif is_up:
-                vol_colors.append('#ff3b5c')  # 一般紅K：高飽和霓虹亮紅
+                vol_colors.append('#ff3b5c')  # 一般紅K：霓虹亮紅
             else:
-                vol_colors.append('#00e676')  # 黑K：高對比翡翠亮綠
+                vol_colors.append('#00e676')  # 黑K：翡翠亮綠
 
         fig.add_trace(go.Bar(x=plot_df.index, y=plot_df['Volume'], name="成交量(張)", marker_color=vol_colors, opacity=0.92), row=2, col=1)
         fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['Vol_MA5'], name="5日均量", line=dict(color='#fef08a', width=2)), row=2, col=1)
 
-        # === 第 3 層：MACD + 活叉(金叉)/死叉自動標記 ===
+        # 第 3 層：MACD + 活叉/死叉標記
         m_colors = ['#ff3b5c' if x > 0 else '#00e676' for x in plot_df['MACD_Hist']]
         fig.add_trace(go.Bar(x=plot_df.index, y=plot_df['MACD_Hist'], name="MACD柱", marker_color=m_colors), row=3, col=1)
         fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['DIF'], name="DIF快線", line=dict(color='#38bdf8', width=1.8)), row=3, col=1)
@@ -1754,7 +1750,7 @@ if df is not None and not df.empty:
                 marker=dict(symbol='triangle-down', size=11, color='#06b6d4', line=dict(color='#000000', width=1))
             ), row=3, col=1)
 
-        # === 第 4 層：KD 隨機指標 + 活叉(金叉)/死叉自動標記 ===
+        # 第 4 層：KD 隨機指標 + 活叉/死叉標記
         fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['K'], name="K值", line=dict(color='#ffffff', width=1.8)), row=4, col=1)
         fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['D'], name="D值", line=dict(color='#facc15', width=1.8)), row=4, col=1)
         fig.add_hline(y=80, line_dash="dot", line_color="rgba(239, 68, 68, 0.5)", row=4, col=1)
@@ -1777,7 +1773,7 @@ if df is not None and not df.empty:
                 marker=dict(symbol='triangle-down', size=10, color='#06b6d4', line=dict(color='#000000', width=1))
             ), row=4, col=1)
 
-        # === 第 5 層：新增 RSI (14) 強弱與底背離監控子圖 ===
+        # 第 5 層：RSI (14) 相對強弱與底背離監控
         fig.add_trace(go.Scatter(
             x=plot_df.index, y=plot_df['RSI'], name="RSI(14)",
             line=dict(color='#c084fc', width=2),
@@ -1787,7 +1783,7 @@ if df is not None and not df.empty:
         fig.add_hline(y=50, line_dash="dot", line_color="#64748b", row=5, col=1)
         fig.add_hline(y=40, line_dash="dash", line_color="#10b981", annotation_text="40 背離低接區", annotation_position="bottom right", annotation_font=dict(color="#10b981", size=10), row=5, col=1)
 
-        # 調整每一層子圖的小標題樣式 (靠左對齊、亮青色粗體 14px)
+        # 調整子圖標題樣式 (靠左對齊、亮青色粗體)
         for annotation in fig['layout']['annotations']:
             if annotation['text'].startswith(('📈', '📊', '🌊', '⚡', '🎯')):
                 annotation['x'] = 0.0
@@ -1866,7 +1862,7 @@ if df is not None and not df.empty:
         """, unsafe_allow_html=True)
 
     # ==============================================================================
-    # 🌟 【第 3 層：全寬深度決策戰情室】(100% 寬度對稱雙欄，徹底填滿下方螢幕！)
+    # 🌟 【第 3 層：全寬深度決策戰情室】(100% 寬度對稱雙欄)
     # ==============================================================================
     st.divider()
     st.subheader("📊 籌碼流向、基本面毛利與實戰決策")
