@@ -1,5 +1,5 @@
 # ==============================================================================
-# 秉諺的黑馬雷達 - 背景自動無人值守掃描器 (auto_scan.py V36.0 - 歷年毛利與單季容錯版)
+# 秉諺的黑馬雷達 - 背景自動無人值守掃描器 (auto_scan.py V36.1 - 歷年毛利與防呆旗艦版)
 # ==============================================================================
 import os
 import json
@@ -79,17 +79,29 @@ def get_stock_df(sid):
             df = df[(df['Volume'] > 0) & (df['Volume'].notna())]
             df['Volume'] = df['Volume'] / 1000.0
 
+            # 💥 【V36.1 防呆升級】：逐欄檢查非 None 且 > 0 才轉型覆寫，徹底消除早盤 NoneType 報錯
             try:
                 f_info = ticker.fast_info
-                if f_info:
+                if f_info is not None:
                     today_idx = df.index[-1]
-                    df.loc[today_idx, 'Close'] = float(f_info['last_price'])
-                    df.loc[today_idx, 'High'] = float(f_info['day_high'])
-                    df.loc[today_idx, 'Low'] = float(f_info['day_low'])
-                    df.loc[today_idx, 'Open'] = float(f_info['open'])
-                    df.loc[today_idx, 'Volume'] = f_info['last_volume'] / 1000.0
-            except Exception as ex:
-                print(f"實時快閃修正失敗: {ex}")
+                    last_p = f_info.get('last_price')
+                    day_h = f_info.get('day_high')
+                    day_l = f_info.get('day_low')
+                    open_p = f_info.get('open')
+                    last_v = f_info.get('last_volume')
+
+                    if last_p is not None and float(last_p) > 0:
+                        df.loc[today_idx, 'Close'] = float(last_p)
+                    if day_h is not None and float(day_h) > 0:
+                        df.loc[today_idx, 'High'] = float(day_h)
+                    if day_l is not None and float(day_l) > 0:
+                        df.loc[today_idx, 'Low'] = float(day_l)
+                    if open_p is not None and float(open_p) > 0:
+                        df.loc[today_idx, 'Open'] = float(open_p)
+                    if last_v is not None and float(last_v) > 0:
+                        df.loc[today_idx, 'Volume'] = float(last_v) / 1000.0
+            except Exception:
+                pass
 
             if df.empty or len(df) < 20:
                 return pd.DataFrame()
@@ -165,7 +177,7 @@ def get_analysis_data(sid):
     return None
 
 # ==============================================================================
-# 📈 【V36.0 新增：跨年度財報與毛利率成長趨勢引擎 (含 Q1 單季逆風容錯)】
+# 📈 【V36.1：跨年度財報與毛利率成長趨勢引擎 (含 Q1 單季逆風容錯)】
 # ==============================================================================
 def get_financial_margin_trend(sid):
     if sid in _FIN_TREND_CACHE:
@@ -295,7 +307,7 @@ def send_discord_webhook(webhook_url, embed_data):
         print(f"發送 Discord 失敗: {e}")
         return False
 
-# 💥 【V36.0 升級：綜合爆發力評分引擎 (納入跨年毛利成長與黃金坑加權)】
+# 💥 【V36.1 升級：綜合爆發力評分引擎 (納入跨年毛利成長與黃金坑加權)】
 def calculate_composite_score(net_5d, volume_ratio, is_long_term_growth=False, is_q_dip=False):
     if net_5d is None:
         net_5d = 0
@@ -310,7 +322,7 @@ def calculate_composite_score(net_5d, volume_ratio, is_long_term_growth=False, i
     fin_bonus = 15.0 if is_long_term_growth else (10.0 if is_q_dip else 0.0)
     return round(min(base_score + fin_bonus, 100.0), 2)
 
-# 💥 【V36.0 完美同步：自動化背景監控引擎 (含 Q1 單季逆風容錯濾網 + 歷年毛利軌跡推播)】
+# 💥 【V36.1 完美同步：自動化背景監控引擎 (含 Q1 單季逆風容錯濾網 + 歷年毛利軌跡推播)】
 def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
     df_scan = get_stock_df(sid)
     if df_scan.empty or len(df_scan) < 20:
@@ -348,7 +360,6 @@ def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
                 return False
             
             # 💥 【核心升級：Q1 單季逆風容錯濾網】
-            # 若單季營收正成長直接放行；若單季下滑 (如 Q1 淡季)，則調閱跨年度毛利與年營收趨勢，長線成長者給予免死金牌放行！
             is_rev_ok = (rev_growth != "N/A" and float(rev_growth) > 0)
             if not is_rev_ok:
                 fin_trend = get_financial_margin_trend(sid)
@@ -436,7 +447,6 @@ def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
 
     # === 組合結果並回傳 ===
     if signals_triggered:
-        # 確保取得跨年度毛利率軌跡資料
         if fin_trend is None:
             fin_trend = get_financial_margin_trend(sid)
 
@@ -447,7 +457,6 @@ def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
             is_q_dip=fin_trend["is_q_dip_opportunity"]
         )
 
-        # 組裝歷年毛利與近四季毛利字串
         ann_gm_str = " ➔ ".join([f"{k[-2:]}年:{v}%" for k, v in fin_trend["annual_gm_dict"].items()]) if fin_trend["annual_gm_dict"] else f"最新: {fin_trend['latest_gm']}%"
         q_gm_str = " ➔ ".join([f"{k[-2:]}:{v}%" for k, v in fin_trend["quarterly_gm_dict"].items()]) if fin_trend["quarterly_gm_dict"] else "暫無季序列"
 
@@ -529,7 +538,6 @@ def run_all_scan():
     if daily_candidates:
         daily_candidates.sort(key=lambda x: x['score'], reverse=True)
         
-        # 讀取昨天的紀錄
         last_day_path = "tracker_state.json"
         tracker_data = {}
         if os.path.exists(last_day_path):
@@ -539,7 +547,6 @@ def run_all_scan():
             except Exception:
                 pass
         
-        # 取得上次掃描的日期與訊號
         last_scan_date = tracker_data.get("date", "")
         last_day_signals = tracker_data.get("signals", {})
         
