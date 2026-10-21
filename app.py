@@ -624,46 +624,56 @@ def get_analysis_data(sid):
         except Exception:
             continue
     return None	
-# 獲取 yfinance 基本面數據
-@st.cache_data(ttl=3600) # 財報數據變動頻率低，快取 1 小時節省資源
+# ==============================================================================
+# 📈 跨年度毛利與金融特許解析引擎 (與 auto_scan.py V36.3 100% 同步)
+# ==============================================================================
+@st.cache_data(ttl=3600)
 def get_financial_margin_trend(sid):
-    """
-    抓取近 3~4 年【年度毛利率趨勢】與【近四季季度毛利率】，
-    實作『跨年成長趨勢 + 單季逆風容錯』判定邏輯。
-    """
     sid = str(sid).split('(')[0].split(' ')[0].strip()
-    suffixes = [".TWO", ".TW"] if sid in ["3595", "7853", "3081"] or len(sid) == 6 else [".TW", ".TWO"]
-    
+    if ".TW" in sid.upper() or ".TWO" in sid.upper():
+        candidate_tickers = [sid]
+    else:
+        suffixes = [".TWO", ".TW"] if sid in ["3595", "7853", "3081"] or len(sid) == 6 else [".TW", ".TWO"]
+        candidate_tickers = [f"{sid}{s}" for s in suffixes]
+
+    pure_num = sid.split('.')[0]
+    is_finance_sector = pure_num.startswith("28") or pure_num.startswith("58")
+
     result = {
         "has_data": False,
-        "latest_gm": "N/A",           # 最新毛利率 (%)
-        "latest_opm": "N/A",          # 最新營業利益率 (%)
-        "annual_gm_dict": {},         # 歷年毛利率 {"2023": 25.1, "2024": 28.4, ...}
-        "quarterly_gm_dict": {},      # 近四季毛利率 {"2025Q3": 30.1, ...}
-        "gm_3y_diff": 0.0,            # 近幾年毛利率總成長幅度 (百分點)
-        "annual_rev_cagr": 0.0,       # 年度營收成長幅度 (%)
-        "is_long_term_growth": False, # 長線(年度)是否正成長
-        "is_q_dip_opportunity": False,# 是否為「單季下滑、長線成長」的季節性買點
+        "latest_gm": "N/A",
+        "latest_opm": "N/A",
+        "annual_gm_dict": {},
+        "quarterly_gm_dict": {},
+        "gm_3y_diff": 0.0,
+        "annual_rev_cagr": 0.0,
+        "is_long_term_growth": False,
+        "is_q_dip_opportunity": False,
         "status_tag": "⚖️ 財報中性",
         "diagnosis_text": "【資料不足，無法確認】"
     }
 
-    for suffix in suffixes:
+    # 金融特許行業豁免
+    if is_finance_sector:
+        result["has_data"] = True
+        result["latest_gm"] = "不適用(金融業)"
+        result["is_long_term_growth"] = True
+        result["status_tag"] = "🏛️ 金融特許・獲利穩健"
+        result["diagnosis_text"] = "金融金控股無營業毛利項目，系統以整體獲利能力與籌碼鎖碼深度為主要評判防線。"
+        return result
+
+    for tk_symbol in candidate_tickers:
         try:
-            ticker = yf.Ticker(f"{sid}{suffix}")
+            ticker = yf.Ticker(tk_symbol)
             info = ticker.info or {}
-            
-            # 1. 先從 info 取得最新快照作為保底
             if info.get("grossMargins"):
                 result["latest_gm"] = round(float(info["grossMargins"]) * 100, 2)
             if info.get("operatingMargins"):
                 result["latest_opm"] = round(float(info["operatingMargins"]) * 100, 2)
 
-            # 2. 抓取【年度損益表】計算跨年毛利率與營收趨勢
             ann_stmt = ticker.income_stmt
             if ann_stmt is not None and not ann_stmt.empty:
                 if "Gross Profit" in ann_stmt.index and "Total Revenue" in ann_stmt.index:
-                    # 依時間由舊到新排序
                     ann_cols = sorted(ann_stmt.columns)
                     ann_gms = {}
                     ann_revs = {}
@@ -674,32 +684,24 @@ def get_financial_margin_trend(sid):
                         if pd.notna(gp) and pd.notna(rev) and float(rev) > 0:
                             ann_gms[yr_str] = round((float(gp) / float(rev)) * 100, 2)
                             ann_revs[yr_str] = float(rev)
-                    
                     if len(ann_gms) >= 2:
                         result["has_data"] = True
                         result["annual_gm_dict"] = ann_gms
                         yrs = list(ann_gms.keys())
-                        
-                        # 計算跨年度毛利率變化 (最新完整年度 vs 最早年度 或 前一年度)
                         first_gm, last_gm = ann_gms[yrs[0]], ann_gms[yrs[-1]]
                         prev_gm = ann_gms[yrs[-2]]
                         result["gm_3y_diff"] = round(last_gm - first_gm, 2)
-                        
-                        # 計算年度營收成長率
                         first_rev, last_rev = ann_revs[yrs[0]], ann_revs[yrs[-1]]
                         if first_rev > 0:
                             result["annual_rev_cagr"] = round(((last_rev - first_rev) / first_rev) * 100, 2)
-                        
-                        # 判定長線是否成長：最新年度毛利率高於首年(或前年)，且年度營收正成長
                         if (last_gm >= first_gm or last_gm >= prev_gm) and result["annual_rev_cagr"] > 0:
                             result["is_long_term_growth"] = True
 
-            # 3. 抓取【季度損益表】檢視單季波動 (Q1~Q4 季節性檢驗)
             q_stmt = ticker.quarterly_income_stmt
             q_rev_yoy = info.get("revenueGrowth", 0) or 0
             if q_stmt is not None and not q_stmt.empty:
                 if "Gross Profit" in q_stmt.index and "Total Revenue" in q_stmt.index:
-                    q_cols = sorted(q_stmt.columns)[-4:] # 取最近四季
+                    q_cols = sorted(q_stmt.columns)[-4:]
                     q_gms = {}
                     for col in q_cols:
                         q_label = f"{col.year}-Q{(col.month-1)//3 + 1}"
@@ -709,34 +711,22 @@ def get_financial_margin_trend(sid):
                             q_gms[q_label] = round((float(gp) / float(rev)) * 100, 2)
                     result["quarterly_gm_dict"] = q_gms
 
-            # 4. 綜合判定：區分「全面爆發」、「單季逆風但整年成長(黃金坑)」、「結構衰退」
             if result["has_data"]:
                 q_vals = list(result["quarterly_gm_dict"].values())
                 is_recent_q_dip = (q_rev_yoy < 0) or (len(q_vals) >= 2 and q_vals[-1] < q_vals[-2])
-                
                 if result["is_long_term_growth"] and not is_recent_q_dip:
                     result["status_tag"] = "🚀 長線毛利與營收雙成長"
-                    result["diagnosis_text"] = (
-                        f"歷年毛利率變動 {result['gm_3y_diff']:+.2f}%，多年度營收成長 {result['annual_rev_cagr']:+.1f}%。\n"
-                        "長線與單季基本面同步擴張，具備強勁基本面推升動能！"
-                    )
+                    result["diagnosis_text"] = f"歷年毛利率變動 {result['gm_3y_diff']:+.2f}%，多年度營收成長 {result['annual_rev_cagr']:+.1f}%。長線與單季基本面同步擴張！"
                 elif result["is_long_term_growth"] and is_recent_q_dip:
                     result["is_q_dip_opportunity"] = True
                     result["status_tag"] = "💎 長線成長・單季逆風黃金坑"
-                    result["diagnosis_text"] = (
-                        f"雖近期單季表現短暫回檔，但跨年度毛利率成長 {result['gm_3y_diff']:+.2f}%、整年度營收趨勢正成長 ({result['annual_rev_cagr']:+.1f}%)。\n"
-                        "符合『單季休整、全年正相關』特徵，回測均線支撐時具長線保護傘！"
-                    )
+                    result["diagnosis_text"] = f"雖近期單季小幅回檔，但跨年度毛利率成長 {result['gm_3y_diff']:+.2f}%、年度營收趨勢正成長 ({result['annual_rev_cagr']:+.1f}%)，具備長線保護傘！"
                 else:
                     result["status_tag"] = "⚠️ 長線毛利或營收趨緩"
-                    result["diagnosis_text"] = (
-                        f"跨年度毛利率變動 {result['gm_3y_diff']:+.2f}%，年度營收變動 {result['annual_rev_cagr']:+.1f}%。\n"
-                        "目前尚未出現跨年度結構性擴張，操作宜嚴守技術面與籌碼防線。"
-                    )
+                    result["diagnosis_text"] = f"跨年度毛利率變動 {result['gm_3y_diff']:+.2f}%，年度營收變動 {result['annual_rev_cagr']:+.1f}%。宜嚴守技術與籌碼防線。"
                 break
-        except Exception as e:
+        except Exception:
             continue
-
     return result
 
 # 掛單專用 (💥 完全移除 10 倍乘數)
@@ -769,15 +759,19 @@ def send_discord_webhook(webhook_url, embed_data):
     except Exception as e:
         return False, f"發送異常: {str(e)}"
 
-# 💥 【V36.0 評分引擎：納入跨年毛利成長與單季黃金坑加權】
-def calculate_composite_score(net_5d, volume_ratio, is_long_term_growth=False, is_q_dip=False):
-    if net_5d is None:
-        net_5d = 0
-    if volume_ratio is None:
-        volume_ratio = 1.0
+# ==============================================================================
+# 💥 全方位評分引擎 (兼容量能爆發與量縮惜售)
+# ==============================================================================
+def calculate_composite_score(net_5d, volume_ratio, is_long_term_growth=False, is_q_dip=False, signal_type=""):
+    if net_5d is None: net_5d = 0
+    if volume_ratio is None: volume_ratio = 1.0
 
     chip_score = min(max((net_5d / 3000.0) * 100, 0), 100)
-    vol_score = min(max((volume_ratio - 1.15) / (3.0 - 1.15) * 100, 0), 100)
+    if "惜售" in signal_type or "潛龍" in signal_type or volume_ratio < 0.7:
+        vol_score = min(max((0.7 - volume_ratio) / 0.7 * 100, 0), 100)
+    else:
+        vol_score = min(max((volume_ratio - 1.15) / (3.0 - 1.15) * 100, 0), 100)
+    
     base_score = (chip_score * 0.50) + (vol_score * 0.35)
     fin_bonus = 15.0 if is_long_term_growth else (10.0 if is_q_dip else 0.0)
     return round(min(base_score + fin_bonus, 100.0), 2)
