@@ -921,30 +921,29 @@ if 'selected_sid' not in st.session_state:
     st.session_state['selected_sid'] = list(current_stocks_dict.keys())[0] if current_stocks_dict else "2330"
 
 # ==============================================================================
-# 📊 獨立擴充模組：策略多週期持股勝率模擬分析儀
+# 📊 獨立擴充模組：策略多週期持股勝率模擬分析儀 (V42.2 訊號懸停指南版)
 # ==============================================================================
 def render_backtest_dashboard():
     import pandas as pd
     import os
     import datetime
+    import plotly.graph_objects as go
 
-    # 💥 【核心過濾器】：必須置於最頂部，供所有模組使用
+    # 💥 【核心過濾器】：支援 5 大核心戰術型態 (含低檔底背離)
     def force_clean(x):
         s = str(x)
         if "強勢突破" in s: return "🚨【強勢突破】"
         if "大戶惜售" in s: return "💎【大戶惜售】"
         if "出貨陷阱" in s: return "💀【出貨陷阱】"
         if "深水區潛龍" in s: return "🐉【深水區潛龍】"
-        if "底背離" in s:   return "🔥【低檔底背離】"
+        if "底背離" in s or "背離" in s: return "🔥【低檔底背離】"
         return "⚖️ 區間溫和"
 
     st.markdown("### 🏹 連續鎖碼偵測中心")
     
-    # 💥 建立左右雙欄排版 (左佔比 2.5，右佔比 1)
     col_main, col_info = st.columns([2.5, 1])
     
     with col_info:
-        # 🎨 美式機構級戰情說明卡片 (字體放大 + 詳細策略 + 高亮提示)
         st.markdown("""
         <div style="background: linear-gradient(145deg, #1e293b, #0f172a); 
                     border: 1px solid #334155; 
@@ -959,7 +958,7 @@ def render_backtest_dashboard():
             <div style="color: #e2e8f0; font-size: 15px; line-height: 1.7; display: flex; flex-direction: column; gap: 10px;">
                 <div>
                     🔍 <strong style="color: #67e8f9;">運作原理：</strong>
-                    調閱歷史資料庫，過濾出最近 N 個交易日<strong>連續出現相同核心訊號</strong>（如連續突破或惜售）的極端強勢股。
+                    調閱歷史資料庫，過濾出最近 N 個交易日<strong>連續出現相同核心訊號</strong>的極端強勢股。
                 </div>
                 <div>
                     🛡️ <strong style="color: #a7f3d0;">策略意義：</strong>
@@ -978,50 +977,32 @@ def render_backtest_dashboard():
         """, unsafe_allow_html=True)
 
     with col_main:
-        # 💥 【即時修復】改讀取 0 時差即時日誌，保證永遠抓到最新鮮的盤前/盤中訊號
         log_file_path = "signal_history.csv"
-        
         if os.path.exists(log_file_path):
             try:
-                # 1. 讀取歷史日誌 (略過異常行)
                 df_history = pd.read_csv(log_file_path, encoding="utf-8-sig", on_bad_lines='skip')
-                
                 if "日期時間" in df_history.columns and "股票代號" in df_history.columns and "核心訊號" in df_history.columns:
-                    # 2. 清洗與轉換格式
                     df_history['日期'] = pd.to_datetime(df_history['日期時間']).dt.date
                     df_history['核心訊號'] = df_history['核心訊號'].apply(force_clean)
-                    
-                    # 3. 去除同一天重複掃描的雜訊，每天每檔股票只保留「最後一次」的訊號
                     df_daily = df_history.drop_duplicates(subset=['日期', '股票代號'], keep='last')
-                    
-                    # 4. 抓出全市場所有發生過掃描的交易日 (由新到舊排序)
                     all_available_dates = sorted(df_daily['日期'].unique(), reverse=True)
                     
-                    # 建立雙分頁系統
                     tab1, tab2 = st.tabs(["🚀 最新盤前偵測", "⏪ 歷史時光機回測"])
-                    
-                    # ---------------------------------------------------------
-                    # 分頁 1：最新盤前偵測 (永遠抓最新 N 天)
-                    # ---------------------------------------------------------
                     with tab1:
                         target_days = st.slider("🔥 選擇最近連續上榜天數", min_value=2, max_value=5, value=2, key="slider_latest")
                         consecutive_stocks = []
                         date_range_info = ""
-                        
                         if len(all_available_dates) >= target_days:
                             check_dates = all_available_dates[:target_days]
                             start_date_str = min(check_dates).strftime("%m/%d")
                             end_date_str = max(check_dates).strftime("%m/%d")
                             date_range_info = f"(觸發區間: {start_date_str} ~ {end_date_str})"
-                            
                             df_recent = df_daily[df_daily['日期'].isin(check_dates)]
-                            
                             for ticker, group in df_recent.groupby('股票代號'):
                                 if len(group) == target_days and group['核心訊號'].nunique() == 1:
                                     signal_name = group['核心訊號'].iloc[0]
                                     stock_name = group['股票名稱'].iloc[0] if '股票名稱' in group.columns else ""
                                     consecutive_stocks.append(f"{ticker} {stock_name} - {signal_name}")
-                                    
                         with st.expander(f"查看最近 {target_days} 日連續上榜清單 {date_range_info}", expanded=True):
                             if consecutive_stocks:
                                 for item in consecutive_stocks:
@@ -1029,9 +1010,6 @@ def render_backtest_dashboard():
                             else:
                                 st.info("該區間內，暫無連續出現相同訊號的標的。")
 
-                    # ---------------------------------------------------------
-                    # 分頁 2：歷史時光機 (自由指定基準日往回推 N 天)
-                    # ---------------------------------------------------------
                     with tab2:
                         col_d1, col_d2 = st.columns(2)
                         with col_d1:
@@ -1039,33 +1017,26 @@ def render_backtest_dashboard():
                             base_date = st.date_input("📅 選擇歷史基準日", value=default_date)
                         with col_d2:
                             target_days_hist = st.slider("🔥 選擇歷史連續天數", min_value=2, max_value=5, value=2, key="slider_hist")
-                        
                         consecutive_stocks_hist = []
                         date_range_info_hist = ""
-                        
                         past_dates = [d for d in all_available_dates if d <= base_date]
-                        
                         if len(past_dates) >= target_days_hist:
                             check_dates_hist = past_dates[:target_days_hist]
                             start_date_str_h = min(check_dates_hist).strftime("%m/%d")
                             end_date_str_h = max(check_dates_hist).strftime("%m/%d")
                             date_range_info_hist = f"(觸發區間: {start_date_str_h} ~ {end_date_str_h})"
-                            
                             df_hist_range = df_daily[df_daily['日期'].isin(check_dates_hist)]
-                            
                             for ticker, group in df_hist_range.groupby('股票代號'):
                                 if len(group) == target_days_hist and group['核心訊號'].nunique() == 1:
                                     signal_name = group['核心訊號'].iloc[0]
                                     stock_name = group['股票名稱'].iloc[0] if '股票名稱' in group.columns else ""
                                     consecutive_stocks_hist.append(f"{ticker} {stock_name} - {signal_name}")
-                                    
                         with st.expander(f"查看歷史 {target_days_hist} 日連續上榜清單 {date_range_info_hist}", expanded=True):
                             if consecutive_stocks_hist:
                                 for item in consecutive_stocks_hist:
                                     st.success(f"✅ {item}")
                             else:
                                 st.info(f"在 {date_range_info_hist} 區間內，無連續出現相同訊號的標的。")
-                                
             except Exception as e:
                 st.error(f"連續偵測運算發生錯誤: {e}")
         else:
@@ -1077,9 +1048,9 @@ def render_backtest_dashboard():
     file_path = "signal_history_backtest.csv"
     if not os.path.exists(file_path):
         st.warning(f"尚未偵測到 {file_path}，請確認回測引擎是否已執行完畢。")
-        return    
+        return 
+    
     try:
-        # 1. 讀取並清洗訊號名稱
         df = pd.read_csv(file_path, encoding="utf-8-sig", on_bad_lines='skip')
         signal_col = "核心訊號" if "核心訊號" in df.columns else ("訊號" if "訊號" in df.columns else None)
         if not signal_col:
@@ -1087,51 +1058,54 @@ def render_backtest_dashboard():
             return
         df[signal_col] = df[signal_col].apply(force_clean)
 
-        # 2. 處理時間欄位
         if "日期時間" in df.columns:
             df['日期時間'] = pd.to_datetime(df['日期時間'])
         
-        # 3. 戰情室動態數據篩選器 UI
         col1, col2 = st.columns(2)
         with col1:
-            import datetime
             min_date = df['日期時間'].dt.date.min()
             max_date = df['日期時間'].dt.date.max()
             default_start = max(min_date, max_date - datetime.timedelta(days=30))
-            
             selected_dates = st.date_input("🗓️ 選擇回測區間", value=[default_start, max_date], min_value=min_date, max_value=max_date)
 
         with col2:
             available_signals = df[signal_col].dropna().unique().tolist()
             selected_signals = st.multiselect("🎯 選擇欲分析的訊號型態", options=available_signals, default=available_signals)
 
-        # 4. 執行 DataFrame 過濾
         if len(selected_dates) == 2:
             start_date, end_date = selected_dates
             df = df[(df['日期時間'].dt.date >= start_date) & (df['日期時間'].dt.date <= end_date) & (df[signal_col].isin(selected_signals))]
         elif len(selected_dates) == 1:
             start_date = selected_dates[0]
             df = df[(df['日期時間'].dt.date == start_date) & (df[signal_col].isin(selected_signals))]
-            
+        
         if df.empty:
             st.warning("⚠️ 在目前的篩選條件下，沒有找到任何符合的回測數據。")
             return
 
-        # 💥 5. 關鍵修復：把準備 df_plot 的動作，移到「過濾完成之後」才執行！
         reward_cols = [c for c in df.columns if "報酬率(%)" in c]
         df_plot = df[[signal_col] + reward_cols].copy()
         
-        # 確保報酬率轉為數字 (防止 0.0% 或字串問題)
         for col in reward_cols:
             df_plot[col] = pd.to_numeric(df_plot[col].astype(str).str.replace('%', ''), errors='coerce').fillna(0)
 
-        # 6. 繪圖
         periods = ["T+1", "T+3", "T+5", "T+10", "T+20"]
         fig = go.Figure()
-        colors = ["#FF4B4B", "#00CC96", "#AB63FA", "#FFA15A", "#FFD700"] 
+        
+        # 專屬顏色盤 (突破:紫, 惜售:綠, 陷阱:紅, 潛龍:橘, 底背離:亮金)
+        signal_color_map = {
+            "🚨【強勢突破】": "#c084fc",
+            "💎【大戶惜售】": "#34d399",
+            "💀【出貨陷阱】": "#f87171",
+            "🐉【深水區潛龍】": "#fb923c",
+            "🔥【低檔底背離】": "#facc15",
+            "⚖️ 區間溫和": "#94a3b8"
+        }
 
         grouped = df_plot.groupby(signal_col)
-        for i, (signal_name, group_df) in enumerate(grouped):
+        dynamic_insights = []
+
+        for signal_name, group_df in grouped:
             win_rates = []
             for p in periods:
                 col_name = f"{p} 報酬率(%)"
@@ -1141,26 +1115,79 @@ def render_backtest_dashboard():
                     win_rates.append(win_rate)
                 else:
                     win_rates.append(0)
-                    
+            
+            # 自動抓取各訊號的最高勝率天期
+            if max(win_rates) > 0:
+                best_period = periods[win_rates.index(max(win_rates))]
+                dynamic_insights.append(f"**{signal_name}** 在 **{best_period}** 勝率最高（`{max(win_rates):.1f}%`）")
+
+            line_color = signal_color_map.get(signal_name, "#38bdf8")
             fig.add_trace(go.Scatter(
                 x=periods, y=win_rates, mode='lines+markers+text',
                 name=signal_name, text=[f"{val:.1f}%" for val in win_rates],
-                textposition="top center", line=dict(width=3, color=colors[i % len(colors)]),
+                textposition="top center", line=dict(width=3, color=line_color),
                 marker=dict(size=10)
             ))
-            
+        
         fig.update_layout(
             title="不同訊號之多週期勝率演變交叉圖", 
             xaxis_title="持有週期", 
             yaxis_title="勝率 (%)",
-            yaxis=dict(range=[0, 110]),     
+            yaxis=dict(range=[0, 110]), 
             hovermode="x unified",
             legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5),
             margin=dict(l=20, r=20, t=60, b=120)
         )
         
         st.plotly_chart(fig, use_container_width=True)
-        st.info("💡 **分析洞察**：觀察兩條線的交叉點。若『量能爆發』在中後期勝率快速下滑，而『大戶惜售』勝率穩步上升，即完美印證了短跑選手與馬拉松選手的策略差異。")
+
+        # ==============================================================================
+        # 💡 【全新升級】：動態實戰診斷 ＋ ❓ 懸停全訊號戰術百科卡片
+        # ==============================================================================
+        if dynamic_insights:
+            insight_summary = " ｜ ".join(dynamic_insights[:3])
+            st.success(f"🎯 **即時週期勝率指引**：{insight_summary}")
+
+        # 懸停提示小辭典 (支援滑鼠移過看說明)
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #1e293b, #0f172a); 
+                    border: 1px solid #334155; 
+                    border-radius: 10px; 
+                    padding: 14px 18px; 
+                    margin-top: 15px;">
+            <div style="color: #60a5fa; font-weight: 800; font-size: 15px; margin-bottom: 8px;">
+                📚 雷達五大核心訊號實戰導航（將滑鼠移至 <span style="color:#facc15; font-size: 17px; cursor: help;">❓</span> 查看操盤定義）：
+            </div>
+            <div style="display: flex; flex-wrap: wrap; gap: 15px; font-size: 14px; color: #cbd5e1;">
+                <div>
+                    <strong>🚨【強勢突破】</strong>
+                    <span style="cursor: help; color: #38bdf8; font-weight: bold; font-size: 16px;" 
+                          title="【量比 >= 1.15 倍 且無主力倒貨】&#10;量能爆發且籌碼集中，代表主力發起短線攻勢。&#10;💡 操作建議：適合短打追價，若 T+1~T+3 勝率見頂應即時分批停利。">❓</span>
+                </div>
+                <div>
+                    <strong>💎【大戶惜售】</strong>
+                    <span style="cursor: help; color: #38bdf8; font-weight: bold; font-size: 16px;" 
+                          title="【量比 < 0.7 倍 極致量縮 + 站穩 5MA + RSI >= 50】&#10;極端洗盤結束，籌碼全數鎖定在莊家手中，散戶浮額出盡。&#10;💡 操作建議：真突破機率高達 90%，適合中長線持有 (T+5~T+10) 賺取完整波段。">❓</span>
+                </div>
+                <div>
+                    <strong>🔥【低檔底背離】</strong>
+                    <span style="cursor: help; color: #38bdf8; font-weight: bold; font-size: 16px;" 
+                          title="【股價創 10 日新低，但 RSI 拒絕破低且落於 < 40 超跌區】&#10;空方力道衰竭，主力大戶趁破底恐慌默默低接吸籌。&#10;💡 操作建議：屬於左側超跌反轉點，密切注意 T+3~T+5 強彈黃金獲利期！">❓</span>
+                </div>
+                <div>
+                    <strong>🐉【深水區潛龍】</strong>
+                    <span style="cursor: help; color: #38bdf8; font-weight: bold; font-size: 16px;" 
+                          title="【回測 60MA 季線 / 240MA 年線 + 極致量縮 + RSI <= 35】&#10;測試長線莊家成本線且無主力倒貨，通常具備強大防禦彈力。&#10;💡 操作建議：安全低階位階，停損空間小、波段盈虧比極佳。">❓</span>
+                </div>
+                <div>
+                    <strong>💀【出貨陷阱】</strong>
+                    <span style="cursor: help; color: #38bdf8; font-weight: bold; font-size: 16px;" 
+                          title="【成交量爆量 (>= 1.15倍)，但主力籌碼 5 日急劇大倒貨】&#10;高檔假拉抬真出貨，專誘多單追高的毒蘋果。&#10;💡 操作建議：嚴禁追高接刀！已有持股者應於紅棒逢高拔檔。">❓</span>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
     except Exception as e:
         st.error(f"儀表板渲染失敗: {e}")
 # ==============================================================================
