@@ -1876,8 +1876,8 @@ if df is not None and not df.empty:
                         for stock in daily_candidates:
                             log_signal_to_csv(stock['sid'], stock['sname'], stock['current_price'], stock['embed'])
                         
-                        # 2. 嚴選 Top 10 發送至 Discord 避免洗版
-                        top_targets = daily_candidates[:10]
+                        # 2. 嚴選 Top 5 發送至 Discord 避免洗版
+                        top_targets = daily_candidates[:5]
                         for stock in top_targets:
                             send_discord_webhook(DEFAULT_DISCORD_WEBHOOK, stock['embed'])
                             time.sleep(0.5)
