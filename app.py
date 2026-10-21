@@ -137,9 +137,10 @@ def generate_ai_insights(company_name, summary):
 
     # 💥 直接採用 Google 官方指定的最新模型與備援清單
     candidate_models = [
-        'gemini-3.8-flash',  # Google 官方錯誤訊息指定推薦之最新模型
-        'gemini-2.5-flash',  # 備援模型 1
-        'gemini-2.5-pro'     # 備援模型 2
+        'gemini-2.5-flash',
+        'gemini-3.1-pro-preview',   # 官方指定推薦接替 2.5-pro 的最新模型
+        'gemini-1.5-pro',           # 獨立配額備援
+        'gemini-1.5-flash-8b'       # 獨立配額輕量備援
     ]
     
     last_err = ""
