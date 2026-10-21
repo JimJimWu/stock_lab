@@ -24,20 +24,12 @@ if not GEMINI_API_KEY:
 else:
     genai.configure(api_key=GEMINI_API_KEY)
 # ==============================================================================
-# 雲端資料庫工具函數 (請放入 import 區段之後，主邏輯之前)
+# ☁️ 【V43.0 終極永久雲端資料庫引擎】：自選股 (watchlist) + 產業百科 (industry_db) 雙軌自動上雲
 # ==============================================================================
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-def load_industry_db_from_cloud():
-    try:
-        sheet = get_google_sheet()
-        records = sheet.get_all_records()
-        return {str(row['sid']): json.loads(row['data']) for row in records if row['sid']}
-    except Exception as e:
-        if os.path.exists(INDUSTRY_DB_FILE):
-            with open(INDUSTRY_DB_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        return {}
+
+WATCHLIST_CLOUD_KEY = "__WATCHLIST_DATA__"
 
 def get_google_sheet():
     """建立 Google Sheets 連線"""
@@ -45,25 +37,87 @@ def get_google_sheet():
     scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
-    # 開啟您的 Google Sheet
     return client.open_by_url(st.secrets["SHEET_URL"]).sheet1
 
+def sync_all_to_cloud(industry_db_dict, watchlist_dict=None):
+    """將產業百科與自選股名單一併安全寫入 Google Sheets 與本地暫存檔"""
+    try:
+        clean_db = {str(k): v for k, v in industry_db_dict.items() if str(k) != WATCHLIST_CLOUD_KEY}
+        with open("industry_db.json", "w", encoding="utf-8") as f:
+            json.dump(clean_db, f, ensure_ascii=False, indent=4)
+        
+        if watchlist_dict is not None:
+            pure_wl = {str(k): v for k, v in watchlist_dict.items() if "(⚡雷達)" not in str(v)}
+            with open("watchlist.json", "w", encoding="utf-8") as f:
+                json.dump(pure_wl, f, ensure_ascii=False, indent=4)
+        else:
+            if os.path.exists("watchlist.json"):
+                with open("watchlist.json", "r", encoding="utf-8") as f:
+                    pure_wl = json.load(f)
+            else:
+                pure_wl = DEFAULT_STOCKS.copy()
+
+        sheet = get_google_sheet()
+        rows = [[WATCHLIST_CLOUD_KEY, json.dumps(pure_wl, ensure_ascii=False)]]
+        for sid, data in clean_db.items():
+            rows.append([str(sid), json.dumps(data, ensure_ascii=False)])
+        
+        sheet.clear()
+        sheet.append_row(["sid", "data"])
+        sheet.append_rows(rows)
+        return True
+    except Exception as e:
+        print(f"雲端同步寫入失敗: {e}")
+        return False
+
+def load_cloud_master_data():
+    """一次性從 Google Sheets 讀取【自選股名單】與【產業百科】，並與本地檔案智慧取聯集合併"""
+    cloud_wl = {}
+    cloud_db = {}
+    try:
+        sheet = get_google_sheet()
+        records = sheet.get_all_records()
+        for row in records:
+            sid_key = str(row.get('sid', '')).strip()
+            raw_json = row.get('data', '')
+            if not sid_key or not raw_json:
+                continue
+            if sid_key == WATCHLIST_CLOUD_KEY:
+                cloud_wl = json.loads(raw_json)
+            else:
+                cloud_db[sid_key] = json.loads(raw_json)
+    except Exception as e:
+        print(f"讀取雲端試算表失敗，改用本地備份: {e}")
+
+    local_db = {}
+    if os.path.exists("industry_db.json"):
+        try:
+            with open("industry_db.json", "r", encoding="utf-8") as f:
+                local_db = json.load(f)
+        except Exception:
+            pass
+    merged_db = {**local_db, **cloud_db}
+
+    try:
+        with open("industry_db.json", "w", encoding="utf-8") as f:
+            json.dump(merged_db, f, ensure_ascii=False, indent=4)
+    except Exception:
+        pass
+
+    return cloud_wl, merged_db
+
+def load_industry_db_from_cloud():
+    _, merged_db = load_cloud_master_data()
+    return merged_db
+
 def migrate_local_to_cloud():
-    """執行一次性遷移：將本地 JSON 檔案上傳至 Google Sheets"""
-    # 讀取原本的本地檔案
-    with open("industry_db.json", "r", encoding="utf-8") as f:
-        local_db = json.load(f)
-    
-    sheet = get_google_sheet()
-    
-    # 準備資料格式：[sid, json_string]
-    rows = [[str(sid), json.dumps(data, ensure_ascii=False)] for sid, data in local_db.items()]
-    
-    # 清空雲端舊資料並寫入
-    sheet.clear() 
-    sheet.append_row(["sid", "data"]) # 設定表頭
-    sheet.append_rows(rows) # 批次寫入
-    st.success(f"成功將 {len(rows)} 筆資料同步至 Google Sheets！")
+    """雙向智慧合併同步：將本地與雲端資料取聯集後寫回 Google Sheets，絕不誤刪新資料！"""
+    _, merged_db = load_cloud_master_data()
+    current_wl = st.session_state.get('STOCK_DICT', load_stock_dict())
+    if sync_all_to_cloud(merged_db, current_wl):
+        st.success(f"✅ 雙向智慧同步完成！雲端已永久保存 {len(current_wl)} 檔自選股與 {len(merged_db)} 筆 AI 百科！")
+    else:
+        st.error("❌ 雲端同步失敗，請檢查 Secrets 設定。")
 # ==============================================================================
 def generate_ai_insights(company_name, summary):
     """終極版：使用 Flash 模型並強制 JSON 輸出模式，加入強效除錯機制"""
@@ -279,154 +333,136 @@ def custom_diagnostic_card(title, text, card_type="info"):
     """
     st.markdown(html_str, unsafe_allow_html=True)
 
-# --- 全市場母體資料庫 (供搜尋與新增使用) ---
+# --- 全市場母體資料庫 (供搜尋與新增使用，自動相容 full_market_dict.json 與 stock_dict.json) ---
 def load_full_market():
-    if os.path.exists("full_market_dict.json"):
-        try:
-            with open("full_market_dict.json", "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception as e:
-            print(f"讀取 full_market_dict.json 失敗: {e}")
-    return {} # 找不到就回傳空字典防呆
-	
-# --- 永久資料庫讀寫 ---
+    for fname in ["full_market_dict.json", "stock_dict.json"]:
+        if os.path.exists(fname):
+            try:
+                with open(fname, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception as e:
+                print(f"讀取 {fname} 失敗: {e}")
+    return {}
+
+# --- 永久資料庫讀寫 (V43.0 自動雲端持久化版) ---
 def load_stock_dict():
-    current_data = DEFAULT_STOCKS.copy()
+    current_data = {k: f"{k} ({v})" if str(k) not in str(v) else str(v) for k, v in DEFAULT_STOCKS.items()}
     
-    # 1. 單純讀取，絕不在此覆寫檔案
+    # 1. 讀取本地 watchlist.json
     if os.path.exists(DICT_FILE):
         try:
             with open(DICT_FILE, "r", encoding="utf-8") as f:
                 saved_data = json.load(f)
-                if saved_data and isinstance(saved_data, dict):
-                    for k, v in saved_data.items():
-                        # 💥 萃取出純淨名稱，過濾掉任何可能殘留的舊代號或括號
-                        pure_name = v.replace(str(k), "").replace("台股代號", "").replace("(", "").replace(")", "").strip()
-                        current_data[k] = f"{k} ({pure_name})"
+            if saved_data and isinstance(saved_data, dict):
+                for k, v in saved_data.items():
+                    pure_name = str(v).replace(str(k), "").replace("台股代號", "").replace("(", "").replace(")", "").strip()
+                    current_data[str(k)] = f"{k} ({pure_name})"
         except Exception as e:
             print(f"讀取 {DICT_FILE} 失敗: {e}")
-            
-    # 2. 自動同步 JSON 倉庫 (把有百科資料的標的自動加回來)
+    
+    # 2. 自動從 Google Sheets 載入雲端永久儲存的「擴建自選股」與「百科標的」
     try:
-        db = load_industry_db()
+        cloud_wl, db = load_cloud_master_data()
+        if cloud_wl and isinstance(cloud_wl, dict):
+            for k, v in cloud_wl.items():
+                pure_name = str(v).replace(str(k), "").replace("台股代號", "").replace("(", "").replace(")", "").strip()
+                current_data[str(k)] = f"{k} ({pure_name})"
+                
         for sid, info in db.items():
             sid_str = str(sid).strip()
-            if sid_str not in current_data:
+            if sid_str not in current_data and sid_str != WATCHLIST_CLOUD_KEY:
                 company_name = info.get("name", "未知名稱").replace("台股代號 ", "")
                 if sid_str in company_name:
                     current_data[sid_str] = company_name
                 else:
                     current_data[sid_str] = f"{sid_str} ({company_name})"
-    except Exception as e:
+    except Exception:
         pass
-        
+    
     # 3. 動態加入雷達菁英 (僅在記憶體中合併)
     if os.path.exists("radar_elite.json"):
         try:
             with open("radar_elite.json", "r", encoding="utf-8") as f:
                 radar_stocks = json.load(f)
-                for sid, sname in radar_stocks.items():
-                    if sid not in current_data:
-                        pure_name = sname.replace(str(sid), "").replace("台股代號", "").replace("(", "").replace(")", "").strip()
-                        current_data[sid] = f"{sid} ({pure_name}) (⚡雷達)"
-        except Exception as e:
+            for sid, sname in radar_stocks.items():
+                if sid not in current_data:
+                    pure_name = sname.replace(str(sid), "").replace("台股代號", "").replace("(", "").replace(")", "").strip()
+                    current_data[sid] = f"{sid} ({pure_name}) (⚡雷達)"
+        except Exception:
             pass
-            
+    
     return current_data
 
 def save_stock_dict(data):
+    """當使用者在網頁新增或移除自選股時，自動寫入本地與 Google Sheets 雲端永久保存！"""
     try:
-        # 💥 【防呆攔截】寫入永久資料庫前，將帶有「(⚡雷達)」標籤的動態名單強制剔除
         pure_data = {}
         for k, v in data.items():
-            if "(⚡雷達)" not in v:
-                pure_data[k] = v
-                
+            if "(⚡雷達)" not in str(v):
+                pure_data[str(k)] = v
+        
         with open(DICT_FILE, "w", encoding="utf-8") as f:
             json.dump(pure_data, f, ensure_ascii=False, indent=4)
+        
+        current_db = st.session_state.get('INDUSTRY_DB', load_industry_db())
+        sync_all_to_cloud(current_db, pure_data)
         return True
     except Exception as e:
         print(f"儲存 {DICT_FILE} 失敗: {e}")
         return False
-		
+
 # 💥 【V34.2 升級：富文本量化回測記錄器 (精準對齊版)】
 def log_signal_to_csv(sid, sname, price, embed):
     log_file = "signal_history.csv"
-    import datetime
     tz_tw = datetime.timezone(datetime.timedelta(hours=8))
     now_time = datetime.datetime.now(tz_tw).strftime('%Y-%m-%d %H:%M:%S')
-    import os
     file_exists = os.path.isfile(log_file)
     
     try:
-        # 名稱淨化
         pure_sname = sname
         if "(" in sname and ")" in sname:
             pure_sname = sname.split("(")[1].split(")")[0]
-            
-        # 💥 關鍵修復：為 description 加上 .replace("\n", " | ") 防止 CSV 跑版
+        
         desc = embed.get("description", "").replace("*", "").replace("`", "").replace("\n", " | ")
         tech_vol = ""
-        
-        # 只抓取 Discord 實際有發送的「技術」欄位
         for field in embed.get("fields", []):
             if "技術" in field.get("name", ""):
                 tech_vol = field.get("value", "").replace("\n", " | ").replace("`", "")
         
-        # 寫入 CSV
         with open(log_file, mode='a', encoding='utf-8-sig', newline='') as f:
             if not file_exists:
-                # 💥 修正表頭，對齊實際存在的 6 個欄位
                 f.write("日期時間,股票代號,股票名稱,觸發價格,核心訊號,技術與量能\n")
-            
             clean_desc = desc.replace(',', '，')
             clean_tech = tech_vol.replace(',', '，')
-            
-            # 💥 寫入 6 個完美對齊的數據
             f.write(f"{now_time},{sid},{pure_sname},{price},{clean_desc},{clean_tech}\n")
     except Exception as e:
         print(f"寫入 CSV 失敗: {e}")
-		
-# 1. 這是您已經寫好的雲端讀取函數
-def load_industry_db():
-    try:
-        sheet = get_google_sheet()
-        records = sheet.get_all_records()
-        # 轉換為您原本需要的字典格式
-        return {str(row['sid']): json.loads(row['data']) for row in records if row['sid']}
-    except Exception as e:
-        # 如果雲端失敗，自動回頭讀取本地備份
-        if os.path.exists(INDUSTRY_DB_FILE):
-            with open(INDUSTRY_DB_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        return {}
 
-# 2. 確保 Session State 使用新函數
+def load_industry_db():
+    _, merged_db = load_cloud_master_data()
+    return merged_db
+
 if 'STOCK_DICT' not in st.session_state:
     st.session_state['STOCK_DICT'] = load_stock_dict()
 
 if 'INDUSTRY_DB' not in st.session_state:
-    # 💥 改用雲端讀取函式
     st.session_state['INDUSTRY_DB'] = load_industry_db()
 
 STOCK_DICT = st.session_state['STOCK_DICT']
 INDUSTRY_DB = st.session_state['INDUSTRY_DB']
 
-# --- 百科生成模組 ---
+# --- 百科生成模組 (修復更新既有股票時覆蓋最後一列的 Bug) ---
 def auto_update_industry_db(sid):
     sid = str(sid).strip()
-    db = load_industry_db()
+    _, db = load_cloud_master_data()
     
-    # 💥 修改這裡：不要在此處主動讀取所有檔案，避免 loop，只根據當前 sid 執行
     current_dict = st.session_state.get('STOCK_DICT', STOCK_DICT)
     company_name = current_dict.get(sid, f"台股代號 {sid}")
     
-    # 簡化 Prompt，移除過度強制的系統指令，節省 Token
     prompt_context = "請提供以下台股公司的產業分析 (JSON格式: company_brief, overview, value_chain, competitors, drivers)。"
-    
     ai_data = generate_ai_insights(company_name, prompt_context)
     
-    if ai_data:
+    if ai_data and not str(ai_data.get("company_brief", "")).startswith("⚠️ 解析錯誤"):
         db[sid] = {
             "name": company_name,
             "company_brief": ai_data.get("company_brief", ""),
@@ -438,19 +474,11 @@ def auto_update_industry_db(sid):
             "last_updated": datetime.date.today().isoformat()
         }
         
-        # 寫回雲端 (使用 gspread)
-        sheet = get_google_sheet()
-        # 轉成字串格式寫入
-        sheet.update_cell(len(db) + 1, 1, sid) 
-        sheet.update_cell(len(db) + 1, 2, json.dumps(db[sid], ensure_ascii=False))
-
-		# 💥 【修正核心】：補上同步寫入本地 JSON 檔案
-        with open('industry_db.json', 'w', encoding='utf-8') as f:
-            json.dump(db, f, ensure_ascii=False, indent=4)
-			
+        # 💥 直接全量安全同步至 Google Sheets 與本地 JSON，不再覆蓋錯列！
+        sync_all_to_cloud(db, current_dict)
         st.session_state['INDUSTRY_DB'] = db
-        return True, f"✅ {company_name} 更新成功"
-    return False, "AI 解析失敗"
+        return True, f"✅ {company_name} 更新並自動同步至雲端成功"
+    return False, ai_data.get("company_brief", "AI 解析失敗") if ai_data else "AI 解析失敗"
 
 # --- K線獲取與修正清洗防線 ---
 # 盤中快取 300 秒 (5分鐘) 剛好對齊 st_autorefresh
@@ -1500,21 +1528,35 @@ with st.sidebar:
             st.rerun()
             
         st.divider()
-        st.markdown("**資料庫管理**")
+        st.markdown("**資料庫管理 (已開啟全自動雲端同步)**")
         
-        # 1. 雲端同步區 (新增的部分)
-        st.markdown("<span style='font-size: 13px; color: #00F0FF;'>☁️ 雲端百科同步</span>", unsafe_allow_html=True)
-        if st.button("🚀 執行資料庫雲端遷移", use_container_width=True):
+        st.markdown("<span style='font-size: 13px; color: #00F0FF;'>☁️ 雲端雙向智慧合併</span>", unsafe_allow_html=True)
+        if st.button("🚀 執行本地與雲端智慧合併", use_container_width=True, help="將本地 JSON 與 Google Sheets 取聯集智慧合併，絕不誤刪新資料！"):
             migrate_local_to_cloud()
         
-        # 2. 保留原有實體下載 (做為備份)
-        st.markdown("<span style='font-size: 13px; color: #94a3b8;'>💾 離線備份下載</span>", unsafe_allow_html=True)
-        if os.path.exists("industry_db.json"):
-            with open("industry_db.json", "r", encoding="utf-8") as f:
-                st.download_button("📥 下載百科資料庫", f.read(), "industry_db.json", "application/json", use_container_width=True)
-        if os.path.exists("stock_dict.json"):
-            with open("stock_dict.json", "r", encoding="utf-8") as f:
-                st.download_button("📥 下載雷達名單", f.read(), "stock_dict.json", "application/json", use_container_width=True)
+        st.markdown("<span style='font-size: 13px; color: #94a3b8;'>💾 離線備份下載 (供更新 Gem 與 GitHub)</span>", unsafe_allow_html=True)
+        latest_db_json = json.dumps(st.session_state.get('INDUSTRY_DB', {}), ensure_ascii=False, indent=4)
+        st.download_button(
+            "📥 下載最新百科 (industry_db.json)",
+            latest_db_json,
+            "industry_db.json",
+            "application/json",
+            use_container_width=True
+        )
+        
+        clean_wl_dict = {
+            k: str(v).replace(str(k), "").replace("(", "").replace(")", "").strip()
+            for k, v in st.session_state.get('STOCK_DICT', {}).items()
+            if "(⚡雷達)" not in str(v)
+        }
+        latest_wl_json = json.dumps(clean_wl_dict, ensure_ascii=False, indent=4)
+        st.download_button(
+            "📥 下載最新自選股 (watchlist.json)",
+            latest_wl_json,
+            "watchlist.json",
+            "application/json",
+            use_container_width=True
+        )
 
         st.markdown("**策略回測分析**")
         if os.path.exists("signal_history.csv"):
