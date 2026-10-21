@@ -1845,9 +1845,8 @@ if df is not None and not df.empty:
         fig.update_traces(xaxis="x5")
 
         fig.update_layout(
-            height=1060,
+            height=1020,
             template="plotly_dark",
-            xaxis_rangeslider_visible=False,
             hovermode="x",
             spikedistance=-1,
             hoverdistance=-1,
@@ -1855,6 +1854,9 @@ if df is not None and not df.empty:
             margin=dict(l=10, r=10, t=90, b=25)
         )
         
+        # 💥 關鍵修復 1：強制關閉所有 X 軸 (含 x5) 的底部 Range Slider 預覽框，徹底消滅圖一底部亂象！
+        fig.update_xaxes(rangeslider_visible=False)
+
         fig.update_xaxes(showticklabels=False, row=1, col=1)
         fig.update_xaxes(showticklabels=False, row=2, col=1)
         fig.update_xaxes(showticklabels=False, row=3, col=1)
@@ -1871,7 +1873,12 @@ if df is not None and not df.empty:
         )
         fig.update_yaxes(showspikes=True, spikecolor="#64748b", spikethickness=1, spikedash="dot")
         
-        st.plotly_chart(fig, use_container_width=True)
+        # 💥 關鍵修復 2：透過 config={"displayModeBar": False} 徹底隱藏圖二右上角無用的懸浮工具列！
+        st.plotly_chart(
+            fig,
+            use_container_width=True,
+            config={"displayModeBar": False}
+        )
 
     with col_telemetry:
         # 1. 買賣掛單監控
