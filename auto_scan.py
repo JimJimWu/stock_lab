@@ -1,5 +1,5 @@
 # ==============================================================================
-# 秉諺的黑馬雷達 - 背景自動無人值守掃描器 (auto_scan.py V36.1 - 歷年毛利與防呆旗艦版)
+# 秉諺的黑馬雷達 - 背景自動無人值守掃描器 (auto_scan.py V36.3 - 金融特許與純淨修復版)
 # ==============================================================================
 import os
 import json
@@ -28,15 +28,11 @@ def log_signal_to_csv(sid, sname, price, embed):
     file_exists = os.path.isfile(log_file)
     
     try:
-        # 名稱淨化
         pure_sname = sname
         if "(" in sname and ")" in sname:
             pure_sname = sname.split("(")[1].split(")")[0]
         
-        # 為 description 加上 .replace("\n", " | ") 防止 CSV 跑版
         desc = embed.get("description", "").replace("*", "").replace("`", "").replace("\n", " | ")
-        
-        # 保留技術指標萃取邏輯
         tech_vol = ""
         for field in embed.get("fields", []):
             if "技術" in field.get("name", ""):
@@ -45,7 +41,6 @@ def log_signal_to_csv(sid, sname, price, embed):
         with open(log_file, mode='a', encoding='utf-8-sig', newline='') as f:
             if not file_exists:
                 f.write("日期時間,股票代號,股票名稱,觸發價格,核心訊號,技術與量能\n")
-            
             clean_desc = desc.replace(',', '，')
             clean_tech = tech_vol.replace(',', '，')
             f.write(f"{now_time},{sid},{pure_sname},{price},{clean_desc},{clean_tech}\n")
@@ -79,7 +74,6 @@ def get_stock_df(sid):
             df = df[(df['Volume'] > 0) & (df['Volume'].notna())]
             df['Volume'] = df['Volume'] / 1000.0
 
-            # 💥 【V36.1 防呆升級】：逐欄檢查非 None 且 > 0 才轉型覆寫，徹底消除早盤 NoneType 報錯
             try:
                 f_info = ticker.fast_info
                 if f_info is not None:
@@ -158,7 +152,6 @@ def get_yahoo_web_quote_from_df(sid, df):
         quote["volume_txt"] = str(round(last_row['Volume'], 1))
         if not quote["prev_close"] or quote["prev_close"] <= 0:
             quote["prev_close"] = float(df.iloc[-2]['Close'])
-    
     return quote
 
 def get_analysis_data(sid):
@@ -177,20 +170,23 @@ def get_analysis_data(sid):
     return None
 
 # ==============================================================================
-# 📈 【V36.1：跨年度財報與毛利率成長趨勢引擎 (含 Q1 單季逆風容錯)】
+# 📈 【V36.3 升級：跨年度毛利與金融特許解析引擎 (徹底根除 404)】
 # ==============================================================================
 def get_financial_margin_trend(sid):
     if sid in _FIN_TREND_CACHE:
         return _FIN_TREND_CACHE[sid]
 
     raw_sid = str(sid).split('(')[0].split(' ')[0].strip()
-    if ".TW" in raw_sid.upper():
-        pure_no = raw_sid.split('.')[0]
-        alt_suffix = ".TWO" if raw_sid.upper().endswith(".TW") else ".TW"
-        candidate_tickers = [raw_sid, f"{pure_no}{alt_suffix}"]
+    
+    # 💥 【修復 1】：如果代號已明確包含市場後綴，鎖定該代號，嚴禁去嘗試不存在的市場
+    if ".TW" in raw_sid.upper() or ".TWO" in raw_sid.upper():
+        candidate_tickers = [raw_sid]
     else:
         suffixes = [".TWO", ".TW"] if raw_sid in ["3595", "7853", "3081"] or len(raw_sid) == 6 else [".TW", ".TWO"]
         candidate_tickers = [f"{raw_sid}{s}" for s in suffixes]
+
+    pure_num = raw_sid.split('.')[0]
+    is_finance_sector = pure_num.startswith("28") or pure_num.startswith("58")
 
     result = {
         "has_data": False,
@@ -206,6 +202,16 @@ def get_financial_margin_trend(sid):
         "diagnosis_text": "【資料不足，無法確認】"
     }
 
+    # 💥 【修復 2】：金融金控特許行業直接給予穩健保護傘，不再強求毛利率
+    if is_finance_sector:
+        result["has_data"] = True
+        result["latest_gm"] = "不適用(金融業)"
+        result["is_long_term_growth"] = True
+        result["status_tag"] = "🏛️ 金融特許・獲利穩健"
+        result["diagnosis_text"] = "金融金控股無營業毛利項目，系統以整體獲利能力與籌碼鎖碼深度為主要評判防線。"
+        _FIN_TREND_CACHE[sid] = result
+        return result
+
     for tk_symbol in candidate_tickers:
         try:
             ticker = yf.Ticker(tk_symbol)
@@ -215,7 +221,6 @@ def get_financial_margin_trend(sid):
             if info.get("operatingMargins"):
                 result["latest_opm"] = round(float(info["operatingMargins"]) * 100, 2)
 
-            # 1. 年度損益表：計算跨年毛利率與整年度營收成長
             ann_stmt = ticker.income_stmt
             if ann_stmt is not None and not ann_stmt.empty:
                 if "Gross Profit" in ann_stmt.index and "Total Revenue" in ann_stmt.index:
@@ -242,7 +247,6 @@ def get_financial_margin_trend(sid):
                         if (last_gm >= first_gm or last_gm >= prev_gm) and result["annual_rev_cagr"] > 0:
                             result["is_long_term_growth"] = True
 
-            # 2. 季度損益表：檢視近四季毛利率波動 (淡旺季效應)
             q_stmt = ticker.quarterly_income_stmt
             q_rev_yoy = info.get("revenueGrowth", 0) or 0
             if q_stmt is not None and not q_stmt.empty:
@@ -257,7 +261,6 @@ def get_financial_margin_trend(sid):
                             q_gms[q_label] = round((float(gp) / float(rev)) * 100, 2)
                     result["quarterly_gm_dict"] = q_gms
 
-            # 3. 綜合判定
             if result["has_data"]:
                 q_vals = list(result["quarterly_gm_dict"].values())
                 is_recent_q_dip = (q_rev_yoy < 0) or (len(q_vals) >= 2 and q_vals[-1] < q_vals[-2])
@@ -307,22 +310,32 @@ def send_discord_webhook(webhook_url, embed_data):
         print(f"發送 Discord 失敗: {e}")
         return False
 
-# 💥 【V36.1 升級：綜合爆發力評分引擎 (納入跨年毛利成長與黃金坑加權)】
-def calculate_composite_score(net_5d, volume_ratio, is_long_term_growth=False, is_q_dip=False):
-    if net_5d is None:
-        net_5d = 0
-    if volume_ratio is None:
-        volume_ratio = 1.0
+# ==============================================================================
+# 💥 【V36.3 升級：全方位火力評分引擎 (兼容量能爆發與量縮惜售)】
+# ==============================================================================
+def calculate_composite_score(net_5d, volume_ratio, is_long_term_growth=False, is_q_dip=False, signal_type=""):
+    if net_5d is None: net_5d = 0
+    if volume_ratio is None: volume_ratio = 1.0
 
+    # 1. 籌碼得分 (0 ~ 100)
     chip_score = min(max((net_5d / 3000.0) * 100, 0), 100)
-    vol_score = min(max((volume_ratio - 1.15) / (3.0 - 1.15) * 100, 0), 100)
+
+    # 2. 量能得分：區分「爆量突破」與「量縮惜售/潛龍」
+    if "惜售" in signal_type or "潛龍" in signal_type or volume_ratio < 0.7:
+        # 量縮惜售：量越縮、籌碼沉澱越徹底，得分越高
+        vol_score = min(max((0.7 - volume_ratio) / 0.7 * 100, 0), 100)
+    else:
+        # 爆量突破：量比大於 1.15 倍開始計分
+        vol_score = min(max((volume_ratio - 1.15) / (3.0 - 1.15) * 100, 0), 100)
     
-    # 基礎技術籌碼分 (85% 權重) + 跨年財報毛利成長保護傘加分 (15% 權重)
+    # 3. 基本面加成
     base_score = (chip_score * 0.50) + (vol_score * 0.35)
     fin_bonus = 15.0 if is_long_term_growth else (10.0 if is_q_dip else 0.0)
     return round(min(base_score + fin_bonus, 100.0), 2)
 
-# 💥 【V36.1 完美同步：自動化背景監控引擎 (含 Q1 單季逆風容錯濾網 + 歷年毛利軌跡推播)】
+# ==============================================================================
+# 💥 【V36.3 監控引擎】
+# ==============================================================================
 def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
     df_scan = get_stock_df(sid)
     if df_scan.empty or len(df_scan) < 20:
@@ -359,7 +372,6 @@ def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
             if eps_val == "N/A" or float(eps_val) <= 0:
                 return False
             
-            # 💥 【核心升級：Q1 單季逆風容錯濾網】
             is_rev_ok = (rev_growth != "N/A" and float(rev_growth) > 0)
             if not is_rev_ok:
                 fin_trend = get_financial_margin_trend(sid)
@@ -384,7 +396,6 @@ def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
     inst_val = a_data['法人持股'] if (a_data and '法人持股' in a_data) else 0
     chip_info = f"法人持股 {round(inst_val, 1)}% " + ("(大戶鎖碼)" if inst_val > 25 else "(散戶主導)")
 
-    # 取得 net_5d 以供計算火力評分
     df_temp = df_scan.copy()
     df_temp['Price_Diff'] = df_temp['Close'].diff()
     df_temp['Net_Force_Vol'] = df_temp.apply(
@@ -393,7 +404,6 @@ def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
     net_5d = round(df_temp['Net_Force_Vol'].tail(5).sum(), 1)
     chip_flow_status = get_institutional_chips(df_scan)
 
-    # 莊家防護線
     try:
         temp_df = df_scan.tail(60).copy()
         calculated_support = round(temp_df.nlargest(3, 'Volume')['Low'].mean(), 1)
@@ -428,11 +438,9 @@ def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
             color_hex = 3447003
             signals_triggered = True
 
-    # === 潛龍策略 ===
     try:
         ma60, ma240 = last.get('MA60', 0), last.get('MA240', 0)
         vol_ma20 = df_scan['Volume'].rolling(20).mean().iloc[-1]
-        
         if pd.notna(ma60) and pd.notna(ma240) and pd.notna(vol_ma20):
             is_near_ma60 = abs(current_price - ma60) / ma60 <= 0.05
             is_near_ma240 = abs(current_price - ma240) / ma240 <= 0.05
@@ -454,10 +462,11 @@ def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
             net_5d,
             vol_ratio,
             is_long_term_growth=fin_trend["is_long_term_growth"],
-            is_q_dip=fin_trend["is_q_dip_opportunity"]
+            is_q_dip=fin_trend["is_q_dip_opportunity"],
+            signal_type=status_msg
         )
 
-        ann_gm_str = " ➔ ".join([f"{k[-2:]}年:{v}%" for k, v in fin_trend["annual_gm_dict"].items()]) if fin_trend["annual_gm_dict"] else f"最新: {fin_trend['latest_gm']}%"
+        ann_gm_str = " ➔ ".join([f"{k[-2:]}年:{v}%" for k, v in fin_trend["annual_gm_dict"].items()]) if fin_trend["annual_gm_dict"] else f"最新: {fin_trend['latest_gm']}"
         q_gm_str = " ➔ ".join([f"{k[-2:]}:{v}%" for k, v in fin_trend["quarterly_gm_dict"].items()]) if fin_trend["quarterly_gm_dict"] else "暫無季序列"
 
         alert_description = f"🔥 **綜合火力評分：{score} 分**\n\n"
@@ -493,7 +502,6 @@ def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
     
     return False
 
-# 執行全體自選股/全市場掃描
 def run_all_scan():
     print(f"[{datetime.datetime.now()}] 開始執行背景自動掃描...")
     
@@ -513,7 +521,6 @@ def run_all_scan():
     daily_candidates = []
     elite_dict = {}
 
-    # 第一階段：全體地毯式掃描，只收集不推播
     for sid, sname in stock_dict.items():
         try:
             result = scan_and_notify(sid, sname, DEFAULT_DISCORD_WEBHOOK, is_full_market)
@@ -532,9 +539,6 @@ def run_all_scan():
         except Exception as e:
             print(f"寫入 radar_elite.json 失敗: {e}")
 
-    # =====================================================================
-    # 💥 第二階段：擇優排序與防重複推播機制
-    # =====================================================================
     if daily_candidates:
         daily_candidates.sort(key=lambda x: x['score'], reverse=True)
         
@@ -552,35 +556,31 @@ def run_all_scan():
         
         tz_tw = datetime.timezone(datetime.timedelta(hours=8))
         today_date_str = datetime.datetime.now(tz_tw).strftime('%Y-%m-%d')
-        
         new_signals = {}
         
         for stock in daily_candidates:
             ticker = stock['sid']
             signal_type = stock['status_msg']
             
-            # 1. 全部寫入 CSV 留存歷史紀錄
+            # 1. 完整記錄歷史 CSV
             log_signal_to_csv(stock['sid'], stock['sname'], stock['current_price'], stock['embed'])
             
-            # 2. 檢測跨日連續通報 (必須是「不同天」掃描才算連續上榜)
+            # 2. 跨日連續通報
             if last_scan_date != today_date_str:
                 if ticker in last_day_signals and last_day_signals[ticker] == signal_type:
                     send_discord_webhook(DEFAULT_DISCORD_WEBHOOK, f"🔥 **【連續鎖碼通知】** {stock['sname']} 連續多日維持 {signal_type}！")
             
             new_signals[ticker] = signal_type
 
-            # 3. 雙管齊下：嚴選 Top 5 且綜合火力 >= 25 分才推播 (淘汰湊數弱勢股，但保留 CSV 紀錄)
+            # 3. 雙管齊下：嚴選 Top 5 且總分 >= 25 分才推播
             if stock in daily_candidates[:5] and stock['score'] >= 25.0:
                 is_duplicate_today = (last_scan_date == today_date_str) and (last_day_signals.get(ticker) == signal_type)
-                
                 if not is_duplicate_today:
                     send_discord_webhook(DEFAULT_DISCORD_WEBHOOK, stock['embed'])
                 else:
                     print(f"🛑 攔截重複推播：{stock['sname']} 今日已發送過相同狀態。")
-                
                 time.sleep(1)
         
-        # 將日期與訊號一併打包存檔，供下次檢查
         with open(last_day_path, 'w', encoding='utf-8') as f:
             json.dump({"date": today_date_str, "signals": new_signals}, f, ensure_ascii=False)
         print("✅ 今日全體記錄與精華推播完成！")
