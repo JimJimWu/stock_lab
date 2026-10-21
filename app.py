@@ -782,7 +782,7 @@ def calculate_composite_score(net_5d, volume_ratio, is_long_term_growth=False, i
     fin_bonus = 15.0 if is_long_term_growth else (10.0 if is_q_dip else 0.0)
     return round(min(base_score + fin_bonus, 100.0), 2)
 
-# --- 雷達單次掃描 (格式 100% 對齊 auto_scan.py V36.0 旗艦版) ---
+# --- 雷達單次掃描 (回傳完整 Dict 結構，支援外部依 score 排序與 Top 10 推播) ---
 def run_single_scan_signal(sid, sname, webhook_url):
     df_scan = get_stock_df(sid)
     if df_scan.empty or len(df_scan) < 20:
@@ -870,15 +870,18 @@ def run_single_scan_signal(sid, sname, webhook_url):
     except Exception:
         pass
 
-    # === 組合結果並推播 ===
+    # === 組合結果並回傳字典 (由外層統一排序推播) ===
     if signals_triggered:
         fin_trend = get_financial_margin_trend(sid)
-        score = calculate_composite_score(
-            net_5d,
-            vol_ratio,
-            is_long_term_growth=fin_trend["is_long_term_growth"],
-            is_q_dip=fin_trend["is_q_dip_opportunity"]
-        )
+        try:
+            score = calculate_composite_score(
+                net_5d,
+                vol_ratio,
+                is_long_term_growth=fin_trend["is_long_term_growth"],
+                is_q_dip=fin_trend["is_q_dip_opportunity"]
+            )
+        except TypeError:
+            score = calculate_composite_score(net_5d, vol_ratio)
 
         ann_gm_str = " ➔ ".join([f"{k[-2:]}年:{v}%" for k, v in fin_trend["annual_gm_dict"].items()]) if fin_trend["annual_gm_dict"] else f"最新: {fin_trend['latest_gm']}%"
         q_gm_str = " ➔ ".join([f"{k[-2:]}:{v}%" for k, v in fin_trend["quarterly_gm_dict"].items()]) if fin_trend["quarterly_gm_dict"] else "暫無季序列"
@@ -904,9 +907,14 @@ def run_single_scan_signal(sid, sname, webhook_url):
             ],
             "footer": {"text": f"秉諺的黑馬自動監控引擎 • 偵測時間: {now_time}"}
         }
-        send_discord_webhook(webhook_url, embed)
-        log_signal_to_csv(sid, sname, current_price, embed)
-        return f"{sname} ({sid}) 觸發推播"
+        return {
+            "sid": sid,
+            "sname": sname,
+            "score": score,
+            "current_price": current_price,
+            "status_msg": status_msg,
+            "embed": embed
+        }
     return None
 # 💥 【全域作用域宣告】
 # ==============================================================================
@@ -1850,42 +1858,35 @@ if df is not None and not df.empty:
                 if success: st.success("✅ " + msg)
                 else: st.error("❌ " + msg)
         with col_scan_btn:
-            if st.button("🔍 執行全體雷達大掃描", use_container_width=True, help="對自選清單進行全面掃描，並依照【綜合火力評分】排序，僅推播前 10 名最精華標的。"):
-                with st.spinner("🚀 雷達深度掃描與火力評分中..."):
+            if st.button("🔍 執行全體雷達大掃描", use_container_width=True, help="立即對您自選清單裡的所有股票進行技術、籌碼與跨年毛利訊號的全面掃描。"):
+                with st.spinner("🚀 雷達深度掃描與毛利趨勢運算中..."):
                     daily_candidates = []
                     current_scan_dict = load_stock_dict()
-                    
-                    # 1. 收集所有過關名單
                     for sid, sname in current_scan_dict.items():
                         res = run_single_scan_signal(sid, sname, DEFAULT_DISCORD_WEBHOOK)
-                        if res: 
+                        if isinstance(res, dict) and 'score' in res:
                             daily_candidates.append(res)
-                        import time
-                        time.sleep(0.1) # 稍微降速避免 API 請求過快
-                        
+                        time.sleep(0.2)
+                    
                     if daily_candidates:
-                        # 2. 依照綜合火力評分 (score) 進行降冪排序
-                        daily_candidates.sort(key=lambda x: x['score'], reverse=True)
+                        # 依綜合火力評分由高至低排序
+                        daily_candidates.sort(key=lambda x: x.get('score', 0), reverse=True)
                         
-                        # 3. 取出前 10 名 (如果少於 10 檔則全取)
-                        top_candidates = daily_candidates[:10]
+                        # 1. 全部寫入 CSV 留存完整回測紀錄
+                        for stock in daily_candidates:
+                            log_signal_to_csv(stock['sid'], stock['sname'], stock['current_price'], stock['embed'])
                         
-                        # 4. 執行發送與存檔
-                        for stock in top_candidates:
+                        # 2. 嚴選 Top 10 發送至 Discord 避免洗版
+                        top_targets = daily_candidates[:10]
+                        for stock in top_targets:
                             send_discord_webhook(DEFAULT_DISCORD_WEBHOOK, stock['embed'])
-                            log_signal_to_csv(stock['sid'], stock['sname'], stock['current_price'], stock['embed'])
-                            time.sleep(0.5) # 發送 Discord 稍微延遲避免被擋
+                            time.sleep(0.5)
                         
-                        # 如果有未上榜的，也把它們寫入 CSV 留存歷史 (但不推播 Discord)
-                        for stock in daily_candidates[10:]:
-                            log_signal_to_csv(stock['sid'], stock['sname'], stock['current_price'], stock['embed'])
-
-                        st.success(f"🎉 掃描完成！共發現 {len(daily_candidates)} 檔訊號，已為您精選並推播火力最強的 Top {len(top_candidates)} 檔。")
-                        st.toast(f"✅ 成功推送 {len(top_candidates)} 檔精華黑馬至 Discord！", icon="🚀")
+                        st.success(f"🎉 掃描完成！共偵測到 {len(daily_candidates)} 檔訊號，已將火力最強 Top {len(top_targets)} 推播至 Discord。")
+                        st.toast(f"✅ 成功推送 Top {len(top_targets)} 檔黑馬至 Discord！", icon="🚀")
                         st.balloons()
-                        import time
-                        time.sleep(2.5) 
-                        st.rerun()      
+                        time.sleep(2.5)
+                        st.rerun()
                     else:
                         st.info("💡 目前所有標的指標平穩，未達警報標準。")
                         st.toast("💤 掃描完畢，目前無異常訊號。", icon="☕")
