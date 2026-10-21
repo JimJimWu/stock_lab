@@ -25,7 +25,6 @@ def run_radar_backtest():
             print(f"❌ 錯誤：缺少必要欄位【{col}】！")
             return
 
-    # 初始化多週期欄位
     period_map = {
         "T+1 報酬率(%)": 1,
         "T+3 報酬率(%)": 3,
@@ -40,7 +39,6 @@ def run_radar_backtest():
     total_signals = len(df)
     print(f"🎬 開始執行多週期量化績效回補，總計 {total_signals} 筆訊號...\n")
 
-    # 記憶體快取：同一檔股票只需下載一次完整區間 K 線，速度提升 10 倍以上
     history_cache = {}
 
     for idx, row in df.iterrows():
@@ -51,7 +49,6 @@ def run_radar_backtest():
         except Exception:
             continue
 
-        # 💥 【核心修復】：若代號已自帶 .TW 或 .TWO，直接使用，嚴禁重複加上後綴變成 .TW.TW
         if ".TW" in raw_sid.upper() or ".TWO" in raw_sid.upper():
             pure_no = raw_sid.split(".")[0]
             alt_suffix = ".TWO" if raw_sid.upper().endswith(".TW") else ".TW"
@@ -61,7 +58,6 @@ def run_radar_backtest():
             candidate_tickers = [f"{raw_sid}{s}" for s in suffixes]
 
         pure_sid = raw_sid.split(".")[0]
-        # 統一將表格內的股票代號淨化為純數字，防止回測與連續鎖碼分裂
         df.at[idx, "股票代號"] = pure_sid
 
         stock_data = history_cache.get(pure_sid, pd.DataFrame())
