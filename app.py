@@ -120,10 +120,10 @@ def migrate_local_to_cloud():
         st.error("❌ 雲端同步失敗，請檢查 Secrets 設定。")
 # ==============================================================================
 def generate_ai_insights(company_name, summary):
-    """終極版：支援多模型自動備援 (Flash 額度用盡時自動切換 1.5-flash)"""
+    """V43.1 官方最新規範版：採用 gemini-3.8-flash 並具備自動容錯切換機制"""
     import json
     import re
-
+    
     match = re.match(r'^([A-Za-z0-9]+)(?:\s*\((.*?)\))?', company_name.strip())
     ticker = match.group(1) if match else company_name
     pure_name = match.group(2) if match and match.group(2) else company_name
@@ -135,13 +135,11 @@ def generate_ai_insights(company_name, summary):
     """
     source_url = f"https://www.google.com/search?q=台股+{ticker}+{pure_name}+產業分析"
 
-    # 備援模型清單：2.5-flash 額度耗盡時，依序自動切換
-    # 修正相容名稱，避免 404
+    # 💥 直接採用 Google 官方指定的最新模型與備援清單
     candidate_models = [
-        'gemini-2.5-flash',
-        'gemini-2.0-flash',
-        'gemini-1.5-flash-latest',
-        'gemini-pro'
+        'gemini-3.8-flash',  # Google 官方錯誤訊息指定推薦之最新模型
+        'gemini-2.5-flash',  # 備援模型 1
+        'gemini-2.5-pro'     # 備援模型 2
     ]
     
     last_err = ""
@@ -159,15 +157,16 @@ def generate_ai_insights(company_name, summary):
             return ai_dict
         except Exception as e:
             last_err = str(e)
-            if "429" in last_err:
-                continue  # 額度滿了，自動換下一個模型重試
+            # 遇到 429 額度用盡或 404 模型異動時，自動切換至下一個模型重試
+            if "429" in last_err or "404" in last_err or "quota" in last_err.lower():
+                continue
             break
 
     return {
-        "company_brief": f"⚠️ 解析錯誤: {last_err}",
-        "overview": "【資料不足，無法確認】",
-        "value_chain": "【資料不足，無法確認】",
-        "competitors": [],
+        "company_brief": f"⚠️ 解析錯誤: {last_err}", 
+        "overview": "【資料不足，無法確認】", 
+        "value_chain": "【資料不足，無法確認】", 
+        "competitors": [], 
         "drivers": "【資料不足，無法確認】",
         "source_url": source_url
     }
@@ -2101,7 +2100,7 @@ if df is not None and not df.empty:
     if st.button("🧠 召喚黑馬 AI 戰略官：產出今日買賣決策報告 (消耗 1 次額度)", use_container_width=True):
         with st.spinner("🤖 黑馬戰略官正在綜合【技術乖離 + 主力籌碼 + 跨年毛利】進行深度推演..."):
             try:
-                ai_model = genai.GenerativeModel("gemini-2.5-flash")
+                ai_model = genai.GenerativeModel("gemini-3.8-flash")
                 decision_prompt = f"""
                 你現在是『🐎 黑馬雷達』首席量化操盤手。請根據以下【確切已知事實】為吳秉諺產出簡潔犀利的買賣決策報告：
                 - 標的：{display_name}，現價：{current_price} 元（漲跌：{diff_pct}%）
