@@ -120,52 +120,51 @@ def migrate_local_to_cloud():
         st.error("❌ 雲端同步失敗，請檢查 Secrets 設定。")
 # ==============================================================================
 def generate_ai_insights(company_name, summary):
-    """終極版：使用 Flash 模型並強制 JSON 輸出模式，加入強效除錯機制"""
+    """終極版：支援多模型自動備援 (Flash 額度用盡時自動切換 1.5-flash)"""
     import json
     import re
-    
-    # 1. 拆解代號與名稱 (這部分保持您的邏輯)
+
     match = re.match(r'^([A-Za-z0-9]+)(?:\s*\((.*?)\))?', company_name.strip())
     ticker = match.group(1) if match else company_name
     pure_name = match.group(2) if match and match.group(2) else company_name
 
-    # 2. 強制 API 模式
-    model = genai.GenerativeModel(
-        model_name='gemini-2.5-flash',
-        generation_config={"response_mime_type": "application/json"}
-    )
-    
     prompt = f"""
     {summary}
-    
     [目標企業]: {pure_name} (代號: {ticker})
     [要求]: 僅輸出 JSON，若查無資料，Value 請填入「【資料不足，無法確認】」，competitors 請填 []。
     """
-
     source_url = f"https://www.google.com/search?q=台股+{ticker}+{pure_name}+產業分析"
 
-    try:
-        response = model.generate_content(prompt)
-        text = response.text.strip()
-        
-        # 💥 強力清洗：自動移除任何可能的 Markdown 區塊標籤 (```json ... ```)
-        text = re.sub(r'^```(?:json)?\s*|\s*```$', '', text, flags=re.IGNORECASE)
-        
-        # 💥 解析 JSON
-        ai_dict = json.loads(text)
-        ai_dict['source_url'] = source_url
-        return ai_dict
-        
-    except Exception as e:
-        # 報錯時顯示錯誤訊息與原始回覆，協助您除錯
-        return {
-            "company_brief": f"⚠️ 解析錯誤: {str(e)}", 
-            "overview": "【資料不足，無法確認】", 
-            "value_chain": "【資料不足，無法確認】", 
-            "competitors": [], 
-            "drivers": "【資料不足，無法確認】",
-            "source_url": source_url
-        }
+    # 備援模型清單：2.5-flash 額度耗盡時，依序自動切換
+    candidate_models = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-1.5-pro']
+    
+    last_err = ""
+    for model_name in candidate_models:
+        try:
+            model = genai.GenerativeModel(
+                model_name=model_name,
+                generation_config={"response_mime_type": "application/json"}
+            )
+            response = model.generate_content(prompt)
+            text = response.text.strip()
+            text = re.sub(r'^```(?:json)?\s*|\s*```$', '', text, flags=re.IGNORECASE)
+            ai_dict = json.loads(text)
+            ai_dict['source_url'] = source_url
+            return ai_dict
+        except Exception as e:
+            last_err = str(e)
+            if "429" in last_err:
+                continue  # 額度滿了，自動換下一個模型重試
+            break
+
+    return {
+        "company_brief": f"⚠️ 解析錯誤: {last_err}",
+        "overview": "【資料不足，無法確認】",
+        "value_chain": "【資料不足，無法確認】",
+        "competitors": [],
+        "drivers": "【資料不足，無法確認】",
+        "source_url": source_url
+    }
 # --- 1. 頂部防禦 ---
 st.set_page_config(layout="wide", page_title="秉諺的黑馬雷達 V41.0")
 
