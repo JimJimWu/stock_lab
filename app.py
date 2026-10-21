@@ -1855,6 +1855,90 @@ if df is not None and not df.empty:
                             st.caption("📆 最近四季【單季】毛利率波動 (%)")
                             if fin_trend["quarterly_gm_dict"]:
                                 st.line_chart(pd.Series(fin_trend["quarterly_gm_dict"], name="單季毛利率(%)"))
+		
+		        # ==============================================================================
+                # 🎯 【新增擴充】：實戰買進判斷依據 (盈虧比 R/R + 均線乖離 + 3-3-4 建倉試算)
+                # ==============================================================================
+                st.divider()
+                st.subheader("🎯 實戰買進決策與風報比試算")
+                
+                ma5_val = round(float(last['MA5']), 2) if pd.notna(last['MA5']) else current_price
+                ma20_val = round(float(last['MA20']), 2) if pd.notna(last['MA20']) else current_price
+                ma60_val = round(float(last['MA60']), 2) if pd.notna(last['MA60']) else current_price
+                
+                # 1. 計算 20MA 月線乖離率與三線糾結度
+                bias_20 = round(((current_price - ma20_val) / ma20_val) * 100, 2) if ma20_val > 0 else 0.0
+                ma_max = max(ma5_val, float(last['MA10']), ma20_val)
+                ma_min = min(ma5_val, float(last['MA10']), ma20_val)
+                ma_spread_pct = round(((ma_max - ma_min) / ma_min) * 100, 2) if ma_min > 0 else 99.0
+                
+                # 2. 計算上檔壓力 (60日高點) 與下檔風險 (莊家防線)，求取盈虧比 (R/R Ratio)
+                high_60d = round(float(df.tail(60)['High'].max()), 2)
+                upside_pct = max(round(((high_60d - current_price) / current_price) * 100, 2), 1.0)
+                downside_pct = max(round(((current_price - weighted_support) / current_price) * 100, 2), 1.0)
+                rr_ratio = round(upside_pct / downside_pct, 2)
+                
+                col_rr, col_entry = st.columns(2)
+                with col_rr:
+                    if bias_20 > 15.0:
+                        rr_tag = "⚠️ 短線正乖離過大（嚴禁追高）"
+                        rr_color = "error"
+                    elif ma_spread_pct <= 3.0 and current_price >= ma20_val:
+                        rr_tag = "🌟 均線極致糾結突破（黃金起漲點）"
+                        rr_color = "success"
+                    elif rr_ratio >= 2.0 and current_price >= weighted_support:
+                        rr_tag = f"✅ 風報比極佳（盈虧比 1 : {rr_ratio}）"
+                        rr_color = "success"
+                    else:
+                        rr_tag = f"⚖️ 區間博弈位階（盈虧比 1 : {rr_ratio}）"
+                        rr_color = "info"
+                        
+                    custom_diagnostic_card(
+                        f"📐 位階與風報比：{rr_tag}",
+                        f"📏 月線乖離率 (20MA BIAS)： {bias_20:+.2f}%  |  🔗 均線糾結度： {ma_spread_pct}%\n"
+                        f"🎯 上檔前高空間 ({high_60d}元)： +{upside_pct}%  |  🛡️ 下檔防線風險 ({weighted_support}元)： -{downside_pct}%\n"
+                        f"💡 實戰判定： {'均線糾結壓縮完成，具備波段爆發力！' if ma_spread_pct <= 3.0 else ('正乖離過熱，建議等待拉回月線再佈局。' if bias_20 > 15 else '嚴守莊家防守線，盈虧比大於 2 倍時具高期望值。')}",
+                        rr_color
+                    )
+                    
+                with col_entry:
+                    p1_price = round(min(current_price, ma5_val), 2)
+                    p2_price = ma20_val
+                    p3_price = round(max(ma60_val, weighted_support), 2)
+                    stop_loss_price = round(weighted_support * 0.97, 2)
+                    
+                    custom_diagnostic_card(
+                        "🪜 3-3-4 機構分批建倉與停損試算",
+                        f"🥇 第一批試單 (30% 資金・5MA 動能區)： 約 {p1_price} 元\n"
+                        f"🥈 第二批加碼 (30% 資金・20MA 月線支撐)： 約 {p2_price} 元\n"
+                        f"🥉 第三批重倉 (40% 資金・季線/莊家防線)： 約 {p3_price} 元\n"
+                        f"🛑 鐵血停損線 (收盤實質跌破防線 3%)： {stop_loss_price} 元",
+                        "warning"
+                    )
+
+                # 🧠 一鍵召喚 Gemini AI 實戰買賣決策官
+                if st.button("🧠 召喚黑馬 AI 戰略官：產出今日買賣決策報告 (消耗 1 次額度)", use_container_width=True):
+                    with st.spinner("🤖 黑馬戰略官正在綜合【技術乖離 + 主力籌碼 + 跨年毛利】進行深度推演..."):
+                        try:
+                            ai_model = genai.GenerativeModel("gemini-2.5-flash")
+                            decision_prompt = f"""
+                            你現在是『🐎 黑馬雷達』首席量化操盤手。請根據以下【確切已知事實】為吳秉諺產出簡潔犀利的買賣決策報告：
+                            - 標的：{display_name}，現價：{current_price} 元（漲跌：{diff_pct}%）
+                            - 均線與指標：5MA={ma5_val}, 20MA={ma20_val} (月線乖離率 {bias_20}%), 60MA={ma60_val}, RSI={rsi_val}, 均線糾結度={ma_spread_pct}%
+                            - 量價與防線：今日量比={round(vol_ratio, 2)}x ({vol_diag_msg})，莊家防守線={weighted_support}元，盈虧比=1:{rr_ratio}
+                            - 籌碼流向：近5日主力淨向={chip_results['net_buy_5d']} ({chip_results['inst_status']})，法人持股={round(inst_hold, 1) if isinstance(inst_hold, (int, float)) else 0}%
+                            - 財報與毛利趨勢：{fin_trend['status_tag']}，歷年毛利={ann_gm_str}，營業利益率={fin_trend['latest_opm']}%，診斷={fin_trend['diagnosis_text']}
+                            
+                            請以繁體中文輸出 3 點結論（不超過 250 字，嚴禁模糊推測）：
+                            1. 【多空位階總評】：（明確給出：積極買進 / 拉回分批佈局 / 觀望勿追 / 逢高減碼）
+                            2. 【核心判斷依據】：（結合毛利保護傘、籌碼鎖碼與乖離率說明原因）
+                            3. 【具體操作紀律】：（給出進場參考價、加碼條件與鐵血停損價）
+                            """
+                            ai_resp = ai_model.generate_content(decision_prompt)
+                            st.info(ai_resp.text)
+                        except Exception as ex:
+                            st.error(f"AI 決策官連線異常：{ex}")
+		
 		# 戰情推播控制台 - 移至右側圖表下方
         st.divider() 
         st.markdown("""<div style="background: linear-gradient(135deg, #1e293b, #0f172a); padding: 20px; border-radius: 12px; border: 1px solid #475569; margin-top: 15px;">
