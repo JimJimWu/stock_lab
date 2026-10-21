@@ -1674,12 +1674,14 @@ if df is not None and not df.empty:
     col_chart, col_telemetry = st.columns([2.6, 1.4])
     
     with col_chart:
+        # 計算布林通道 (20MA ± 2倍標準差)
         bb_std = plot_df['Close'].rolling(20).std()
         bb_upper = plot_df['MA20'] + (bb_std * 2)
         bb_lower = plot_df['MA20'] - (bb_std * 2)
 
+        # 💥 關鍵修復 1：vertical_spacing 加大到 0.07，層與層之間不再壓迫
         fig = make_subplots(
-            rows=5, cols=1, shared_xaxes=True, vertical_spacing=0.045,
+            rows=5, cols=1, shared_xaxes=True, vertical_spacing=0.07,
             row_heights=[0.38, 0.15, 0.16, 0.16, 0.15],
             subplot_titles=(
                 f"📈 {display_name} K線、均線與莊家防守線 ({weighted_support}元)",
@@ -1690,7 +1692,7 @@ if df is not None and not df.empty:
             )
         )
 
-        # 第 1 層：K線 + 均線 + 布林通道 + 莊家防守線
+        # === 第 1 層：K線 + 均線 + 布林通道 + 莊家防守線 ===
         fig.add_trace(go.Candlestick(
             x=plot_df.index, open=plot_df['Open'], high=plot_df['High'],
             low=plot_df['Low'], close=plot_df['Close'], name="K線",
@@ -1712,7 +1714,7 @@ if df is not None and not df.empty:
             annotation_font=dict(color="#facc15", size=12), row=1, col=1
         )
 
-        # 第 2 層：高顯眼度三色成交量 + 5日均量線
+        # === 第 2 層：高顯眼度成交量 + 5日均量線 ===
         vol_colors = []
         for idx_v, r_v in plot_df.iterrows():
             is_up = r_v['Close'] >= r_v['Open']
@@ -1727,7 +1729,7 @@ if df is not None and not df.empty:
         fig.add_trace(go.Bar(x=plot_df.index, y=plot_df['Volume'], name="成交量(張)", marker_color=vol_colors, opacity=0.92), row=2, col=1)
         fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['Vol_MA5'], name="5日均量", line=dict(color='#fef08a', width=2)), row=2, col=1)
 
-        # 第 3 層：MACD + 活叉/死叉標記
+        # === 第 3 層：MACD + 活叉/死叉標記 ===
         m_colors = ['#ff3b5c' if x > 0 else '#00e676' for x in plot_df['MACD_Hist']]
         fig.add_trace(go.Bar(x=plot_df.index, y=plot_df['MACD_Hist'], name="MACD柱", marker_color=m_colors), row=3, col=1)
         fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['DIF'], name="DIF快線", line=dict(color='#38bdf8', width=1.8)), row=3, col=1)
@@ -1750,7 +1752,7 @@ if df is not None and not df.empty:
                 marker=dict(symbol='triangle-down', size=11, color='#06b6d4', line=dict(color='#000000', width=1))
             ), row=3, col=1)
 
-        # 第 4 層：KD 隨機指標 + 活叉/死叉標記
+        # === 第 4 層：KD 隨機指標 + 活叉/死叉標記 ===
         fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['K'], name="K值", line=dict(color='#ffffff', width=1.8)), row=4, col=1)
         fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['D'], name="D值", line=dict(color='#facc15', width=1.8)), row=4, col=1)
         fig.add_hline(y=80, line_dash="dot", line_color="rgba(239, 68, 68, 0.5)", row=4, col=1)
@@ -1773,7 +1775,7 @@ if df is not None and not df.empty:
                 marker=dict(symbol='triangle-down', size=10, color='#06b6d4', line=dict(color='#000000', width=1))
             ), row=4, col=1)
 
-        # 第 5 層：RSI (14) 相對強弱與底背離監控
+        # === 第 5 層：RSI (14) 相對強弱與底背離監控 ===
         fig.add_trace(go.Scatter(
             x=plot_df.index, y=plot_df['RSI'], name="RSI(14)",
             line=dict(color='#c084fc', width=2),
@@ -1783,22 +1785,30 @@ if df is not None and not df.empty:
         fig.add_hline(y=50, line_dash="dot", line_color="#64748b", row=5, col=1)
         fig.add_hline(y=40, line_dash="dash", line_color="#10b981", annotation_text="40 背離低接區", annotation_position="bottom right", annotation_font=dict(color="#10b981", size=10), row=5, col=1)
 
-        # 調整子圖標題樣式 (靠左對齊、亮青色粗體)
+        # 💥 關鍵修復 2：精準微調標題位置（往上提 + 0.012），避免壓到圖表頂部
         for annotation in fig['layout']['annotations']:
             if annotation['text'].startswith(('📈', '📊', '🌊', '⚡', '🎯')):
                 annotation['x'] = 0.0
                 annotation['xanchor'] = 'left'
-                annotation['font'] = dict(size=14, color='#38bdf8', family='Microsoft JhengHei')
+                annotation['y'] = annotation['y'] + 0.012
+                annotation['font'] = dict(size=13.5, color='#38bdf8', family='Microsoft JhengHei')
 
+        # 💥 關鍵修復 3：高度拉至 1050px，確保 5 層圖表皆有充裕垂直空間
         fig.update_layout(
-            height=920, template="plotly_dark", xaxis_rangeslider_visible=False, hovermode="x unified",
+            height=1050, template="plotly_dark", xaxis_rangeslider_visible=False, hovermode="x unified",
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
-            margin=dict(l=10, r=10, t=55, b=10)
+            margin=dict(l=10, r=10, t=50, b=25)
         )
+        
+        # 💥 關鍵修復 4：前 4 層關閉日期刻度，只有最底層第 5 層顯示日期，徹底杜絕文字打架！
+        fig.update_xaxes(showticklabels=False, row=1, col=1)
+        fig.update_xaxes(showticklabels=False, row=2, col=1)
+        fig.update_xaxes(showticklabels=False, row=3, col=1)
+        fig.update_xaxes(showticklabels=False, row=4, col=1)
+        fig.update_xaxes(showticklabels=True, row=5, col=1)  # 僅底層保留日期刻度
+
         fig.update_xaxes(showspikes=True, spikecolor="gray", spikesnap="cursor", spikemode="across")
         fig.update_yaxes(showspikes=True, spikecolor="gray", spikethickness=1)
-        for ax in fig.select_xaxes():
-            ax.update(showticklabels=True)
         
         st.plotly_chart(fig, use_container_width=True)
 
