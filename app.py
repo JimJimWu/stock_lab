@@ -769,29 +769,32 @@ def send_discord_webhook(webhook_url, embed_data):
     except Exception as e:
         return False, f"發送異常: {str(e)}"
 
-# 💥 【V35.1 評分引擎：籌碼 60% / 量能 40%】
-def calculate_composite_score(net_5d, volume_ratio):
-    if net_5d is None: net_5d = 0
-    if volume_ratio is None: volume_ratio = 1.0
+# 💥 【V36.0 評分引擎：納入跨年毛利成長與單季黃金坑加權】
+def calculate_composite_score(net_5d, volume_ratio, is_long_term_growth=False, is_q_dip=False):
+    if net_5d is None:
+        net_5d = 0
+    if volume_ratio is None:
+        volume_ratio = 1.0
 
     chip_score = min(max((net_5d / 3000.0) * 100, 0), 100)
     vol_score = min(max((volume_ratio - 1.15) / (3.0 - 1.15) * 100, 0), 100)
-    total_score = (chip_score * 0.6) + (vol_score * 0.4)
-    return round(total_score, 2)
+    base_score = (chip_score * 0.50) + (vol_score * 0.35)
+    fin_bonus = 15.0 if is_long_term_growth else (10.0 if is_q_dip else 0.0)
+    return round(min(base_score + fin_bonus, 100.0), 2)
 
-# --- 雷達單次掃描 (格式 100% 對齊 auto_scan.py 旗艦版) ---
+# --- 雷達單次掃描 (格式 100% 對齊 auto_scan.py V36.0 旗艦版) ---
 def run_single_scan_signal(sid, sname, webhook_url):
     df_scan = get_stock_df(sid)
     if df_scan.empty or len(df_scan) < 20:
         return None
-        
+    
     last, prev = df_scan.iloc[-1], df_scan.iloc[-2]
     clean_prices = get_yahoo_web_quote_from_df(sid, df_scan)
     current_price = clean_prices["current"]
     prev_price = clean_prices["prev_close"]
     
     price_change = round(current_price - prev_price, 2)
-    change_pct = round((price_change / prev_price) * 100, 2)
+    change_pct = round((price_change / prev_price) * 100, 2) if prev_price > 0 else 0.0
     change_sign = "▲" if price_change > 0 else ("▼" if price_change < 0 else " ")
     color_hex = 15158332 if price_change >= 0 else 3066993
     
@@ -825,7 +828,7 @@ def run_single_scan_signal(sid, sname, webhook_url):
         else:
             recent_low = round(df_scan.tail(10)['Low'].min(), 1)
             weighted_support = recent_low if (0.75 * current_price <= recent_low <= 1.02 * current_price) else round(current_price * 0.95, 1)
-    except:
+    except Exception:
         weighted_support = round(current_price * 0.95, 1)
 
     support_text = f"🟢 莊家防線守住 ({weighted_support} 元)" if current_price >= weighted_support else f"🔴 防線失守跌破 ({weighted_support} 元)"
@@ -833,22 +836,21 @@ def run_single_scan_signal(sid, sname, webhook_url):
 
     # === 訊號判定 ===
     status_msg = "⚖️ 區間溫和"
-    signals_triggered = False 
+    signals_triggered = False
 
-    if vol_ratio >= 1.15: 
+    if vol_ratio >= 1.15:
         if "倒貨" in chip_flow_status:
             status_msg = "💀【出貨陷阱】爆量但主力高檔倒貨！"
-            color_hex = 7368816 
+            color_hex = 7368816
             signals_triggered = True
         else:
             status_msg = "🚨【強勢突破】量能爆發且籌碼健康！"
-            color_hex = 16711680 
+            color_hex = 16711680
             signals_triggered = True
-            
     elif vol_ratio < 0.7:
         if current_price >= last['MA5'] and (last['RSI'] >= 50 or inst_val > 15):
             status_msg = "💎【大戶惜售】量縮鎖碼，籌碼穩定"
-            color_hex = 3447003 
+            color_hex = 3447003
             signals_triggered = True
 
     # === 潛龍策略 ===
@@ -865,12 +867,22 @@ def run_single_scan_signal(sid, sname, webhook_url):
                     status_msg = f"🐉【深水區潛龍】測 {support_type} (籌碼安全)！"
                     color_hex = 16766720
                     signals_triggered = True
-    except: pass
+    except Exception:
+        pass
 
     # === 組合結果並推播 ===
     if signals_triggered:
-        score = calculate_composite_score(net_5d, vol_ratio)
-        
+        fin_trend = get_financial_margin_trend(sid)
+        score = calculate_composite_score(
+            net_5d,
+            vol_ratio,
+            is_long_term_growth=fin_trend["is_long_term_growth"],
+            is_q_dip=fin_trend["is_q_dip_opportunity"]
+        )
+
+        ann_gm_str = " ➔ ".join([f"{k[-2:]}年:{v}%" for k, v in fin_trend["annual_gm_dict"].items()]) if fin_trend["annual_gm_dict"] else f"最新: {fin_trend['latest_gm']}%"
+        q_gm_str = " ➔ ".join([f"{k[-2:]}:{v}%" for k, v in fin_trend["quarterly_gm_dict"].items()]) if fin_trend["quarterly_gm_dict"] else "暫無季序列"
+
         alert_description = f"🔥 **綜合火力評分：{score} 分**\n\n"
         alert_description += f"🔗 [點擊前往 Yahoo 股市查看 {sname}](https://tw.stock.yahoo.com/quote/{sid})\n\n"
         alert_description += f"**表面型態**：**`{status_msg}`**"
@@ -887,18 +899,14 @@ def run_single_scan_signal(sid, sname, webhook_url):
                 {"name": "📊 技術與成交量能", "value": f"RSI 指標：`{round(last['RSI'], 2)}`\n成交量比：`{round(vol_ratio, 2)}x` (`{round(today_volume, 1)}`張/`{round(vol_ma5, 1)}`張)", "inline": True},
                 {"name": "🛡️ 莊家大戶防守成本線", "value": f"`{support_text}`", "inline": False},
                 {"name": "📈 趨勢與內部籌碼真相", "value": f"技術趨勢：`{ma_status}`\n資金流向：{chip_flow_status}", "inline": False},
-                {"name": "👥 法人籌碼動態", "value": f"`{chip_info}`", "inline": False}
+                {"name": "👥 法人籌碼動態", "value": f"`{chip_info}`", "inline": False},
+                {"name": "📈 歷年毛利軌跡", "value": f"判定：**`{fin_trend['status_tag']}`**\n年度：`{ann_gm_str}`\n近季：`{q_gm_str}`\n解析：{fin_trend['diagnosis_text']}", "inline": False}
             ],
             "footer": {"text": f"秉諺的黑馬自動監控引擎 • 偵測時間: {now_time}"}
         }
-        # 💥 移除直接推播，改為打包字典回傳供後續排序
-        return {
-            "sid": sid,
-            "sname": sname,
-            "score": score,
-            "current_price": current_price,
-            "embed": embed
-        }
+        send_discord_webhook(webhook_url, embed)
+        log_signal_to_csv(sid, sname, current_price, embed)
+        return f"{sname} ({sid}) 觸發推播"
     return None
 # 💥 【全域作用域宣告】
 # ==============================================================================
