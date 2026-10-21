@@ -321,7 +321,7 @@ def calculate_composite_score(net_5d, volume_ratio, is_long_term_growth=False, i
     chip_score = min(max((net_5d / 3000.0) * 100, 0), 100)
 
     # 2. 量能得分：區分「爆量突破」與「量縮惜售/潛龍」
-    if "惜售" in signal_type or "潛龍" in signal_type or volume_ratio < 0.7:
+    if "惜售" in signal_type or "潛龍" in signal_type or "背離" in signal_type or volume_ratio < 0.7:
         # 量縮惜售：量越縮、籌碼沉澱越徹底，得分越高
         vol_score = min(max((0.7 - volume_ratio) / 0.7 * 100, 0), 100)
     else:
@@ -452,6 +452,15 @@ def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
                     signals_triggered = True
     except Exception:
         pass
+        
+    # 4. 🔥【新增】：低檔底背離策略 (股價破前低但 RSI 拒絕破低)
+    if not signals_triggered and len(df_scan) >= 10:
+        past_min_close = df_scan.iloc[-10:-1]['Close'].min()
+        past_min_rsi = df_scan.iloc[-10:-1]['RSI'].min()
+        if (current_price <= past_min_close) and (last['RSI'] > past_min_rsi) and (last['RSI'] < 40):
+            status_msg = "🔥【低檔底背離】下跌力道竭盡，醞釀強彈！"
+            color_hex = 16744192  # 亮橘色警報
+            signals_triggered = True
 
     # === 組合結果並回傳 ===
     if signals_triggered:
