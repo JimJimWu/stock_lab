@@ -569,8 +569,8 @@ def run_all_scan():
             
             new_signals[ticker] = signal_type
 
-            # 3. Top 10 推播與「同日防洗版」攔截
-            if stock in daily_candidates[:10]:
+            # 3. 雙管齊下：嚴選 Top 5 且綜合火力 >= 25 分才推播 (淘汰湊數弱勢股，但保留 CSV 紀錄)
+            if stock in daily_candidates[:5] and stock['score'] >= 25.0:
                 is_duplicate_today = (last_scan_date == today_date_str) and (last_day_signals.get(ticker) == signal_type)
                 
                 if not is_duplicate_today:
