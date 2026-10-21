@@ -935,6 +935,7 @@ def render_backtest_dashboard():
         if "大戶惜售" in s: return "💎【大戶惜售】"
         if "出貨陷阱" in s: return "💀【出貨陷阱】"
         if "深水區潛龍" in s: return "🐉【深水區潛龍】"
+		if "底背離" in s:   return "🔥【低檔底背離】"
         return "⚖️ 區間溫和"
 
     st.markdown("### 🏹 連續鎖碼偵測中心")
