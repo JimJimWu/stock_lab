@@ -1417,7 +1417,7 @@ if stock_info:
                     prog_bar.error("⚠️ 更新過程發生中斷")
                     st.write(f"系統回報: {msg}")
                     status.update(label="❌ 更新失敗", state="error")
-    else:
+else:
         st.sidebar.warning(f"⚠️ 庫存中無 {target_sid_str} 的資料")
         if st.sidebar.button("🎯 消耗額度生成百科", key=f"init_{target_sid_str}", use_container_width=True):
             with st.sidebar.status(f"🤖 正在為 {target_sid_str} 建立全新百科...", expanded=True) as status:
