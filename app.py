@@ -369,14 +369,14 @@ def load_stock_dict():
                 pure_name = str(v).replace(str(k), "").replace("台股代號", "").replace("(", "").replace(")", "").strip()
                 current_data[str(k)] = f"{k} ({pure_name})"
                 
-        for sid, info in db.items():
-            sid_str = str(sid).strip()
-            if sid_str not in current_data and sid_str != WATCHLIST_CLOUD_KEY:
-                company_name = info.get("name", "未知名稱").replace("台股代號 ", "")
-                if sid_str in company_name:
-                    current_data[sid_str] = company_name
-                else:
-                    current_data[sid_str] = f"{sid_str} ({company_name})"
+        #for sid, info in db.items():
+             #sid_str = str(sid).strip()
+             #if sid_str not in current_data and sid_str != WATCHLIST_CLOUD_KEY:
+                 #company_name = info.get("name", "未知名稱").replace("台股代號 ", "")
+                 #if sid_str in company_name:
+                     #current_data[sid_str] = company_name
+                 #else:
+                     #current_data[sid_str] = f"{sid_str} ({company_name})"
     except Exception:
         pass
     
@@ -1282,8 +1282,9 @@ with st.sidebar:
     st.session_state['selected_sid'] = target_sid
 
     # 💥 【新增：一鍵刪除/移除當前標的防線】
+    # 💥 【修改比例為 [5, 3]，讓「🗑️ 移除」有完美顯示空間】
     clean_target_sid = str(target_sid).strip()
-    col_del_1, col_del_2 = st.columns([3, 1])
+    col_del_1, col_del_2 = st.columns([5, 3])
     with col_del_2:
         if st.button("🗑️ 移除", key=f"del_{clean_target_sid}", help=f"從每日戰情室移除 {clean_target_sid}，並同步更新雲端資料庫"):
             if len(current_stocks) <= 1:
