@@ -1531,11 +1531,11 @@ with st.sidebar:
             st.toast("正在測試...")
         if st.button("📋 模型清單", use_container_width=True):
             try:
-				models = [m.name.replace("models/", "") for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-				st.write("✅ 您的 API 金鑰確定開通支援的模型清單：")
-				st.json(models)
-			except Exception as ex:
-				st.error(f"查詢失敗: {ex}")
+                models = [m.name.replace("models/", "") for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+                st.write("✅ 您的 API 金鑰確定開通支援的模型清單：")
+                st.json(models)
+            except Exception as ex:
+                st.error(f"查詢失敗: {ex}")
                 
         st.divider()
         st.markdown("**系統記憶體管理**")
