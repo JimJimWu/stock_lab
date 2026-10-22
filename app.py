@@ -603,7 +603,7 @@ def get_yahoo_web_quote_from_df(sid, df):
         quote["open"] = float(last_row['Open'])
         quote["high"] = float(last_row['High'])
         quote["low"] = float(last_row['Low'])
-        quote["volume_txt"] = str(round(last_row['Volume'], 1))
+        quot["volume_txt"] = str(round(last_row['Volume'], 1))
 
         historical_data = df[df.index.date < today_date]
         if not historical_data.empty:
@@ -614,7 +614,7 @@ def get_yahoo_web_quote_from_df(sid, df):
     return quote
 
 # ==============================================================================
-# 💥 【V42.0 黑科技：基本面數據自體運算引擎 (修復 OTC 財報空白 Bug)】
+# 💥 【V42.1 黑科技：基本面數據自體運算引擎 (台積電 PE 與 OTC 財報全面修復)】
 # ==============================================================================
 @st.cache_data(ttl=600)
 def get_analysis_data(sid):
@@ -632,27 +632,37 @@ def get_analysis_data(sid):
             rev_growth = info.get("revenueGrowth", 0)
             inst_hold = (info.get("heldPercentInstitutions", 0) or 0) * 100
 
-            # --- 2. 💥 自體運算防線：若 Yahoo 缺漏 (常見於 OTC 股)，直接調閱原始季報反算 ---
-            if eps_val is None or roe_val is None:
-                try:
+            # --- 2. 💥 動態自體補齊防線 ---
+            try:
+                # 抓取即時股價作為計算基準
+                price = info.get("currentPrice") or info.get("previousClose")
+                if not price:
+                    try: price = getattr(ticker.fast_info, 'last_price', None)
+                    except: pass
+
+                # 💡【修復 A】：有 EPS 但 Yahoo 忘記給 PE (如台積電) -> 直接用即時股價反算！
+                if eps_val is not None and eps_val > 0 and (pe_val is None or pd.isna(pe_val)) and price:
+                    pe_val = price / eps_val
+
+                # 💡【修復 B】：連 EPS 或 ROE 都缺 (常見於 OTC 股) -> 調閱季報重算
+                if eps_val is None or roe_val is None:
                     q_inc = ticker.quarterly_income_stmt
                     q_bal = ticker.quarterly_balance_sheet
-                    f_info = ticker.fast_info
                     
                     if q_inc is not None and not q_inc.empty and 'Net Income' in q_inc.index:
-                        # 抓取近四季淨利 (TTM) 取代 Yahoo 的缺失值
                         ttm_net = q_inc.loc['Net Income'].dropna().iloc[:4].sum()
-                        shares = f_info.get('shares')
-                        price = f_info.get('last_price')
                         
-                        # 💡 自行計算 EPS 與 本益比 (PE)
+                        shares = info.get("sharesOutstanding")
+                        if not shares:
+                            try: shares = getattr(ticker.fast_info, 'shares', None)
+                            except: pass
+                        
                         if shares and shares > 0:
                             calc_eps = ttm_net / shares
                             if eps_val is None: eps_val = calc_eps
-                            if pe_val is None and price and calc_eps > 0: 
+                            if (pe_val is None or pd.isna(pe_val)) and price and calc_eps > 0: 
                                 pe_val = price / calc_eps
                                 
-                        # 💡 自行計算 ROE 與 負債比
                         if q_bal is not None and not q_bal.empty and 'Stockholders Equity' in q_bal.index:
                             eq_series = q_bal.loc['Stockholders Equity'].dropna()
                             if not eq_series.empty:
@@ -663,8 +673,8 @@ def get_analysis_data(sid):
                                         debt_series = q_bal.loc['Total Debt'].dropna()
                                         if not debt_series.empty:
                                             debt_eq = (debt_series.iloc[0] / equity) * 100
-                except Exception:
-                    pass # 萬一連原始財報都沒有，才保留 N/A
+            except Exception:
+                pass 
 
             # --- 3. 統一格式化回傳 ---
             if info or pd.notna(eps_val):
