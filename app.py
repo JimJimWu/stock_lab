@@ -603,7 +603,7 @@ def get_yahoo_web_quote_from_df(sid, df):
         quote["open"] = float(last_row['Open'])
         quote["high"] = float(last_row['High'])
         quote["low"] = float(last_row['Low'])
-        quot["volume_txt"] = str(round(last_row['Volume'], 1))
+        quote["volume_txt"] = str(round(last_row['Volume'], 1))
 
         historical_data = df[df.index.date < today_date]
         if not historical_data.empty:
