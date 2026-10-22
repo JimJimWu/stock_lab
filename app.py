@@ -440,7 +440,9 @@ if 'INDUSTRY_DB' not in st.session_state:
 STOCK_DICT = st.session_state['STOCK_DICT']
 INDUSTRY_DB = st.session_state['INDUSTRY_DB']
 
-# --- 百科生成模組 ---
+# ==============================================================================
+# --- 🏢 百科生成模組 (具備 429 配額超標與異常中斷防禦機制) ---
+# ==============================================================================
 def auto_update_industry_db(sid):
     sid = str(sid).strip()
     _, db = load_cloud_master_data()
@@ -451,7 +453,22 @@ def auto_update_industry_db(sid):
     prompt_context = "請提供以下台股公司的產業分析 (JSON格式: company_brief, overview, value_chain, competitors, drivers)。"
     ai_data = generate_ai_insights(company_name, prompt_context)
     
-    if ai_data and not str(ai_data.get("company_brief", "")).startswith("⚠️ 解析錯誤"):
+    if not ai_data or not isinstance(ai_data, dict):
+        return False, "⚠️ AI 引擎無回應或未回傳有效字典資料"
+
+    brief_text = str(ai_data.get("company_brief", "")).strip()
+    overview_text = str(ai_data.get("overview", "")).strip()
+
+    # 🛡️ 核心防禦濾網：嚴格阻絕任何報錯文字、429 配額超標與中斷訊息寫入資料庫
+    has_error_pattern = (
+        brief_text.startswith("⚠️") 
+        or "429" in brief_text 
+        or "quota" in brief_text.lower()
+        or "exceeded" in brief_text.lower()
+        or overview_text == "【資料不足，無法確認】" and brief_text == ""
+    )
+
+    if not has_error_pattern and len(brief_text) > 10:
         db[sid] = {
             "name": company_name,
             "company_brief": ai_data.get("company_brief", ""),
@@ -463,10 +480,14 @@ def auto_update_industry_db(sid):
             "last_updated": datetime.date.today().isoformat()
         }
         
+        # 雙向同步至 Google Sheets 與本地 JSON
         sync_all_to_cloud(db, current_dict)
         st.session_state['INDUSTRY_DB'] = db
         return True, f"✅ {company_name} 更新並自動同步至雲端成功"
-    return False, ai_data.get("company_brief", "AI 解析失敗") if ai_data else "AI 解析失敗"
+    
+    # 若被濾網攔截，回傳具體的錯誤原因，絕不破壞既有資料庫
+    error_msg = brief_text if brief_text else "AI 百科生成不完整，已取消寫入資料庫"
+    return False, error_msg
 
 # --- K線獲取與修正清洗防線 ---
 cache_ttl = 300 if is_trading_hours else 3600
