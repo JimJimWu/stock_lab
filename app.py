@@ -1316,36 +1316,72 @@ with st.sidebar:
 
     st.sidebar.divider()
 
-    # 5. 🏢 AI 產業百科
-    st.sidebar.markdown("### 🏢 AI 產業百科", help="這裡展示由 AI 深度生成的企業基本面...")
-    db = load_industry_db()
-    target_sid_str = str(target_sid).strip()
-    stock_info = db.get(target_sid_str)
-    
-    if stock_info:
-        def format_text(val):
-            if isinstance(val, dict):
-                return "\n\n".join([f"🔸 {v}" for k, v in val.items()])
-            elif isinstance(val, list):
-                return "\n\n".join([f"🔸 {v}" for v in val])
-            return str(val)
+# ==============================================================================
+# 🏢 AI 產業百科（全區塊通用防禦排版引擎）
+# ==============================================================================
+st.sidebar.markdown("### 🏢 AI 產業百科", help="這裡展示由 AI 深度生成的企業基本面...")
+db = load_industry_db()
+target_sid_str = str(target_sid).strip()
+stock_info = db.get(target_sid_str)
 
-        with st.sidebar.expander("🎯 個股主要業務", expanded=True):
-            st.info(format_text(stock_info.get("company_brief", "資料載入中...")))
-        with st.sidebar.expander("📍 產業市場規模", expanded=False):
-            st.info(format_text(stock_info.get("overview", "資料載入中...")))
-        with st.sidebar.expander("🔗 產業價值鏈", expanded=False):
-            st.info(format_text(stock_info.get("value_chain", "資料載入中...")))
-        with st.sidebar.expander("🔗 相關競爭對手", expanded=False):
-            comp_data = stock_info.get("competitors", [])
-            if isinstance(comp_data, list):
-                st.markdown("\n".join([f"- **{peer}**" for peer in comp_data]) or "暫無資料")
-            elif isinstance(comp_data, dict):
-                st.markdown("\n".join([f"- **{v}**" for k, v in comp_data.items()]))
-            else:
-                st.markdown(str(comp_data))
-        with st.sidebar.expander("📈 產業驅動因子", expanded=False):
-            st.info(format_text(stock_info.get("drivers", "資料載入中...")))
+if stock_info:
+    def universal_format(data):
+        """
+        全區塊通用解析器：支援遞迴解析，相容：
+        1. 純文字 (str)
+        2. 扁平/結構化清單 (List of Strings / List of Dicts)
+        3. 多維巢狀字典 (Dict of Strings / Dict of Lists)
+        """
+        if not data or data == "【資料不足，無法確認】":
+            return "暫無資料"
+        
+        lines = []
+        
+        # 情況 A：清單結構（如 competitors 或條列式 drivers/value_chain）
+        if isinstance(data, list):
+            for item in data:
+                if isinstance(item, dict):
+                    # 字典物件：提取主要名稱與描述
+                    name = item.get("name") or item.get("company") or item.get("title") or "相關項目"
+                    desc = item.get("description") or item.get("desc") or item.get("detail") or ""
+                    lines.append(f"- **{name}**：{desc}" if desc else f"- **{name}**")
+                elif isinstance(item, list):
+                    lines.append(universal_format(item))
+                else:
+                    lines.append(f"- {str(item).strip()}")
+            return "\n\n".join(lines)
+            
+        # 情況 B：字典結構（如分組 drivers 或鍵值 value_chain）
+        elif isinstance(data, dict):
+            for k, v in data.items():
+                label = str(k).strip()
+                if isinstance(v, list):
+                    sub_content = "\n".join([f"  • {x}" for x in v])
+                    lines.append(f"**🔸 {label}**：\n{sub_content}")
+                elif isinstance(v, dict):
+                    lines.append(f"**🔸 {label}**：\n{universal_format(v)}")
+                else:
+                    lines.append(f"**🔸 {label}**：{str(v).strip()}")
+            return "\n\n".join(lines)
+            
+        # 情況 C：純文字
+        return str(data).strip()
+
+    # 五大百科區塊全面採用 universal_format，格式全部標準化
+    with st.sidebar.expander("🎯 個股主要業務", expanded=True):
+        st.info(universal_format(stock_info.get("company_brief")))
+        
+    with st.sidebar.expander("📍 產業市場規模", expanded=False):
+        st.info(universal_format(stock_info.get("overview")))
+        
+    with st.sidebar.expander("🔗 產業價值鏈", expanded=False):
+        st.info(universal_format(stock_info.get("value_chain")))
+        
+    with st.sidebar.expander("🔗 相關競爭對手", expanded=False):
+        st.markdown(universal_format(stock_info.get("competitors")))
+        
+    with st.sidebar.expander("📈 產業驅動因子", expanded=False):
+        st.info(universal_format(stock_info.get("drivers")))
             
         last_updated_str = stock_info.get('last_updated', '2020-01-01')
         try:
