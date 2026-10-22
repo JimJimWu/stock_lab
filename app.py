@@ -1959,25 +1959,43 @@ if df is not None and not df.empty:
             st.write("委買比例: `50.0%` vs 委賣比例: `50.0%`")
             st.progress(0.5)
 
-        # 2. 量能動態診斷
+        # 2. 量能動態診斷 (🌟 升級 1：改用三欄式微型儀表板，視覺更清晰)
         st.divider()
         st.subheader("📊 量能動態診斷")
-        st.write(f"今日成交量：`{round(today_volume, 1)}` 張  |  5日均量：`{round(vol_ma5, 1)}` 張  |  量能佔比：`{vol_ratio_pct}%`")
+        
+        col_v1, col_v2, col_v3 = st.columns(3)
+        with col_v1:
+            st.metric("今日成交量", f"{round(today_volume, 1):,} 張")
+        with col_v2:
+            st.metric("5日均量", f"{round(vol_ma5, 1):,} 張")
+        with col_v3:
+            # 動態指標顏色：爆量橘紅(normal)，量縮惜售翡翠綠(inverse)，其餘灰白(off)
+            delta_color = "normal" if vol_ratio_pct > 115 else ("inverse" if vol_ratio_pct < 70 else "off")
+            st.metric("量能佔比", f"{vol_ratio_pct}%", delta=f"{round(vol_ratio_pct-100, 1)}%", delta_color=delta_color)
+            
         custom_diagnostic_card(vol_diag_card_info[0], vol_diag_card_info[1], vol_diag_card_info[2])
 
-        # 3. 莊家防線與技術狀態
+        # 3. 莊家防線與技術狀態 (🌟 升級 2：新增緩衝空間提示，強化實戰感)
         st.divider()
         st.subheader("🛡️ 莊家大戶防線與技術指標")
+        
+        # 計算距離防線的緩衝空間 (%)
+        buffer_pct = round(((current_price - weighted_support) / current_price) * 100, 2)
+        
         if current_price >= weighted_support:
             custom_diagnostic_card(
                 "🛡️ 莊家大戶籌碼防線",
-                f"🟢 防線守住 ({weighted_support} 元)\n股價守於大戶加權成本線之上，莊家持續護盤，屬安全低接位階！",
+                f"🟢 防線守住 ({weighted_support} 元)\n"
+                f"📏 距離防線緩衝：安全空間 +{buffer_pct}%\n"
+                f"股價守於大戶加權成本線之上，莊家持續護盤，屬安全低接位階！",
                 "success"
             )
         else:
             custom_diagnostic_card(
                 "🛡️ 莊家大戶籌碼防線",
-                f"🔴 防線失守 ({weighted_support} 元)\n收盤擊穿大戶護盤成本，莊家棄守面臨探底，切忌盲目接刀！",
+                f"🔴 防線失守 ({weighted_support} 元)\n"
+                f"📏 目前已跌破防線：{buffer_pct}%\n"
+                f"收盤擊穿大戶護盤成本，莊家棄守面臨探底，切忌盲目接刀！",
                 "error"
             )
 
@@ -1997,7 +2015,6 @@ if df is not None and not df.empty:
             <b>指標：</b> MACD: {'🟢 金叉' if last['DIF'] > last['DEA'] else '🔴 死叉'} | KD: {'🟢 金叉' if last['K'] > last['D'] else '🔴 死叉'}
         </div>
         """, unsafe_allow_html=True)
-
     # ==============================================================================
     # 🌟 【第 3 層：全寬深度決策戰情室】
     # ==============================================================================
