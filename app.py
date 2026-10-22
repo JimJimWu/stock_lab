@@ -1242,7 +1242,7 @@ if app_mode == "📊 策略回測中心":
 # ==============================================================================
 with st.sidebar:
     # 1. 🎯 每日戰情室 (聚焦核心標的)
-    st.sidebar.markdown("### 🎯 每日戰情室 (已關注)")
+    st.markdown("### 🎯 每日戰情室 (已關注)")
     current_stocks = load_stock_dict()
     options_list = list(current_stocks.keys())
     
@@ -1251,7 +1251,7 @@ with st.sidebar:
     except Exception:
         current_idx = 0
 
-    target_sid = st.sidebar.selectbox(
+    target_sid = st.selectbox(
         "選擇每日觀察標的", 
         options=options_list, 
         index=current_idx,
@@ -1259,10 +1259,10 @@ with st.sidebar:
         key="target_sid_selectbox"
     )
     st.session_state['selected_sid'] = target_sid
-    st.sidebar.divider()
+    st.divider()
     
     # 2. 🔍 探索新標的 (全市場擴建)
-    with st.sidebar.expander("🔍 搜尋全市場並擴建雷達"):
+    with st.expander("🔍 搜尋全市場並擴建雷達"):
         full_market = load_full_market()
         search_options = [f"{sid} ({name})" for sid, name in full_market.items()]
         new_stock_input = st.selectbox("請輸入代號或名稱搜尋", options=search_options)
@@ -1287,18 +1287,18 @@ with st.sidebar:
                     st.rerun()
                 else:
                     st.warning(f"⚠️ {clean_new_sid} 此標的已在自選清單中，請勿重複新增！")
-				
+                
     # 3. 📅 歷史數據追蹤
-    view_days = st.sidebar.slider("📅 歷史數據追蹤天數", 30, 240, 90)
-    st.sidebar.divider()
+    view_days = st.slider("📅 歷史數據追蹤天數", 30, 240, 90)
+    st.divider()
     
     # 4. 🌐 外部情資鏈結
-    st.sidebar.markdown("### 🌐 外部戰情資料庫")
-    link_col1, link_col2 = st.sidebar.columns(2)
+    st.markdown("### 🌐 外部戰情資料庫")
+    link_col1, link_col2 = st.columns(2)
     link_col1.link_button("📈 Yahoo 股市", f"https://tw.stock.yahoo.com/quote/{target_sid}", use_container_width=True)
     link_col2.link_button("💰 財務報表", f"https://goodinfo.tw/tw/StockDetail.asp?STOCK_ID={target_sid}", use_container_width=True)
     
-    chip_col1, chip_col2 = st.sidebar.columns(2)
+    chip_col1, chip_col2 = st.columns(2)
     chip_col1.link_button(
         "🕵️ 融資融券", 
         f"https://goodinfo.tw/tw/ShowMarginChart.asp?STOCK_ID={target_sid}", 
@@ -1314,7 +1314,7 @@ with st.sidebar:
         help="跳轉至 Goodinfo 查看外資、投信、自營商買賣超明細。"
     )
 
-    st.sidebar.divider()
+    st.divider()
 
 # ==============================================================================
 # 🏢 AI 產業百科（全區塊通用防禦排版引擎）
@@ -1326,22 +1326,14 @@ stock_info = db.get(target_sid_str)
 
 if stock_info:
     def universal_format(data):
-        """
-        全區塊通用解析器：支援遞迴解析，相容：
-        1. 純文字 (str)
-        2. 扁平/結構化清單 (List of Strings / List of Dicts)
-        3. 多維巢狀字典 (Dict of Strings / Dict of Lists)
-        """
+        """全區塊通用解析器：支援遞迴解析多維度物件"""
         if not data or data == "【資料不足，無法確認】":
             return "暫無資料"
         
         lines = []
-        
-        # 情況 A：清單結構（如 competitors 或條列式 drivers/value_chain）
         if isinstance(data, list):
             for item in data:
                 if isinstance(item, dict):
-                    # 字典物件：提取主要名稱與描述
                     name = item.get("name") or item.get("company") or item.get("title") or "相關項目"
                     desc = item.get("description") or item.get("desc") or item.get("detail") or ""
                     lines.append(f"- **{name}**：{desc}" if desc else f"- **{name}**")
@@ -1351,7 +1343,6 @@ if stock_info:
                     lines.append(f"- {str(item).strip()}")
             return "\n\n".join(lines)
             
-        # 情況 B：字典結構（如分組 drivers 或鍵值 value_chain）
         elif isinstance(data, dict):
             for k, v in data.items():
                 label = str(k).strip()
@@ -1364,10 +1355,9 @@ if stock_info:
                     lines.append(f"**🔸 {label}**：{str(v).strip()}")
             return "\n\n".join(lines)
             
-        # 情況 C：純文字
         return str(data).strip()
 
-    # 五大百科區塊全面採用 universal_format，格式全部標準化
+    # 五大百科區塊全面採用 universal_format
     with st.sidebar.expander("🎯 個股主要業務", expanded=True):
         st.info(universal_format(stock_info.get("company_brief")))
         
@@ -1383,126 +1373,130 @@ if stock_info:
     with st.sidebar.expander("📈 產業驅動因子", expanded=False):
         st.info(universal_format(stock_info.get("drivers")))
             
-        last_updated_str = stock_info.get('last_updated', '2020-01-01')
-        try:
-            last_updated_date = datetime.date.fromisoformat(last_updated_str)
-            days_old = (datetime.date.today() - last_updated_date).days
-            if days_old > 7:
-                st.sidebar.warning(f"⚠️ 資料已過期 {days_old} 天，建議點擊下方按鈕更新")
-            else:
-                st.sidebar.caption(f"✨ 百科更新時間：{last_updated_str}")
-        except Exception:
-            st.sidebar.caption(f"✨ 百科更新時間：{last_updated_str}")
-        
-        s_url = stock_info.get("source_url") or f"https://www.google.com/search?q=台股+{stock_info.get('name', target_sid_str)}+產業分析"
-        html_btn = (
-            '<div style="text-align: right; margin-bottom: 10px;">'
-            f'<a href="{s_url}" target="_blank" style="color: #60a5fa; text-decoration: none; font-size: 13px; font-weight: 600;">'
-            '🔍 查看 AI 參考來源網頁 →</a></div>'
-        )
-        st.sidebar.markdown(html_btn, unsafe_allow_html=True)
-
-        if st.sidebar.button("🔄 更新這檔百科", key=f"re_up_{target_sid_str}", use_container_width=True):
-            with st.sidebar.status(f"🚀 正在重塑 {target_sid_str} 產業百科...", expanded=True) as status:
-                prog_bar = st.progress(0, text="準備發動 AI 引擎...")
-                prog_bar.progress(30, text="🌐 正在連網搜尋最新產業動態...")
-                success, msg = auto_update_industry_db(target_sid_str)
-                if success:
-                    prog_bar.progress(80, text="💾 正在將新資料寫入 JSON 資料庫...")
-                    time.sleep(0.5) 
-                    prog_bar.progress(100, text="✅ 百科更新成功！")
-                    status.update(label="✅ 百科更新成功！", state="complete", expanded=False)
-                    st.rerun()
-                else:
-                    prog_bar.error("⚠️ 更新過程發生中斷")
-                    st.write(f"系統回報: {msg}")
-                    status.update(label="❌ 更新失敗", state="error")
-else:
-        st.sidebar.warning(f"⚠️ 庫存中無 {target_sid_str} 的資料")
-        if st.sidebar.button("🎯 消耗額度生成百科", key=f"init_{target_sid_str}", use_container_width=True):
-            with st.sidebar.status(f"🤖 正在為 {target_sid_str} 建立全新百科...", expanded=True) as status:
-                prog_bar = st.progress(0, text="準備發動 AI 引擎...")
-                prog_bar.progress(30, text="🌐 AI 正在連網深度檢索...")
-                success, msg = auto_update_industry_db(target_sid_str)
-                if success:
-                    prog_bar.progress(80, text="💾 正在建檔寫入資料庫...")
-                    time.sleep(0.5)
-                    prog_bar.progress(100, text="✅ 全新百科建立完成！")
-                    status.update(label="🎉 百科建檔成功！", state="complete", expanded=False)
-                    st.rerun()
-                else:
-                    prog_bar.error("⚠️ 生成過程發生中斷")
-                    st.write(f"系統回報: {msg}")
-                    status.update(label="❌ 生成失敗", state="error")
-
-    # 6. 🩺 系統檢修區
-    st.sidebar.divider()
-    with st.sidebar.expander("🛠️ 系統後勤工具", expanded=False):
-        st.markdown("**AI 連線測試**")
-        if st.button("🔍 版本測試", use_container_width=True):
-            st.toast("正在測試...")
-        if st.button("📋 模型清單", use_container_width=True):
-            try:
-                models = [m.name.replace("models/", "") for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-                st.write("✅ 您的 API 金鑰確定開通支援的模型清單：")
-                st.json(models)
-            except Exception as ex:
-                st.error(f"查詢失敗: {ex}")
-                
-        st.divider()
-        st.markdown("**系統記憶體管理**")
-        if st.button("🧹 強制清除系統快取", use_container_width=True):
-            st.cache_data.clear()
-            st.success("✅ 系統快取已完美清除！")
-            time.sleep(1)
-            st.rerun()
-            
-        st.divider()
-        st.markdown("**資料庫管理 (已開啟全自動雲端同步)**")
-        st.markdown("<span style='font-size: 13px; color: #00F0FF;'>☁️ 雲端雙向智慧合併</span>", unsafe_allow_html=True)
-        if st.button("🚀 執行本地與雲端智慧合併", use_container_width=True, help="將本地 JSON 與 Google Sheets 取聯集智慧合併，絕不誤刪新資料！"):
-            migrate_local_to_cloud()
-        
-        st.markdown("<span style='font-size: 13px; color: #94a3b8;'>💾 離線備份下載 (供更新 Gem 與 GitHub)</span>", unsafe_allow_html=True)
-        latest_db_json = json.dumps(st.session_state.get('INDUSTRY_DB', {}), ensure_ascii=False, indent=4)
-        st.download_button(
-            "📥 下載最新百科 (industry_db.json)",
-            latest_db_json,
-            "industry_db.json",
-            "application/json",
-            use_container_width=True
-        )
-        
-        clean_wl_dict = {
-            k: str(v).replace(str(k), "").replace("(", "").replace(")", "").strip()
-            for k, v in st.session_state.get('STOCK_DICT', {}).items()
-            if "(⚡雷達)" not in str(v)
-        }
-        latest_wl_json = json.dumps(clean_wl_dict, ensure_ascii=False, indent=4)
-        st.download_button(
-            "📥 下載最新自選股 (watchlist.json)",
-            latest_wl_json,
-            "watchlist.json",
-            "application/json",
-            use_container_width=True
-        )
-
-        st.markdown("**策略回測分析**")
-        if os.path.exists("signal_history.csv"):
-            with open("signal_history.csv", "rb") as f:
-                st.download_button("📥 下載策略回測日誌", f.read(), "signal_history.csv", "text/csv", use_container_width=True)
-            
-            st.markdown("<span style='font-size: 13px; color: #94a3b8;'>🔄 **維護與還原 (覆蓋現有日誌)**</span>", unsafe_allow_html=True)
-            uploaded_csv = st.file_uploader("上傳 CSV", type=["csv"], label_visibility="collapsed")
-            if uploaded_csv is not None:
-                try:
-                    with open("signal_history.csv", "wb") as f:
-                        f.write(uploaded_csv.getbuffer())
-                    st.success("✅ 乾淨的回測日誌已成功覆蓋上傳！")
-                except Exception as e:
-                    st.error(f"上傳失敗: {e}")
+    # ✅ 修復 1：退出 expander，與 expander 同層級對齊
+    last_updated_str = stock_info.get('last_updated', '2020-01-01')
+    try:
+        last_updated_date = datetime.date.fromisoformat(last_updated_str)
+        days_old = (datetime.date.today() - last_updated_date).days
+        if days_old > 7:
+            st.sidebar.warning(f"⚠️ 資料已過期 {days_old} 天，建議點擊下方按鈕更新")
         else:
-            st.info("💡 雲端尚未生成回測紀錄。")                          
+            st.sidebar.caption(f"✨ 百科更新時間：{last_updated_str}")
+    except Exception:
+        st.sidebar.caption(f"✨ 百科更新時間：{last_updated_str}")
+        
+    s_url = stock_info.get("source_url") or f"https://www.google.com/search?q=台股+{stock_info.get('name', target_sid_str)}+產業分析"
+    html_btn = (
+        '<div style="text-align: right; margin-bottom: 10px;">'
+        f'<a href="{s_url}" target="_blank" style="color: #60a5fa; text-decoration: none; font-size: 13px; font-weight: 600;">'
+        '🔍 查看 AI 參考來源網頁 →</a></div>'
+    )
+    st.sidebar.markdown(html_btn, unsafe_allow_html=True)
+
+    if st.sidebar.button("🔄 更新這檔百科", key=f"re_up_{target_sid_str}", use_container_width=True):
+        with st.sidebar.status(f"🚀 正在重塑 {target_sid_str} 產業百科...", expanded=True) as status:
+            prog_bar = st.progress(0, text="準備發動 AI 引擎...")
+            prog_bar.progress(30, text="🌐 正在連網搜尋最新產業動態...")
+            success, msg = auto_update_industry_db(target_sid_str)
+            if success:
+                prog_bar.progress(80, text="💾 正在將新資料寫入 JSON 資料庫...")
+                time.sleep(0.5) 
+                prog_bar.progress(100, text="✅ 百科更新成功！")
+                status.update(label="✅ 百科更新成功！", state="complete", expanded=False)
+                st.rerun()
+            else:
+                prog_bar.error("⚠️ 更新過程發生中斷")
+                st.write(f"系統回報: {msg}")
+                status.update(label="❌ 更新失敗", state="error")
+                
+else:
+    # ✅ 確保 else 區塊精確縮排
+    st.sidebar.warning(f"⚠️ 庫存中無 {target_sid_str} 的資料")
+    if st.sidebar.button("🎯 消耗額度生成百科", key=f"init_{target_sid_str}", use_container_width=True):
+        with st.sidebar.status(f"🤖 正在為 {target_sid_str} 建立全新百科...", expanded=True) as status:
+            prog_bar = st.progress(0, text="準備發動 AI 引擎...")
+            prog_bar.progress(30, text="🌐 AI 正在連網深度檢索...")
+            success, msg = auto_update_industry_db(target_sid_str)
+            if success:
+                prog_bar.progress(80, text="💾 正在建檔寫入資料庫...")
+                time.sleep(0.5)
+                prog_bar.progress(100, text="✅ 全新百科建立完成！")
+                status.update(label="🎉 百科建檔成功！", state="complete", expanded=False)
+                st.rerun()
+            else:
+                prog_bar.error("⚠️ 生成過程發生中斷")
+                st.write(f"系統回報: {msg}")
+                status.update(label="❌ 生成失敗", state="error")
+
+# ✅ 修復 2：完全退出 if/else 區塊（回到最外層），確保系統工具永遠可見且不會引發 IndentationError
+# 6. 🩺 系統檢修區
+st.sidebar.divider()
+with st.sidebar.expander("🛠️ 系統後勤工具", expanded=False):
+    st.markdown("**AI 連線測試**")
+    if st.button("🔍 版本測試", use_container_width=True):
+        st.toast("正在測試...")
+    if st.button("📋 模型清單", use_container_width=True):
+        try:
+            models = [m.name.replace("models/", "") for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+            st.write("✅ 您的 API 金鑰確定開通支援的模型清單：")
+            st.json(models)
+        except Exception as ex:
+            st.error(f"查詢失敗: {ex}")
+            
+    st.divider()
+    st.markdown("**系統記憶體管理**")
+    if st.button("🧹 強制清除系統快取", use_container_width=True):
+        st.cache_data.clear()
+        st.success("✅ 系統快取已完美清除！")
+        time.sleep(1)
+        st.rerun()
+        
+    st.divider()
+    st.markdown("**資料庫管理 (已開啟全自動雲端同步)**")
+    st.markdown("<span style='font-size: 13px; color: #00F0FF;'>☁️ 雲端雙向智慧合併</span>", unsafe_allow_html=True)
+    if st.button("🚀 執行本地與雲端智慧合併", use_container_width=True, help="將本地 JSON 與 Google Sheets 取聯集智慧合併，絕不誤刪新資料！"):
+        migrate_local_to_cloud()
+    
+    st.markdown("<span style='font-size: 13px; color: #94a3b8;'>💾 離線備份下載 (供更新 Gem 與 GitHub)</span>", unsafe_allow_html=True)
+    latest_db_json = json.dumps(st.session_state.get('INDUSTRY_DB', {}), ensure_ascii=False, indent=4)
+    st.download_button(
+        "📥 下載最新百科 (industry_db.json)",
+        latest_db_json,
+        "industry_db.json",
+        "application/json",
+        use_container_width=True
+    )
+    
+    clean_wl_dict = {
+        k: str(v).replace(str(k), "").replace("(", "").replace(")", "").strip()
+        for k, v in st.session_state.get('STOCK_DICT', {}).items()
+        if "(⚡雷達)" not in str(v)
+    }
+    latest_wl_json = json.dumps(clean_wl_dict, ensure_ascii=False, indent=4)
+    st.download_button(
+        "📥 下載最新自選股 (watchlist.json)",
+        latest_wl_json,
+        "watchlist.json",
+        "application/json",
+        use_container_width=True
+    )
+
+    st.markdown("**策略回測分析**")
+    if os.path.exists("signal_history.csv"):
+        with open("signal_history.csv", "rb") as f:
+            st.download_button("📥 下載策略回測日誌", f.read(), "signal_history.csv", "text/csv", use_container_width=True)
+        
+        st.markdown("<span style='font-size: 13px; color: #94a3b8;'>🔄 **維護與還原 (覆蓋現有日誌)**</span>", unsafe_allow_html=True)
+        uploaded_csv = st.file_uploader("上傳 CSV", type=["csv"], label_visibility="collapsed")
+        if uploaded_csv is not None:
+            try:
+                with open("signal_history.csv", "wb") as f:
+                    f.write(uploaded_csv.getbuffer())
+                st.success("✅ 乾淨的回測日誌已成功覆蓋上傳！")
+            except Exception as e:
+                st.error(f"上傳失敗: {e}")
+    else:
+        st.info("💡 雲端尚未生成回測紀錄。")                       
 
 # ==============================================================================
 # --- 數據加載線 ---
