@@ -120,7 +120,7 @@ def migrate_local_to_cloud():
         st.error("❌ 雲端同步失敗，請檢查 Secrets 設定。")
 # ==============================================================================
 def generate_ai_insights(company_name, summary):
-    """V43.1 官方最新規範版：採用 gemini-3.8-flash 並具備自動容錯切換機制"""
+    """自適應驗證版：自動抓取該 API Key 真正開通的模型，絕不盲目硬塞造成 404"""
     import json
     import re
     
@@ -135,16 +135,25 @@ def generate_ai_insights(company_name, summary):
     """
     source_url = f"https://www.google.com/search?q=台股+{ticker}+{pure_name}+產業分析"
 
-    # 💥 直接採用 Google 官方指定的最新模型與備援清單
-    candidate_models = [
-        'gemini-2.5-flash',
-        'gemini-3.1-pro-preview',   # 官方指定推薦接替 2.5-pro 的最新模型
-        'gemini-1.5-pro',           # 獨立配額備援
-        'gemini-1.5-flash-8b'       # 獨立配額輕量備援
-    ]
-    
+    # 1. 向 Google 伺服器動態索取當前帳號「真正開通且支援生成」的模型清單
+    try:
+        available_models = [
+            m.name.replace("models/", "") 
+            for m in genai.list_models() 
+            if 'generateContent' in m.supported_generation_methods
+        ]
+    except Exception:
+        available_models = ['gemini-2.5-flash']
+
+    # 2. 優先排序：有 2.5-flash 優先用，若額度用盡則依序從「確定存在的模型」中嘗試
+    priorities = ['gemini-2.5-flash', 'gemini-1.5-pro', 'gemini-pro']
+    run_list = [m for m in priorities if m in available_models]
+    # 若優先模型都不在，就直接採用該帳號支援的任一模型
+    if not run_list:
+        run_list = available_models[:3]
+
     last_err = ""
-    for model_name in candidate_models:
+    for model_name in run_list:
         try:
             model = genai.GenerativeModel(
                 model_name=model_name,
@@ -158,13 +167,13 @@ def generate_ai_insights(company_name, summary):
             return ai_dict
         except Exception as e:
             last_err = str(e)
-            # 遇到 429 額度用盡或 404 模型異動時，自動切換至下一個模型重試
-            if "429" in last_err or "404" in last_err or "quota" in last_err.lower():
+            # 遇到 429 額度超標時，才自動換下一個真實存在的模型
+            if "429" in last_err or "quota" in last_err.lower():
                 continue
             break
 
     return {
-        "company_brief": f"⚠️ 解析錯誤: {last_err}", 
+        "company_brief": f"⚠️ 解析中斷: {last_err}", 
         "overview": "【資料不足，無法確認】", 
         "value_chain": "【資料不足，無法確認】", 
         "competitors": [], 
@@ -1521,8 +1530,13 @@ with st.sidebar:
         if st.button("🔍 版本測試", use_container_width=True):
             st.toast("正在測試...")
         if st.button("📋 模型清單", use_container_width=True):
-            pass
-        
+            try:
+				models = [m.name.replace("models/", "") for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+				st.write("✅ 您的 API 金鑰確定開通支援的模型清單：")
+				st.json(models)
+			except Exception as ex:
+				st.error(f"查詢失敗: {ex}")
+                
         st.divider()
         st.markdown("**系統記憶體管理**")
         if st.button("🧹 強制清除系統快取", use_container_width=True):
