@@ -613,26 +613,72 @@ def get_yahoo_web_quote_from_df(sid, df):
             
     return quote
 
+# ==============================================================================
+# 💥 【V42.0 黑科技：基本面數據自體運算引擎 (修復 OTC 財報空白 Bug)】
+# ==============================================================================
 @st.cache_data(ttl=600)
 def get_analysis_data(sid):
     suffixes = [".TWO", ".TW"] if sid in ["3595", "7853", "3081"] or len(sid) == 6 else [".TW", ".TWO"]
     for suffix in suffixes:
         try:
             ticker = yf.Ticker(f"{sid}{suffix}")
-            info = ticker.info
-            if info:
-                eps_val = info.get("trailingEps")
+            info = ticker.info or {}
+            
+            # --- 1. 預設從 Yahoo info 捷徑獲取 ---
+            eps_val = info.get("trailingEps")
+            pe_val = info.get("trailingPE")
+            roe_val = info.get("returnOnEquity")
+            debt_eq = info.get("debtToEquity")
+            rev_growth = info.get("revenueGrowth", 0)
+            inst_hold = (info.get("heldPercentInstitutions", 0) or 0) * 100
+
+            # --- 2. 💥 自體運算防線：若 Yahoo 缺漏 (常見於 OTC 股)，直接調閱原始季報反算 ---
+            if eps_val is None or roe_val is None:
+                try:
+                    q_inc = ticker.quarterly_income_stmt
+                    q_bal = ticker.quarterly_balance_sheet
+                    f_info = ticker.fast_info
+                    
+                    if q_inc is not None and not q_inc.empty and 'Net Income' in q_inc.index:
+                        # 抓取近四季淨利 (TTM) 取代 Yahoo 的缺失值
+                        ttm_net = q_inc.loc['Net Income'].dropna().iloc[:4].sum()
+                        shares = f_info.get('shares')
+                        price = f_info.get('last_price')
+                        
+                        # 💡 自行計算 EPS 與 本益比 (PE)
+                        if shares and shares > 0:
+                            calc_eps = ttm_net / shares
+                            if eps_val is None: eps_val = calc_eps
+                            if pe_val is None and price and calc_eps > 0: 
+                                pe_val = price / calc_eps
+                                
+                        # 💡 自行計算 ROE 與 負債比
+                        if q_bal is not None and not q_bal.empty and 'Stockholders Equity' in q_bal.index:
+                            eq_series = q_bal.loc['Stockholders Equity'].dropna()
+                            if not eq_series.empty:
+                                equity = eq_series.iloc[0]
+                                if equity > 0:
+                                    if roe_val is None: roe_val = ttm_net / equity
+                                    if debt_eq is None and 'Total Debt' in q_bal.index:
+                                        debt_series = q_bal.loc['Total Debt'].dropna()
+                                        if not debt_series.empty:
+                                            debt_eq = (debt_series.iloc[0] / equity) * 100
+                except Exception:
+                    pass # 萬一連原始財報都沒有，才保留 N/A
+
+            # --- 3. 統一格式化回傳 ---
+            if info or pd.notna(eps_val):
                 return {
-                    "EPS": eps_val if eps_val else "N/A",
-                    "營收成長率": info.get('revenueGrowth', 0),
-                    "負債比": info.get('debtToEquity', 0),
-                    "ROE": f"{round(info.get('returnOnEquity', 0)*100, 2)}%" if info.get('returnOnEquity') else "N/A",
-                    "本益比": round(info.get("trailingPE", 0), 2) if info.get("trailingPE") else "N/A",
-                    "法人持股": (info.get("heldPercentInstitutions", 0) or 0) * 100
+                    "EPS": round(eps_val, 2) if pd.notna(eps_val) else "N/A",
+                    "營收成長率": rev_growth if pd.notna(rev_growth) else 0,
+                    "負債比": round(debt_eq, 2) if pd.notna(debt_eq) else 0,
+                    "ROE": f"{round(roe_val * 100, 2)}%" if pd.notna(roe_val) else "N/A",
+                    "本益比": round(pe_val, 2) if pd.notna(pe_val) else "N/A",
+                    "法人持股": round(inst_hold, 2) if pd.notna(inst_hold) else 0.0
                 }
         except Exception:
             continue
-    return None	
+    return None
 
 # ==============================================================================
 # 📈 跨年度毛利與金融特許解析引擎
