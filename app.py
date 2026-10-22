@@ -1965,9 +1965,10 @@ if df is not None and not df.empty:
         
         col_v1, col_v2, col_v3 = st.columns(3)
         with col_v1:
-            st.metric("今日成交量", f"{round(today_volume, 1):,} 張")
+            # 💡 修正：將單位移至標題，數值強制轉為整數 (int) 消除小數點，完美防止截斷
+            st.metric("今日成交量 (張)", f"{int(today_volume):,}")
         with col_v2:
-            st.metric("5日均量", f"{round(vol_ma5, 1):,} 張")
+            st.metric("5日均量 (張)", f"{int(vol_ma5):,}")
         with col_v3:
             # 動態指標顏色：爆量橘紅(normal)，量縮惜售翡翠綠(inverse)，其餘灰白(off)
             delta_color = "normal" if vol_ratio_pct > 115 else ("inverse" if vol_ratio_pct < 70 else "off")
