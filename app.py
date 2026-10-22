@@ -1280,6 +1280,26 @@ with st.sidebar:
         key="target_sid_selectbox"
     )
     st.session_state['selected_sid'] = target_sid
+
+    # 💥 【新增：一鍵刪除/移除當前標的防線】
+    clean_target_sid = str(target_sid).strip()
+    col_del_1, col_del_2 = st.columns([3, 1])
+    with col_del_2:
+        if st.button("🗑️ 移除", key=f"del_{clean_target_sid}", help=f"從每日戰情室移除 {clean_target_sid}，並同步更新雲端資料庫"):
+            if len(current_stocks) <= 1:
+                st.sidebar.error("⚠️ 戰情室至少需保留 1 檔標的，無法全數刪除！")
+            else:
+                current_stocks.pop(clean_target_sid, None)
+                save_stock_dict(current_stocks) # 💡 自動同步寫入 watchlist.json 與 Google Sheets
+                
+                # 更新 Session State
+                st.session_state['STOCK_DICT'] = current_stocks
+                st.session_state['selected_sid'] = list(current_stocks.keys())[0]
+                
+                st.toast(f"🗑️ 已成功將 {clean_target_sid} 移出戰情室！", icon="✅")
+                time.sleep(0.5)
+                st.rerun()
+
     st.divider()
     
     # 2. 🔍 探索新標的 (全市場擴建)
