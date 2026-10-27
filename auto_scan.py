@@ -168,7 +168,40 @@ def get_analysis_data(sid):
     except Exception:
         pass
     return None
+def calculate_structural_support(df):
+    try:
+        if df is None or df.empty or len(df) < 20:
+            fallback_price = float(df['Close'].iloc[-1]) * 0.95 if df is not None and not df.empty else 0.0
+            return round(fallback_price, 2), "基礎價格支撐"
 
+        calc_df = df.copy()
+        current_close = float(calc_df['Close'].iloc[-1])
+
+        ma20 = float(calc_df['Close'].tail(20).mean())
+        ma60 = float(calc_df['Close'].tail(60).mean()) if len(calc_df) >= 60 else ma20
+
+        calc_df['Prev_Close'] = calc_df['Close'].shift(1)
+        calc_df['TR1'] = calc_df['High'] - calc_df['Low']
+        calc_df['TR2'] = (calc_df['High'] - calc_df['Prev_Close']).abs()
+        calc_df['TR3'] = (calc_df['Low'] - calc_df['Prev_Close']).abs()
+        calc_df['TR'] = calc_df[['TR1', 'TR2', 'TR3']].max(axis=1)
+        atr_14 = float(calc_df['TR'].tail(14).mean())
+
+        highest_close_20 = float(calc_df['Close'].tail(20).max())
+        atr_support = highest_close_20 - (2.5 * atr_14)
+
+        if current_close >= ma60 * 1.10:
+            structural_support = max(ma60, (ma20 * 0.5 + atr_support * 0.5))
+            logic_desc = f"波段多頭結構｜結合 20MA留倉線 ({round(ma20, 1)}元) 與 ATR波動底線 ({round(atr_support, 1)}元)"
+        else:
+            structural_support = ma60
+            logic_desc = f"中長線價值中樞｜以 60MA季線實質留倉成本 ({round(ma60, 1)}元) 為關鍵多空分水嶺"
+
+        return round(float(structural_support), 2), logic_desc
+
+    except Exception:
+        fallback = float(df['Close'].iloc[-1]) * 0.95 if df is not None and not df.empty else 0.0
+        return round(fallback, 2), "系統預設支撐"
 # ==============================================================================
 # 📈 【V36.3 升級：跨年度毛利與金融特許解析引擎 (徹底根除 404)】
 # ==============================================================================
@@ -404,18 +437,11 @@ def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
     net_5d = round(df_temp['Net_Force_Vol'].tail(5).sum(), 1)
     chip_flow_status = get_institutional_chips(df_scan)
 
-    try:
-        temp_df = df_scan.tail(60).copy()
-        calculated_support = round(temp_df.nlargest(3, 'Volume')['Low'].mean(), 1)
-        if 0.75 * current_price <= calculated_support <= 1.02 * current_price:
-            weighted_support = calculated_support
-        else:
-            recent_low = round(df_scan.tail(10)['Low'].min(), 1)
-            weighted_support = recent_low if (0.75 * current_price <= recent_low <= 1.02 * current_price) else round(current_price * 0.95, 1)
-    except Exception:
-        weighted_support = round(current_price * 0.95, 1)
+    # ✅ 呼叫全域的新版防線引擎，並賦值給 weighted_support
+    weighted_support, _ = calculate_structural_support(df_scan)
 
-    support_text = f"🟢 關鍵支撐守住 ({weighted_support} 元)" if current_price >= weighted_support else f"🔴 關鍵支撐守住失守 ({weighted_support} 元)"
+    # ✅ 更新推播文字，確保沒有錯字
+    support_text = f"🟢 關鍵支撐守住 ({weighted_support} 元)" if current_price >= weighted_support else f"🔴 關鍵支撐失守 ({weighted_support} 元)"
     ma_status = "🔥 強勢多頭 (5 > 10 > 20MA)" if last['MA5'] > last['MA10'] > last['MA20'] else "💤 區間整理"
 
     # === 訊號判定 ===
