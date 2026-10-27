@@ -200,7 +200,42 @@ def migrate_local_to_cloud():
         st.success(f"✅ 雙向智慧同步完成！雲端已永久保存 {len(current_wl)} 檔自選股與 {len(merged_db)} 筆 AI 百科！")
     else:
         st.error("❌ 雲端同步失敗，請檢查 Secrets 設定。")
+def calculate_structural_support(data_df):
+            try:
+                if data_df is None or data_df.empty or len(data_df) < 20:
+                    fb = float(data_df['Close'].iloc[-1]) * 0.95 if data_df is not None and not data_df.empty else 0.0
+                    return round(fb, 2), "基礎價格支撐"
 
+                c_df = data_df.copy()
+                cur_c = float(c_df['Close'].iloc[-1])
+
+                # 留倉資金時間成本：20MA (月線) 與 60MA (季線) 純收盤價
+                m20 = float(c_df['Close'].tail(20).mean())
+                m60 = float(c_df['Close'].tail(60).mean()) if len(c_df) >= 60 else m20
+
+                # 計算 14 日 ATR (真實波幅) 過濾盤中當沖洗盤雜訊
+                c_df['Prev_Close'] = c_df['Close'].shift(1)
+                c_df['TR1'] = c_df['High'] - c_df['Low']
+                c_df['TR2'] = (c_df['High'] - c_df['Prev_Close']).abs()
+                c_df['TR3'] = (c_df['Low'] - c_df['Prev_Close']).abs()
+                c_df['TR'] = c_df[['TR1', 'TR2', 'TR3']].max(axis=1)
+                atr_val = float(c_df['TR'].tail(14).mean())
+
+                # 波段 ATR 吊燈防線 (近 20 日最高收盤價回推 2.5 倍 ATR)
+                high_20 = float(c_df['Close'].tail(20).max())
+                atr_sup = high_20 - (2.5 * atr_val)
+
+                if cur_c >= m60 * 1.10:
+                    sup_price = max(m60, (m20 * 0.5 + atr_sup * 0.5))
+                    desc = f"波段多頭結構｜結合 20MA留倉線 ({round(m20, 1)}元) 與 ATR波動底線 ({round(atr_sup, 1)}元)"
+                else:
+                    sup_price = m60
+                    desc = f"中長線價值中樞｜以 60MA季線實質留倉成本 ({round(m60, 1)}元) 為關鍵多空分水嶺"
+
+                return round(float(sup_price), 2), desc
+            except Exception:
+                fb = float(data_df['Close'].iloc[-1]) * 0.95 if data_df is not None and not data_df.empty else 0.0
+                return round(fb, 2), "系統預設支撐"
 # ==============================================================================
 # 🤖 AI 產業百科生成引擎
 # ==============================================================================
@@ -1770,7 +1805,7 @@ if df is not None and not df.empty:
             rows=5, cols=1, shared_xaxes=True, vertical_spacing=0.065,
             row_heights=[0.38, 0.15, 0.16, 0.16, 0.15],
             subplot_titles=(
-                f"📈 {display_name} K線、均線與莊家防守線 ({weighted_support}元)  [⭐ 金色虛線 = 多指標共振買點]",
+                f"📈 {display_name} K線、均線與關鍵結構支撐 ({weighted_support}元)  [⭐ 金色虛線 = 多指標共振買點]",
                 "📊 成交量與 5日均量動能 (紅漲綠跌・橘金爆量突破)",
                 "🌊 MACD 波段趨勢動能 (▲ 活叉買點 / ▼ 死叉賣點 ➔ 滑鼠移上自動顯示)",
                 "⚡ KD 隨機轉折指標 (▲ 活叉 / ▼ 死叉・80超買 / 20超賣)",
@@ -1805,10 +1840,26 @@ if df is not None and not df.empty:
             for res_dt in bull_res_df.index:
                 fig.add_vline(x=res_dt, line_width=1.2, line_dash="dot", line_color="rgba(250, 204, 21, 0.35)")
 
-        fig.add_hline(
-            y=weighted_support, line_dash="dash", line_color="#facc15", line_width=1.8,
-            annotation_text=f"🛡️ 莊家防線 {weighted_support}元", annotation_position="bottom right",
-            annotation_font=dict(color="#facc15", size=12), row=1, col=1
+        # 🌟 1. 在畫圖前，先向右側面板「借用」已經算好的新支撐位！
+        # (確保您在 col_telemetry 區塊的上方或全域已經定義了 calculate_structural_support 函數)
+        try:
+            weighted_support, _, _, _ = calculate_structural_support(df)
+        except Exception:
+            pass # 若函數尚未讀取到，則維持原數值
+
+        # 🌟 2. 畫出新的關鍵結構支撐線 (取代原本的莊家防線)
+        fig.add_trace(
+            go.Scatter(
+                x=[df.index[0], df.index[-1]], 
+                y=[weighted_support, weighted_support],
+                mode="lines+text", 
+                name="關鍵支撐", 
+                line=dict(color="#F59E0B", width=2, dash="dash"),
+                text=["", f"關鍵支撐 {weighted_support}元"], 
+                textposition="bottom left",
+                textfont=dict(color="#F59E0B", size=11)
+            ),
+            row=1, col=1
         )
 
         # 第 2 層：三色成交量 + 5日均量
@@ -1977,44 +2028,7 @@ if df is not None and not df.empty:
         # 3. 關鍵支撐位與技術狀態 (🌟 內建反當沖純價格結構與 ATR 支撐引擎，免去其他地方貼函數！)
         st.divider()
         st.subheader("🛡️ 關鍵支撐位與技術指標")
-
-        def calculate_structural_support(data_df):
-            try:
-                if data_df is None or data_df.empty or len(data_df) < 20:
-                    fb = float(data_df['Close'].iloc[-1]) * 0.95 if data_df is not None and not data_df.empty else 0.0
-                    return round(fb, 2), "基礎價格支撐"
-
-                c_df = data_df.copy()
-                cur_c = float(c_df['Close'].iloc[-1])
-
-                # 留倉資金時間成本：20MA (月線) 與 60MA (季線) 純收盤價
-                m20 = float(c_df['Close'].tail(20).mean())
-                m60 = float(c_df['Close'].tail(60).mean()) if len(c_df) >= 60 else m20
-
-                # 計算 14 日 ATR (真實波幅) 過濾盤中當沖洗盤雜訊
-                c_df['Prev_Close'] = c_df['Close'].shift(1)
-                c_df['TR1'] = c_df['High'] - c_df['Low']
-                c_df['TR2'] = (c_df['High'] - c_df['Prev_Close']).abs()
-                c_df['TR3'] = (c_df['Low'] - c_df['Prev_Close']).abs()
-                c_df['TR'] = c_df[['TR1', 'TR2', 'TR3']].max(axis=1)
-                atr_val = float(c_df['TR'].tail(14).mean())
-
-                # 波段 ATR 吊燈防線 (近 20 日最高收盤價回推 2.5 倍 ATR)
-                high_20 = float(c_df['Close'].tail(20).max())
-                atr_sup = high_20 - (2.5 * atr_val)
-
-                if cur_c >= m60 * 1.10:
-                    sup_price = max(m60, (m20 * 0.5 + atr_sup * 0.5))
-                    desc = f"波段多頭結構｜結合 20MA留倉線 ({round(m20, 1)}元) 與 ATR波動底線 ({round(atr_sup, 1)}元)"
-                else:
-                    sup_price = m60
-                    desc = f"中長線價值中樞｜以 60MA季線實質留倉成本 ({round(m60, 1)}元) 為關鍵多空分水嶺"
-
-                return round(float(sup_price), 2), desc
-            except Exception:
-                fb = float(data_df['Close'].iloc[-1]) * 0.95 if data_df is not None and not data_df.empty else 0.0
-                return round(fb, 2), "系統預設支撐"
-
+        
         # 直接計算並覆蓋 weighted_support，下方 3-3-4 建倉與 AI 戰略官會自動同步使用此新支撐！
         weighted_support, support_logic_str = calculate_structural_support(df)
         buffer_pct = round(((current_price - weighted_support) / current_price) * 100, 2) if current_price > 0 else 0.0
@@ -2144,7 +2158,7 @@ if df is not None and not df.empty:
             f"📐 位階與風報比：{rr_tag}",
             f"📏 月線乖離率 (20MA BIAS)： {bias_20:+.2f}%  |  🔗 均線糾結度： {ma_spread_pct}%\n"
             f"🎯 上檔前高空間 ({high_60d}元)： +{upside_pct}%  |  🛡️ 下檔防線風險 ({weighted_support}元)： -{downside_pct}%\n"
-            f"💡 實戰判定： {'均線糾結壓縮完成，具備波段爆發力！' if ma_spread_pct <= 3.0 else ('正乖離過熱，建議等待拉回月線再佈局。' if bias_20 > 15 else '嚴守莊家防守線，盈虧比大於 2 倍時具高期望值。')}",
+            f"💡 實戰判定： {'均線糾結壓縮完成，具備波段爆發力！' if ma_spread_pct <= 3.0 else ('正乖離過熱，建議等待拉回月線再佈局。' if bias_20 > 15 else '嚴守關鍵結構支撐，盈虧比大於 2 倍時具高期望值。')}",
             rr_color
         )
         
@@ -2175,7 +2189,7 @@ if df is not None and not df.empty:
                 你現在是『🐎 黑馬雷達』首席量化操盤手。請根據以下【確切已知事實】為吳秉諺產出簡潔犀利的買賣決策報告：
                 - 標的：{display_name}，現價：{current_price} 元（漲跌：{diff_pct}%）
                 - 均線與指標：5MA={ma5_val}, 20MA={ma20_val} (月線乖離率 {bias_20}%), 60MA={ma60_val}, RSI={rsi_val}, 均線糾結度={ma_spread_pct}%
-                - 量價與防線：今日量比={round(vol_ratio, 2)}x ({vol_diag_msg})，莊家防守線={weighted_support}元，盈虧比=1:{rr_ratio}
+                - 量價與防線：今日量比={round(vol_ratio, 2)}x ({vol_diag_msg})，關鍵結構支撐={weighted_support}元，盈虧比=1:{rr_ratio}
                 - 籌碼流向：近5日主力淨向={chip_results['net_buy_5d']} ({chip_results['inst_status']})，法人持股={round(inst_hold_val, 1) if isinstance(inst_hold_val, (int, float)) else 0}%
                 - 財報與毛利趨勢：{fin_trend['status_tag']}，歷年毛利={ann_gm_text}，營業利益率={fin_trend['latest_opm']}%，診斷={fin_trend['diagnosis_text']}
                 
