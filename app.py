@@ -1,5 +1,5 @@
 # ==============================================================================
-# 秉諺的黑馬雷達 V43.0 - 網頁儀表板主程式 
+# 秉諺的黑馬雷達 V44.0 - 網頁儀表板主程式 
 # ==============================================================================
 import os
 import re
@@ -18,7 +18,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 from streamlit_autorefresh import st_autorefresh
 
 # --- 1. 頂部頁面設定與防禦 ---
-st.set_page_config(layout="wide", page_title="秉諺的黑馬雷達 V41.0")
+st.set_page_config(layout="wide", page_title="秉諺的黑馬雷達 V44.0")
 
 # --- 背景自動刷新設定 ---
 # 每 300,000 毫秒 (即 5 分鐘) 自動觸發一次 st.rerun()
@@ -1804,10 +1804,10 @@ if df is not None and not df.empty:
         # ✅ 在建立圖表 (make_subplots) 之前，先算出最新的關鍵結構支撐位！
         weighted_support, support_logic_str = calculate_structural_support(df)
         fig = make_subplots(
-            rows=5, cols=1, shared_xaxes=True, vertical_spacing=0.03,
-            row_heights=[0.45, 0.15, 0.15, 0.15, 0.15],
+            rows=5, cols=1, shared_xaxes=True, vertical_spacing=0.045,
+            row_heights=[0.42, 0.145, 0.145, 0.145, 0.145],
             subplot_titles=(
-                f"📈 {display_name} K線、均線與關鍵結構支撐 ({weighted_support}元)  [⭐ 金色虛線 = 多指標共振買點]",
+                    f"📈 {clean_sid} ({stock_name}) K線、均線與關鍵結構支撐 ({weighted_support}元) [⭐ 金色虛線 = 多指標共振買點]",
                 "📊 成交量與 5日均量動能 (紅漲綠跌・橘金爆量突破)",
                 "🌊 MACD 波段趨勢動能 (▲ 活叉買點 / ▼ 死叉賣點 ➔ 滑鼠移上自動顯示)",
                 "⚡ KD 隨機轉折指標 (▲ 活叉 / ▼ 死叉・80超買 / 20超賣)",
@@ -1844,18 +1844,18 @@ if df is not None and not df.empty:
 
         
 
-        # ======================================================================
-        # 🌟 2. 改用 add_hline 繪製水平支撐線 (不影響 X 軸時間範圍，K線立即恢復正常寬度！)
-        # (請將原本畫「關鍵支撐」的 fig.add_trace(...) 整段刪除，換成下面這行)
-        # ======================================================================
+        # 2. 優化關鍵支撐水平線：線條調細並半透明化，標籤移至左側並加上深色半透明底框防重疊
         fig.add_hline(
             y=weighted_support,
             line_dash="dash",
-            line_color="#F59E0B",
-            line_width=2,
-            annotation_text=f"🛡️ 關鍵支撐 {weighted_support}元",
-            annotation_position="bottom right",
-            annotation_font=dict(color="#F59E0B", size=12),
+            line_color="rgba(245, 158, 11, 0.65)", # 👈 降低不透明度至 65%，不搶 K 線風采
+            line_width=1.5,                        # 👈 線條改為 1.5px 更精緻
+            annotation_text=f" 🛡️ 支撐 {weighted_support} ",
+            annotation_position="top left",        # 👈 移至左側，徹底避開右側最新 K 棒與星星！
+            annotation_font=dict(color="#FDE68A", size=11),
+            annotation_bgcolor="rgba(15, 23, 42, 0.85)", # 👈 加上深色半透明底框，壓在K線上也清晰可讀
+            annotation_bordercolor="#F59E0B",
+            annotation_borderwidth=1,
             row=1, col=1
         )
 
@@ -2169,8 +2169,8 @@ if df is not None and not df.empty:
             "🪜 3-3-4 機構分批建倉與停損試算",
             f"🥇 第一批試單 (30% 資金・5MA 動能區)： 約 {p1_price} 元\n"
             f"🥈 第二批加碼 (30% 資金・20MA 月線支撐)： 約 {p2_price} 元\n"
-            f"🥉 第三批重倉 (40% 資金・季線/莊家防線)： 約 {p3_price} 元\n"
-            f"🛑 鐵血停損線 (收盤實質跌破防線 3%)： {stop_loss_price} 元",
+            f"🥉 第三批重倉 (40% 資金・關鍵結構支撐)：約 {p3_price} 元\n" # 👈 將莊家防線改為關鍵結構支撐
+            f"🛑 鐵血停損線 (收盤實質跌破支撐 3%)： {stop_loss_price} 元",    # 👈 同步修改防線為支撐
             "warning"
         )
 
