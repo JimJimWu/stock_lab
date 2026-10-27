@@ -1801,12 +1801,8 @@ if df is not None and not df.empty:
             elif plot_df.loc[idx_dt, 'RSI'] > 80: tags.append("🚨RSI過熱區")
             resonance_hover_texts.append(" + ".join(tags) if tags else "⚖️ 指標平穩運行")
 
-        # 🌟 1. 在畫圖前，先向右側面板「借用」已經算好的新支撐位！
-        # (確保您在 col_telemetry 區塊的上方或全域已經定義了 calculate_structural_support 函數)
-        try:
-            weighted_support, _, _, _ = calculate_structural_support(df)
-        except Exception:
-            pass # 若函數尚未讀取到，則維持原數值
+        # ✅ 在建立圖表 (make_subplots) 之前，先算出最新的關鍵結構支撐位！
+        weighted_support, support_logic_str = calculate_structural_support(df)
         fig = make_subplots(
             rows=5, cols=1, shared_xaxes=True, vertical_spacing=0.03,
             row_heights=[0.45, 0.15, 0.15, 0.15, 0.15],
