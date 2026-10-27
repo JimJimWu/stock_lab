@@ -1807,7 +1807,7 @@ if df is not None and not df.empty:
             rows=5, cols=1, shared_xaxes=True, vertical_spacing=0.045,
             row_heights=[0.42, 0.145, 0.145, 0.145, 0.145],
             subplot_titles=(
-                    f"📈 {selected_stock} K線、均線與關鍵結構支撐 ({weighted_support}元) [⭐ 金色虛線 = 多指標共振買點]",
+                    f"📈 {display_name} K線、均線與關鍵結構支撐 ({weighted_support}元) [⭐ 金色虛線 = 多指標共振買點]",
                 "📊 成交量與 5日均量動能 (紅漲綠跌・橘金爆量突破)",
                 "🌊 MACD 波段趨勢動能 (▲ 活叉買點 / ▼ 死叉賣點 ➔ 滑鼠移上自動顯示)",
                 "⚡ KD 隨機轉折指標 (▲ 活叉 / ▼ 死叉・80超買 / 20超賣)",
