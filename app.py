@@ -1,5 +1,5 @@
 # ==============================================================================
-# 秉諺的黑馬雷達 V41.0 - 網頁儀表板主程式 
+# 秉諺的黑馬雷達 V43.0 - 網頁儀表板主程式 
 # ==============================================================================
 import os
 import re
@@ -1959,44 +1959,80 @@ if df is not None and not df.empty:
             st.write("委買比例: `50.0%` vs 委賣比例: `50.0%`")
             st.progress(0.5)
 
-        # 2. 量能動態診斷 (🌟 升級 1：改用三欄式微型儀表板，視覺更清晰)
+        # 2. 量能動態診斷
         st.divider()
         st.subheader("📊 量能動態診斷")
         
         col_v1, col_v2, col_v3 = st.columns(3)
         with col_v1:
-            # 💡 修正：將單位移至標題，數值強制轉為整數 (int) 消除小數點，完美防止截斷
             st.metric("今日成交量 (張)", f"{int(today_volume):,}")
         with col_v2:
             st.metric("5日均量 (張)", f"{int(vol_ma5):,}")
         with col_v3:
-            # 動態指標顏色：爆量橘紅(normal)，量縮惜售翡翠綠(inverse)，其餘灰白(off)
             delta_color = "normal" if vol_ratio_pct > 115 else ("inverse" if vol_ratio_pct < 70 else "off")
             st.metric("量能佔比", f"{vol_ratio_pct}%", delta=f"{round(vol_ratio_pct-100, 1)}%", delta_color=delta_color)
             
         custom_diagnostic_card(vol_diag_card_info[0], vol_diag_card_info[1], vol_diag_card_info[2])
 
-        # 3. 莊家防線與技術狀態 (🌟 升級 2：新增緩衝空間提示，強化實戰感)
+        # 3. 關鍵支撐位與技術狀態 (🌟 內建反當沖純價格結構與 ATR 支撐引擎，免去其他地方貼函數！)
         st.divider()
-        st.subheader("🛡️ 莊家大戶防線與技術指標")
-        
-        # 計算距離防線的緩衝空間 (%)
-        buffer_pct = round(((current_price - weighted_support) / current_price) * 100, 2)
+        st.subheader("🛡️ 關鍵支撐位與技術指標")
+
+        def calculate_structural_support(data_df):
+            try:
+                if data_df is None or data_df.empty or len(data_df) < 20:
+                    fb = float(data_df['Close'].iloc[-1]) * 0.95 if data_df is not None and not data_df.empty else 0.0
+                    return round(fb, 2), "基礎價格支撐"
+
+                c_df = data_df.copy()
+                cur_c = float(c_df['Close'].iloc[-1])
+
+                # 留倉資金時間成本：20MA (月線) 與 60MA (季線) 純收盤價
+                m20 = float(c_df['Close'].tail(20).mean())
+                m60 = float(c_df['Close'].tail(60).mean()) if len(c_df) >= 60 else m20
+
+                # 計算 14 日 ATR (真實波幅) 過濾盤中當沖洗盤雜訊
+                c_df['Prev_Close'] = c_df['Close'].shift(1)
+                c_df['TR1'] = c_df['High'] - c_df['Low']
+                c_df['TR2'] = (c_df['High'] - c_df['Prev_Close']).abs()
+                c_df['TR3'] = (c_df['Low'] - c_df['Prev_Close']).abs()
+                c_df['TR'] = c_df[['TR1', 'TR2', 'TR3']].max(axis=1)
+                atr_val = float(c_df['TR'].tail(14).mean())
+
+                # 波段 ATR 吊燈防線 (近 20 日最高收盤價回推 2.5 倍 ATR)
+                high_20 = float(c_df['Close'].tail(20).max())
+                atr_sup = high_20 - (2.5 * atr_val)
+
+                if cur_c >= m60 * 1.10:
+                    sup_price = max(m60, (m20 * 0.5 + atr_sup * 0.5))
+                    desc = f"波段多頭結構｜結合 20MA留倉線 ({round(m20, 1)}元) 與 ATR波動底線 ({round(atr_sup, 1)}元)"
+                else:
+                    sup_price = m60
+                    desc = f"中長線價值中樞｜以 60MA季線實質留倉成本 ({round(m60, 1)}元) 為關鍵多空分水嶺"
+
+                return round(float(sup_price), 2), desc
+            except Exception:
+                fb = float(data_df['Close'].iloc[-1]) * 0.95 if data_df is not None and not data_df.empty else 0.0
+                return round(fb, 2), "系統預設支撐"
+
+        # 直接計算並覆蓋 weighted_support，下方 3-3-4 建倉與 AI 戰略官會自動同步使用此新支撐！
+        weighted_support, support_logic_str = calculate_structural_support(df)
+        buffer_pct = round(((current_price - weighted_support) / current_price) * 100, 2) if current_price > 0 else 0.0
         
         if current_price >= weighted_support:
             custom_diagnostic_card(
-                "🛡️ 莊家大戶籌碼防線",
-                f"🟢 防線守住 ({weighted_support} 元)\n"
-                f"📏 距離防線緩衝：安全空間 +{buffer_pct}%\n"
-                f"股價守於大戶加權成本線之上，莊家持續護盤，屬安全低接位階！",
+                "🛡️ 關鍵結構支撐位",
+                f"🟢 支撐守住 ({weighted_support} 元) ｜ 📏 安全緩衝：+{buffer_pct}%\n"
+                f"📐 結構依據：{support_logic_str}\n"
+                f"💡 診斷：已剔除當沖虛胖量能干擾，收盤價穩守於波段留倉結構之上，趨勢健康！",
                 "success"
             )
         else:
             custom_diagnostic_card(
-                "🛡️ 莊家大戶籌碼防線",
-                f"🔴 防線失守 ({weighted_support} 元)\n"
-                f"📏 目前已跌破防線：{buffer_pct}%\n"
-                f"收盤擊穿大戶護盤成本，莊家棄守面臨探底，切忌盲目接刀！",
+                "🛡️ 關鍵結構支撐位",
+                f"🔴 支撐失守 ({weighted_support} 元) ｜ 📏 跌破深度：{buffer_pct}%\n"
+                f"📐 結構依據：{support_logic_str}\n"
+                f"💡 診斷：收盤實質擊穿波段留倉成本與合理波動下限，多頭結構破壞，切忌盲目接刀！",
                 "error"
             )
 
