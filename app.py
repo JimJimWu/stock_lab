@@ -924,7 +924,7 @@ def run_single_scan_signal(sid, sname, webhook_url):
     except Exception:
         weighted_support = round(current_price * 0.95, 1)
 
-    support_text = f"🟢 莊家防線守住 ({weighted_support} 元)" if current_price >= weighted_support else f"🔴 防線失守跌破 ({weighted_support} 元)"
+    support_text = f"🟢 關鍵支撐守住 ({weighted_support} 元)" if current_price >= weighted_support else f"🔴 關鍵支撐失守 ({weighted_support} 元)"
     ma_status = "🔥 強勢多頭 (5 > 10 > 20MA)" if last['MA5'] > last['MA10'] > last['MA20'] else "💤 區間整理"
 
     status_msg = "⚖️ 區間溫和"
