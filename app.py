@@ -1801,6 +1801,12 @@ if df is not None and not df.empty:
             elif plot_df.loc[idx_dt, 'RSI'] > 80: tags.append("🚨RSI過熱區")
             resonance_hover_texts.append(" + ".join(tags) if tags else "⚖️ 指標平穩運行")
 
+        # 🌟 1. 在畫圖前，先向右側面板「借用」已經算好的新支撐位！
+        # (確保您在 col_telemetry 區塊的上方或全域已經定義了 calculate_structural_support 函數)
+        try:
+            weighted_support, _, _, _ = calculate_structural_support(df)
+        except Exception:
+            pass # 若函數尚未讀取到，則維持原數值
         fig = make_subplots(
             rows=5, cols=1, shared_xaxes=True, vertical_spacing=0.03,
             row_heights=[0.45, 0.15, 0.15, 0.15, 0.15],
@@ -1840,25 +1846,20 @@ if df is not None and not df.empty:
             for res_dt in bull_res_df.index:
                 fig.add_vline(x=res_dt, line_width=1.2, line_dash="dot", line_color="rgba(250, 204, 21, 0.35)")
 
-        # 🌟 1. 在畫圖前，先向右側面板「借用」已經算好的新支撐位！
-        # (確保您在 col_telemetry 區塊的上方或全域已經定義了 calculate_structural_support 函數)
-        try:
-            weighted_support, _, _, _ = calculate_structural_support(df)
-        except Exception:
-            pass # 若函數尚未讀取到，則維持原數值
+        
 
-        # 🌟 2. 畫出新的關鍵結構支撐線 (取代原本的莊家防線)
-        fig.add_trace(
-            go.Scatter(
-                x=[df.index[0], df.index[-1]], 
-                y=[weighted_support, weighted_support],
-                mode="lines+text", 
-                name="關鍵支撐", 
-                line=dict(color="#F59E0B", width=2, dash="dash"),
-                text=["", f"關鍵支撐 {weighted_support}元"], 
-                textposition="bottom left",
-                textfont=dict(color="#F59E0B", size=11)
-            ),
+        # ======================================================================
+        # 🌟 2. 改用 add_hline 繪製水平支撐線 (不影響 X 軸時間範圍，K線立即恢復正常寬度！)
+        # (請將原本畫「關鍵支撐」的 fig.add_trace(...) 整段刪除，換成下面這行)
+        # ======================================================================
+        fig.add_hline(
+            y=weighted_support,
+            line_dash="dash",
+            line_color="#F59E0B",
+            line_width=2,
+            annotation_text=f"🛡️ 關鍵支撐 {weighted_support}元",
+            annotation_position="bottom right",
+            annotation_font=dict(color="#F59E0B", size=12),
             row=1, col=1
         )
 
