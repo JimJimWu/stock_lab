@@ -1802,8 +1802,8 @@ if df is not None and not df.empty:
             resonance_hover_texts.append(" + ".join(tags) if tags else "⚖️ 指標平穩運行")
 
         fig = make_subplots(
-            rows=5, cols=1, shared_xaxes=True, vertical_spacing=0.065,
-            row_heights=[0.38, 0.15, 0.16, 0.16, 0.15],
+            rows=5, cols=1, shared_xaxes=True, vertical_spacing=0.03,
+            row_heights=[0.45, 0.15, 0.15, 0.15, 0.15],
             subplot_titles=(
                 f"📈 {display_name} K線、均線與關鍵結構支撐 ({weighted_support}元)  [⭐ 金色虛線 = 多指標共振買點]",
                 "📊 成交量與 5日均量動能 (紅漲綠跌・橘金爆量突破)",
@@ -1958,13 +1958,13 @@ if df is not None and not df.empty:
         fig.update_traces(xaxis="x5")
 
         fig.update_layout(
-            height=1020,
+            height=1100,
             template="plotly_dark",
-            hovermode="x",
+            hovermode="x unified",
             spikedistance=-1,
             hoverdistance=-1,
             legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="left", x=0, font=dict(size=12.5)),
-            margin=dict(l=10, r=10, t=90, b=25)
+            margin=dict(l=10, r=50, t=40, b=10)
         )
         
         fig.update_xaxes(rangeslider_visible=False)
