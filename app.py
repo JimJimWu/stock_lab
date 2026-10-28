@@ -294,8 +294,8 @@ def find_kline_twins_with_data(target_sid, candidate_tickers, window=20, lag_day
             cand_norm = (cand_series.values - cand_series.mean()) / c_std
             
             corr = float(np.corrcoef(target_norm, cand_norm)[0, 1])
-            
-            if corr >= 0.88:
+            # 過濾條件 3：僅保留相似度 > 0.85 (85% 以上高度神似) 的標的
+            if corr >= 0.85:
                 similarity_pct = round(corr * 100, 1)
                 results.append({
                     "symbol": sym,
@@ -2401,7 +2401,7 @@ if df is not None and not df.empty:
                 else:
                     st.warning("⚠️ 過濾自身後，目前未找到其他符合條件的雙胞胎標的。")
             else:
-                st.warning("⚠️ 目前在候選池中未找到相似度達 80% 以上且符合 60MA 多頭結構的股票，可嘗試調整比對天數。")
+                st.warning("⚠️ 目前在候選池中未找到相似度達 85% 以上且符合 60MA 多頭結構的股票，可嘗試調整比對天數。")
     # 🧠 一鍵召喚 Gemini AI 實戰買賣決策官
     if st.button("🧠 召喚黑馬 AI 戰略官：產出今日買賣決策報告 (消耗 1 次額度)", use_container_width=True):
         with st.spinner("🤖 黑馬戰略官正在綜合【技術乖離 + 主力籌碼 + 跨年毛利】進行深度推演..."):
