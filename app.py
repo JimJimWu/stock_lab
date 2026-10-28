@@ -2302,10 +2302,11 @@ if df is not None and not df.empty:
                     sym_clean = item["symbol"].split('.')[0]
                     # 優先從 STOCK_DICT 尋找，如果找不到才用代號代替
                     company_name = market_dict_obj.get(sym_clean) or DEFAULT_STOCKS.get(sym_clean, "潛力標的") 
-                        if str(company_name) == str(sym_clean) or not company_name:
-                            display_name = sym_clean
-                        else:
-                            display_name = f"{sym_clean} ({company_name})"
+                        
+                    if str(company_name) == str(sym_clean) or not company_name:
+                        display_name = sym_clean
+                    else:
+                        display_name = f"{sym_clean} ({company_name})"
 
                     display_results.append({
                         "股票代號": display_name,
