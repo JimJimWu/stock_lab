@@ -2277,9 +2277,13 @@ if df is not None and not df.empty:
         if search_button:
             with st.spinner(f"正在從全市場候選池計算與 {clean_sid} 的型態相關係數..."):
                 try:
-                    market_dict_obj = load_full_market()
+                    # 💡 使用系統中最強的 load_stock_dict()，它本身就包含完整代號與中文名稱對應！
+                    market_dict_obj = load_stock_dict()
                 except Exception:
-                    market_dict_obj = DEFAULT_STOCKS
+                    try:
+                        market_dict_obj = load_full_market()
+                    except Exception:
+                        market_dict_obj = DEFAULT_STOCKS
 
                 target_clean = clean_sid.split('.')[0]
                 
@@ -2306,13 +2310,23 @@ if df is not None and not df.empty:
                 if filtered_twins:
                     st.success(f"✨ 成功找到 {len(filtered_twins)} 檔型態高度神似的潛在標的！")
                     
+                    # 🎯 取得目標標的的完整名稱（例如 "4526 (東台)"）
+                    target_full_name = market_dict_obj.get(target_clean, f"{target_clean} ({display_name})")
+                    if f"({target_clean})" not in str(target_full_name):
+                        target_display_label = f"{target_clean} ({display_name})"
+                    else:
+                        target_display_label = target_full_name
+
+                    # 整理表格資料（潛力標的）
                     display_results = []
                     for item in filtered_twins:
                         sym_clean = item["symbol"].split('.')[0]
-                        raw_name_val = market_dict_obj.get(sym_clean, "")
                         
+                        # 💡 從市場字典中精準撈出名稱
+                        raw_name_val = market_dict_obj.get(sym_clean, "")
+                        # 如果字典回傳的值已經帶有括號名稱，直接使用；否則手動組合
                         if raw_name_val and str(raw_name_val) != str(sym_clean):
-                           if f"({sym_clean})" in str(raw_name_val):
+                            if f"({sym_clean})" in str(raw_name_val):
                                 display_name = str(raw_name_val)
                             else:
                                 display_name = f"{sym_clean} ({raw_name_val})"
@@ -2331,17 +2345,20 @@ if df is not None and not df.empty:
                     df_twins = pd.DataFrame(display_results)
                     st.dataframe(df_twins, use_container_width=True, hide_index=True)
 
+                    # 📊 繪製 Z-Score 標準化型態疊圖對比
                     import plotly.graph_objects as go
                     fig_twins = go.Figure()
 
+                    # 1. 畫目標飆股線條 (使用正確的目標名稱)
                     if target_norm_series is not None:
                         fig_twins.add_trace(go.Scatter(
                             y=target_norm_series,
                             mode='lines',
-                            name=f"🎯 目標：{display_name}",
+                            name=f"🎯 目標：{target_display_label}",
                             line=dict(width=3, color='#F59E0B') 
                         ))
 
+                    # 2. 畫前幾名雙胞胎候選股線條 (附帶完整中文名稱與相似度)
                     colors = ['#38BDF8', '#34D399', '#F43F5E', '#A78BFA', '#FB923C']
                     for idx, item in enumerate(filtered_twins):
                         sym = item["symbol"]
