@@ -16,6 +16,7 @@ import google.generativeai as genai
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from streamlit_autorefresh import st_autorefresh
+import numpy as np
 
 # --- 1. 頂部頁面設定與防禦 ---
 st.set_page_config(layout="wide", page_title="秉諺的黑馬雷達 V44.0")
@@ -236,6 +237,79 @@ def calculate_structural_support(data_df):
             except Exception:
                 fb = float(data_df['Close'].iloc[-1]) * 0.95 if data_df is not None and not data_df.empty else 0.0
                 return round(fb, 2), "系統預設支撐"
+# ==============================================================================
+# 🧬 【K 線型態雙胞胎檢索引擎 (Time-Series Similarity Search)】
+# ==============================================================================
+def find_kline_twins(target_sid, candidate_tickers, window=20, lag_days=0, top_n=5):
+    """
+    透過 Z-Score 標準化與皮爾森相關係數，尋找全市場型態高度相似的潛力股。
+    """
+    try:
+        all_symbols = list(set([target_sid] + candidate_tickers))
+        raw_data = yf.download(all_symbols, period="3mo", group_by="column", progress=False, threads=True)
+        
+        if raw_data.empty or 'Close' not in raw_data:
+            return []
+
+        close_df = raw_data['Close'].dropna(how='all', axis=1)
+        vol_df = raw_data['Volume'].dropna(how='all', axis=1)
+
+        if target_sid not in close_df.columns or len(close_df) < (window + lag_days):
+            return []
+
+        if lag_days > 0:
+            target_series = close_df[target_sid].iloc[-(window + lag_days) : -lag_days]
+        else:
+            target_series = close_df[target_sid].iloc[-window:]
+
+        t_std = target_series.std()
+        if t_std == 0 or np.isnan(t_std):
+            return []
+        target_norm = (target_series.values - target_series.mean()) / t_std
+
+        recent_closes = close_df.iloc[-window:]
+        recent_vols = vol_df.iloc[-5:].mean() / 1000.0  
+        ma60_series = close_df.iloc[-60:].mean()        
+
+        results = []
+        for sym in recent_closes.columns:
+            if sym == target_sid:
+                continue
+            
+            if recent_vols.get(sym, 0) < 800:
+                continue
+                
+            cand_series = recent_closes[sym].dropna()
+            if len(cand_series) < window:
+                continue
+
+            cur_price = float(cand_series.iloc[-1])
+            ma60_val = float(ma60_series.get(sym, cur_price))
+
+            if cur_price < ma60_val:
+                continue
+
+            c_std = cand_series.std()
+            if c_std == 0 or np.isnan(c_std):
+                continue
+            cand_norm = (cand_series.values - cand_series.mean()) / c_std
+            
+            corr = float(np.corrcoef(target_norm, cand_norm)[0, 1])
+            
+            if corr >= 0.80:
+                results.append({
+                    "symbol": sym,
+                    "similarity": round(corr * 100, 1),
+                    "price": round(cur_price, 2),
+                    "vol_ma5": int(recent_vols.get(sym, 0)),
+                    "ma60_buffer": round(((cur_price - ma60_val) / ma60_val) * 100, 1)
+                })
+
+        results.sort(key=lambda x: x["similarity"], reverse=True)
+        return results[:top_n]
+    except Exception:
+        return []
+
 # ==============================================================================
 # 🤖 AI 產業百科生成引擎
 # ==============================================================================
@@ -2174,6 +2248,53 @@ if df is not None and not df.empty:
             "warning"
         )
 
+    # ==========================================================================
+    # 🧬 互動展開面板：K 線雙胞胎潛力股檢索器
+    # ==========================================================================
+    with st.expander(f"🧬 點擊展開：尋找全市場與【{sid}】線型相似的潛力飆股"):
+        st.caption("利用 Z-Score 型態比對與時光機基因回推，在全市場尋找起漲前蓄勢或走勢高度同步的雙胞胎標的。")
+        
+        col_ex1, col_ex2, col_ex3 = st.columns(3)
+        with col_ex1:
+            match_mode = st.selectbox(
+                "比對策略模式", 
+                ["時光機：比對起漲前蓄勢段 (Lag 10天)", "同步型態：比對當下近20日走勢"],
+                index=0
+            )
+        with col_ex2:
+            comparison_window = st.slider("比對天數 (Window)", min_value=10, max_value=40, value=20, step=5)
+        with col_ex3:
+            st.write("")
+            st.write("")
+            search_button = st.button("🚀 開始全市場掃描雙胞胎", use_container_width=True)
+
+        if search_button:
+            with st.spinner(f"正在從全市場候選池計算與 {sid} 的型態相關係數..."):
+                # 取得目前全市場候選股票代號清單 (從您的 stock_dict 或 market_dict 獲取)
+                all_candidates = [f"{k}.TW" if not k.endswith(('.TW', '.TWO')) else k for k in stock_dict.keys()][:300] # 取前300大或全市場
+                
+                # 決定是否啟用時光機倒帶
+                lag_val = 10 if "時光機" in match_mode else 0
+                target_ticker = f"{sid}.TW" if not sid.endswith(('.TW', '.TWO')) else sid
+                
+                twins_results = find_kline_twins(
+                    target_sid=target_ticker,
+                    candidate_tickers=all_candidates,
+                    window=comparison_window,
+                    lag_days=lag_val,
+                    top_n=5
+                )
+
+            if twins_results:
+                st.success(f"✨ 成功找到 {len(twins_results)} 檔型態高度神似的潛在標的！")
+                
+                # 轉為表格美化呈現
+                import pandas as pd
+                df_twins = pd.DataFrame(twins_results)
+                df_twins.columns = ["股票代號", "相似度 (%)", "現價 (元)", "5日均量 (張)", "季線乖離 (%)"]
+                st.dataframe(df_twins, use_container_width=True, hide_index=True)
+            else:
+                st.warning("⚠️ 目前在候選池中未找到相似度達 80% 以上且符合 60MA 多頭結構的股票，可嘗試調整比對天數。")
     # 🧠 一鍵召喚 Gemini AI 實戰買賣決策官
     if st.button("🧠 召喚黑馬 AI 戰略官：產出今日買賣決策報告 (消耗 1 次額度)", use_container_width=True):
         with st.spinner("🤖 黑馬戰略官正在綜合【技術乖離 + 主力籌碼 + 跨年毛利】進行深度推演..."):
