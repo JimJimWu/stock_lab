@@ -2309,12 +2309,15 @@ if df is not None and not df.empty:
                     display_results = []
                     for item in filtered_twins:
                         sym_clean = item["symbol"].split('.')[0]
-                        company_name = market_dict_obj.get(sym_clean) or DEFAULT_STOCKS.get(sym_clean, "潛力標的")
+                        raw_name_val = market_dict_obj.get(sym_clean, "")
                         
-                        if str(company_name) == str(sym_clean) or not company_name:
-                            display_name = sym_clean
+                        if raw_name_val and str(raw_name_val) != str(sym_clean):
+                           if f"({sym_clean})" in str(raw_name_val):
+                                display_name = str(raw_name_val)
+                            else:
+                                display_name = f"{sym_clean} ({raw_name_val})"
                         else:
-                            display_name = f"{sym_clean} ({company_name})"
+                            display_name = f"{sym_clean} (潛力標的)"
 
                         display_results.append({
                             "股票代號": display_name,
@@ -2345,8 +2348,11 @@ if df is not None and not df.empty:
                         sym_clean = sym.split('.')[0]
                         c_norm = twins_norm_dict.get(sym)
                         
-                        c_name = market_dict_obj.get(sym_clean) or DEFAULT_STOCKS.get(sym_clean, sym_clean)
-                        legend_label = f"{sym_clean} ({c_name})" if c_name != sym_clean else sym_clean
+                        raw_name_val = market_dict_obj.get(sym_clean, "")
+                        if raw_name_val and str(raw_name_val) != str(sym_clean):
+                            legend_label = str(raw_name_val) if f"({sym_clean})" in str(raw_name_val) else f"{sym_clean} ({raw_name_val})"
+                        else:
+                            legend_label = sym_clean
                         
                         if c_norm is not None:
                             fig_twins.add_trace(go.Scatter(
