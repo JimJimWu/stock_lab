@@ -2274,15 +2274,27 @@ if df is not None and not df.empty:
             st.write("")
             search_button = st.button("🚀 開始全市場掃描雙胞胎", use_container_width=True)
 
-        if search_button:
-            with st.spinner(f"正在從全市場候選池計算與 {clean_sid} 的型態相關係數並準備繪製疊圖..."):
-                market_dict_obj = load_full_market() # 取得 1900 檔名稱字典
-                all_candidates = [f"{k}.TW" if not str(k).endswith(('.TW', '.TWO')) else str(k) for k in market_dict_obj.keys()][:300] 
+       if search_button:
+            with st.spinner(f"正在從全市場候選池計算與 {clean_sid} 的型態相關係數..."):
+                try:
+                    market_dict_obj = load_full_market()
+                except Exception:
+                    market_dict_obj = DEFAULT_STOCKS
+
+                # 1. 定義當前目標股票代號的純數字
+                target_clean = clean_sid.split('.')[0]
+                
+                # 2. 取得全市場候選清單，並強制排除自身
+                all_candidates = [
+                    f"{str(k).zfill(4)}.TW" if not str(k).endswith(('.TW', '.TWO')) else str(k) 
+                    for k in market_dict_obj.keys() 
+                    if str(k).split('.')[0] != target_clean
+                ][:300] 
                 
                 lag_val = 10 if "時光機" in match_mode else 0
-                target_ticker = f"{clean_sid}.TW" if not clean_sid.endswith(('.TW', '.TWO')) else clean_sid
+                target_ticker = f"{target_clean}.TW"
                 
-                # 執行檢索（多回傳一個 raw_data 用來畫圖！）
+                # 3. 完整接收函數回傳的 4 個值
                 twins_results, target_norm_series, twins_norm_dict, raw_close_df = find_kline_twins_with_data(
                     target_sid=target_ticker,
                     candidate_tickers=all_candidates,
@@ -2292,85 +2304,89 @@ if df is not None and not df.empty:
                 )
 
             if twins_results:
-                # 再次過濾確保絕對沒有自己
+                # 4. 過濾掉任何可能殘留的自身代號
                 filtered_twins = [item for item in twins_results if item["symbol"].split('.')[0] != target_clean]
-                st.success(f"✨ 成功找到 {len(twins_results)} 檔型態高度神似的潛在標的！")
                 
-                # 整理表格資料（修正名稱重複問題，精準對應出「公司名稱」）
-                display_results = []
-                for item in twins_results:
-                    sym_clean = item["symbol"].split('.')[0]
-                    # 優先從 STOCK_DICT 尋找，如果找不到才用代號代替
-                    company_name = market_dict_obj.get(sym_clean) or DEFAULT_STOCKS.get(sym_clean, "潛力標的") 
-                        
-                    if str(company_name) == str(sym_clean) or not company_name:
-                        display_name = sym_clean
-                    else:
-                        display_name = f"{sym_clean} ({company_name})"
-
-                    display_results.append({
-                        "股票代號": display_name,
-                        "相似度 (%)": item["similarity"],
-                        "現價 (元)": item["price"],
-                        "5日均量 (張)": item["vol_ma5"],
-                        "季線乖離 (%)": item["ma60_buffer"]
-                    })
-                
-                import pandas as pd
-                df_twins = pd.DataFrame(display_results)
-                st.dataframe(df_twins, use_container_width=True, hide_index=True)
-
-                # 📊 繪製 Z-Score 標準化型態疊圖對比（拉大上方間距避免與文字重疊）
-                import plotly.graph_objects as go
-                fig_twins = go.Figure()
-
-                # 1. 畫目標飆股線條 (加粗醒目)
-                fig_twins.add_trace(go.Scatter(
-                    y=target_norm_series,
-                    mode='lines',
-                    name=f"🎯 目標：{display_name}",
-                    line=dict(width=3, color='#F59E0B') 
-                ))
-
-                # 2. 畫前幾名雙胞胎候選股線條
-                colors = ['#38BDF8', '#34D399', '#F43F5E', '#A78BFA', '#FB923C']
-                for idx, item in enumerate(twins_results):
-                    sym = item["symbol"]
-                    sym_clean = sym.split('.')[0]
-                    raw_name = market_dict_obj.get(sym_clean, sym_clean)
-                    c_norm = twins_norm_dict.get(sym)
+                if filtered_twins:
+                    st.success(f"✨ 成功找到 {len(filtered_twins)} 檔型態高度神似的潛在標的！")
                     
-                    if c_norm is not None:
+                    # 整理表格資料
+                    display_results = []
+                    for item in filtered_twins:
+                        sym_clean = item["symbol"].split('.')[0]
+                        company_name = market_dict_obj.get(sym_clean) or DEFAULT_STOCKS.get(sym_clean, "潛力標的")
+                        
+                        if str(company_name) == str(sym_clean) or not company_name:
+                            display_name = sym_clean
+                        else:
+                            display_name = f"{sym_clean} ({company_name})"
+
+                        display_results.append({
+                            "股票代號": display_name,
+                            "相似度 (%)": item["similarity"],
+                            "現價 (元)": item["price"],
+                            "5日均量 (張)": item["vol_ma5"],
+                            "季線乖離 (%)": item["ma60_buffer"]
+                        })
+                    
+                    import pandas as pd
+                    df_twins = pd.DataFrame(display_results)
+                    st.dataframe(df_twins, use_container_width=True, hide_index=True)
+
+                    # 📊 繪製 Z-Score 標準化型態疊圖對比
+                    import plotly.graph_objects as go
+                    fig_twins = go.Figure()
+
+                    # 畫目標飆股線條 (金色加粗)
+                    if target_norm_series is not None:
                         fig_twins.add_trace(go.Scatter(
-                            y=c_norm,
+                            y=target_norm_series,
                             mode='lines',
-                            name=f"🧬 {sym_clean} ({raw_name}) [{item['similarity']}%]",
-                            line=dict(width=1.5, color=colors[idx % len(colors)])
+                            name=f"🎯 目標：{display_name}",
+                            line=dict(width=3, color='#F59E0B') 
                         ))
 
-                # 🌟 優化排版：將 legend 移至下方或拉大 margin，徹底解決與上方文字重疊的問題！
-                fig_twins.update_layout(
-                    title=dict(
-                        text="📈 Z-Score 標準化走勢疊圖比對（消除價格差異，純看型態同步率）",
-                        font=dict(size=15)
-                    ),
-                    xaxis_title="比對天數序列 (Day 0 ~ N)",
-                    yaxis_title="標準化報酬率 (Z-Score)",
-                    template="plotly_dark",
-                    height=450,
-                    margin=dict(l=20, r=20, t=60, b=20), # 👈 加大上方 margin (t=60)，讓圖表標題與上方表格保持開闊距離
-                    legend=dict(
-                        orientation="h", 
-                        yanchor="bottom", 
-                        y=-0.25,  # 👈 將圖例移到圖表下方，避免擠在上方造成視覺擁擠
-                        xanchor="center", 
-                        x=0.5
-                    )
-                )
-                st.plotly_chart(fig_twins, use_container_width=True)
+                    # 畫前幾名雙胞胎候選股線條
+                    colors = ['#38BDF8', '#34D399', '#F43F5E', '#A78BFA', '#FB923C']
+                    for idx, item in enumerate(filtered_twins):
+                        sym = item["symbol"]
+                        sym_clean = sym.split('.')[0]
+                        c_norm = twins_norm_dict.get(sym)
+                        
+                        c_name = market_dict_obj.get(sym_clean) or DEFAULT_STOCKS.get(sym_clean, sym_clean)
+                        legend_label = f"{sym_clean} ({c_name})" if c_name != sym_clean else sym_clean
+                        
+                        if c_norm is not None:
+                            fig_twins.add_trace(go.Scatter(
+                                y=c_norm,
+                                mode='lines',
+                                name=f"🧬 {legend_label} [{item['similarity']}%]",
+                                line=dict(width=1.5, color=colors[idx % len(colors)])
+                            ))
 
+                    fig_twins.update_layout(
+                        title=dict(
+                            text="📈 Z-Score 標準化走勢疊圖比對（消除價格差異，純看型態同步率）",
+                            font=dict(size=15)
+                        ),
+                        xaxis_title="比對天數序列 (Day 0 ~ N)",
+                        yaxis_title="標準化報酬率 (Z-Score)",
+                        template="plotly_dark",
+                        height=450,
+                        margin=dict(l=20, r=20, t=60, b=20),
+                        legend=dict(
+                            orientation="h", 
+                            yanchor="bottom", 
+                            y=-0.25,  
+                            xanchor="center", 
+                            x=0.5
+                        )
+                    )
+                    st.plotly_chart(fig_twins, use_container_width=True)
+                else:
+                    st.warning("⚠️ 過濾自身後，目前未找到其他符合條件的雙胞胎標的。")
             else:
-                st.warning("⚠️ 目前在候選池中未找到相似度達 88% 以上且符合 60MA 多頭結構的股票，可嘗試調整比對天數或切換策略模式。")
+                st.warning("⚠️ 目前在候選池中未找到相似度達 80% 以上且符合 60MA 多頭結構的股票，可嘗試調整比對天數。")
     # 🧠 一鍵召喚 Gemini AI 實戰買賣決策官
     if st.button("🧠 召喚黑馬 AI 戰略官：產出今日買賣決策報告 (消耗 1 次額度)", use_container_width=True):
         with st.spinner("🤖 黑馬戰略官正在綜合【技術乖離 + 主力籌碼 + 跨年毛利】進行深度推演..."):
