@@ -2255,7 +2255,7 @@ if df is not None and not df.empty:
         )
 
     # ==========================================================================
-    # 🧬 互動展開面板：K 線雙胞胎潛力股檢索器（含名稱對應與 Plotly 疊圖對比）
+    # 🧬 互動展開面板：K 線雙胞胎潛力股檢索器
     # ==========================================================================
     with st.expander(f"🧬 點擊展開：尋找全市場與【{display_name}】線型相似的潛力飆股"):
         st.caption("利用 Z-Score 型態比對與時光機基因回推，在全市場尋找起漲前蓄勢或走勢高度同步的雙胞胎標的，並透過疊圖直接比對走勢！")
@@ -2274,17 +2274,15 @@ if df is not None and not df.empty:
             st.write("")
             search_button = st.button("🚀 開始全市場掃描雙胞胎", use_container_width=True)
 
-       if search_button:
+        if search_button:
             with st.spinner(f"正在從全市場候選池計算與 {clean_sid} 的型態相關係數..."):
                 try:
                     market_dict_obj = load_full_market()
                 except Exception:
                     market_dict_obj = DEFAULT_STOCKS
 
-                # 1. 定義當前目標股票代號的純數字
                 target_clean = clean_sid.split('.')[0]
                 
-                # 2. 取得全市場候選清單，並強制排除自身
                 all_candidates = [
                     f"{str(k).zfill(4)}.TW" if not str(k).endswith(('.TW', '.TWO')) else str(k) 
                     for k in market_dict_obj.keys() 
@@ -2294,7 +2292,6 @@ if df is not None and not df.empty:
                 lag_val = 10 if "時光機" in match_mode else 0
                 target_ticker = f"{target_clean}.TW"
                 
-                # 3. 完整接收函數回傳的 4 個值
                 twins_results, target_norm_series, twins_norm_dict, raw_close_df = find_kline_twins_with_data(
                     target_sid=target_ticker,
                     candidate_tickers=all_candidates,
@@ -2304,13 +2301,11 @@ if df is not None and not df.empty:
                 )
 
             if twins_results:
-                # 4. 過濾掉任何可能殘留的自身代號
                 filtered_twins = [item for item in twins_results if item["symbol"].split('.')[0] != target_clean]
                 
                 if filtered_twins:
                     st.success(f"✨ 成功找到 {len(filtered_twins)} 檔型態高度神似的潛在標的！")
                     
-                    # 整理表格資料
                     display_results = []
                     for item in filtered_twins:
                         sym_clean = item["symbol"].split('.')[0]
@@ -2333,11 +2328,9 @@ if df is not None and not df.empty:
                     df_twins = pd.DataFrame(display_results)
                     st.dataframe(df_twins, use_container_width=True, hide_index=True)
 
-                    # 📊 繪製 Z-Score 標準化型態疊圖對比
                     import plotly.graph_objects as go
                     fig_twins = go.Figure()
 
-                    # 畫目標飆股線條 (金色加粗)
                     if target_norm_series is not None:
                         fig_twins.add_trace(go.Scatter(
                             y=target_norm_series,
@@ -2346,7 +2339,6 @@ if df is not None and not df.empty:
                             line=dict(width=3, color='#F59E0B') 
                         ))
 
-                    # 畫前幾名雙胞胎候選股線條
                     colors = ['#38BDF8', '#34D399', '#F43F5E', '#A78BFA', '#FB923C']
                     for idx, item in enumerate(filtered_twins):
                         sym = item["symbol"]
