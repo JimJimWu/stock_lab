@@ -2298,13 +2298,13 @@ if df is not None and not df.empty:
                 display_results = []
                 for item in twins_results:
                     sym_clean = item["symbol"].split('.')[0]
-                    raw_name = market_dict_obj.get(sym_clean, sym_clean)
-                    
-                    # 避免重複顯示代號（如果 name 裡面已經有代號，就只取名稱部分）
-                    if f"({sym_clean})" in str(raw_name) or str(raw_name) == str(sym_clean):
-                        stock_name_str = market_dict_obj.get(sym_clean, sym_clean)
+                    # 優先從 STOCK_DICT 尋找，如果找不到才用代號代替
+                    full_name_mapped = STOCK_DICT.get(sym_clean, f"{sym_clean} (未知公司)")
+                    # 如果 STOCK_DICT 裡面已經包好格式（例如 "1476 (儒鴻)"），直接使用；否則組合成 "{sym_clean} ({raw_name})"
+                    if f"({sym_clean})" in str(full_name_mapped):
+                        display_name_str = full_name_mapped
                     else:
-                        stock_name_str = f"{sym_clean} ({raw_name})"
+                        display_name_str = f"{sym_clean} ({full_name_mapped})"
 
                     display_results.append({
                         "股票代號": stock_name_str,
