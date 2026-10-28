@@ -2299,12 +2299,11 @@ if df is not None and not df.empty:
                 for item in twins_results:
                     sym_clean = item["symbol"].split('.')[0]
                     # 優先從 STOCK_DICT 尋找，如果找不到才用代號代替
-                    full_name_mapped = STOCK_DICT.get(sym_clean, f"{sym_clean} (未知公司)")
-                    # 如果 STOCK_DICT 裡面已經包好格式（例如 "1476 (儒鴻)"），直接使用；否則組合成 "{sym_clean} ({raw_name})"
-                    if f"({sym_clean})" in str(full_name_mapped):
-                        display_name_str = full_name_mapped
+                    raw_name = DEFAULT_STOCKS.get(sym_clean, "潛力標的")
+                    if f"({sym_clean})" in str(raw_name) or str(raw_name) == str(sym_clean):
+                        display_name_str = raw_name
                     else:
-                        display_name_str = f"{sym_clean} ({full_name_mapped})"
+                        display_name_str = f"{sym_clean} ({raw_name})"
 
                     display_results.append({
                         "股票代號": stock_name_str,
