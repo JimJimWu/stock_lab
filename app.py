@@ -2269,13 +2269,13 @@ if df is not None and not df.empty:
             search_button = st.button("🚀 開始全市場掃描雙胞胎", use_container_width=True)
 
         if search_button:
-            with st.spinner(f"正在從全市場候選池計算與 {display_name} 的型態相關係數..."):
-                # 取得目前全市場候選股票代號清單 (從您的 stock_dict 或 market_dict 獲取)
-                all_candidates = [f"{k}.TW" if not k.endswith(('.TW', '.TWO')) else k for k in full_market_dict.keys()][:300] # 取前300大或全市場
+            with st.spinner(f"正在從全市場候選池計算與 {clean_sid} 的型態相關係數..."):
+                # 🌟 透過您系統原本就有的 load_full_market() 取得全市場 1900 多檔母體字典
+                market_dict_obj = load_full_market()
+                all_candidates = [f"{k}.TW" if not str(k).endswith(('.TW', '.TWO')) else str(k) for k in market_dict_obj.keys()][:300]
                 
-                # 決定是否啟用時光機倒帶
                 lag_val = 10 if "時光機" in match_mode else 0
-                target_ticker = f"{display_name}.TW" if not sid.endswith(('.TW', '.TWO')) else sid
+                target_ticker = f"{clean_sid}.TW" if not clean_sid.endswith(('.TW', '.TWO')) else clean_sid
                 
                 twins_results = find_kline_twins(
                     target_sid=target_ticker,
