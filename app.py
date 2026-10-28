@@ -2255,46 +2255,96 @@ if df is not None and not df.empty:
         )
 
     # ==========================================================================
-    # 🧬 互動展開面板：K 線雙胞胎潛力股檢索器
+    # 🧬 互動展開面板：K 線雙胞胎潛力股檢索器（含目標鎖定與全市場雙字典名稱正規化）
     # ==========================================================================
     with st.expander(f"🧬 點擊展開：尋找全市場與【{display_name}】線型相似的潛力飆股"):
         st.caption("利用 Z-Score 型態比對與時光機基因回推，在全市場尋找起漲前蓄勢或走勢高度同步的雙胞胎標的，並透過疊圖直接比對走勢！")
         
-        col_ex1, col_ex2, col_ex3 = st.columns(3)
-        with col_ex1:
-            match_mode = st.selectbox(
-                "比對策略模式", 
-                ["時光機：比對起漲前蓄勢段 (Lag 10天)", "同步型態：比對當下近20日走勢"],
-                index=0
-            )
-        with col_ex2:
-            comparison_window = st.slider("比對天數 (Window)", min_value=10, max_value=40, value=20, step=5)
-        with col_ex3:
-            st.write("")
-            st.write("")
-            search_button = st.button("🚀 開始全市場掃描雙胞胎", use_container_width=True)
+        # 使用 st.form 避免調整下拉選單或滑動條時觸發頁面重跑而跳回預設股
+        with st.form(key="kline_twins_search_form", border=False):
+            col_ex1, col_ex2, col_ex3 = st.columns(3)
+            with col_ex1:
+                match_mode = st.selectbox(
+                    "比對策略模式", 
+                    ["時光機：比對起漲前蓄勢段 (Lag 10天)", "同步型態：比對當下近20日走勢"],
+                    index=0
+                )
+            with col_ex2:
+                comparison_window = st.slider("比對天數 (Window)", min_value=10, max_value=40, value=20, step=5)
+            with col_ex3:
+                st.write("")
+                st.write("")
+                search_button = st.form_submit_button("🚀 開始全市場掃描雙胞胎", use_container_width=True)
+
+        # 🔒 鎖定使用者當前檢視的目標股票，防止點擊按鈕重跑時跳回 2330
+        if not search_button:
+            st.session_state["twins_locked_target"] = display_name
+        active_target_str = str(st.session_state.get("twins_locked_target", display_name)).strip()
 
         if search_button:
-            with st.spinner(f"正在從全市場候選池計算與 {clean_sid} 的型態相關係數..."):
-                try:
-                    # 💡 使用系統中最強的 load_stock_dict()，它本身就包含完整代號與中文名稱對應！
-                    market_dict_obj = load_stock_dict()
-                except Exception:
-                    try:
-                        market_dict_obj = load_full_market()
-                    except Exception:
-                        market_dict_obj = DEFAULT_STOCKS
+            import re
+            import pandas as pd
+            import plotly.graph_objects as go
 
-                target_clean = clean_sid.split('.')[0]
-                
+            # 1. 同時載入全市場字典與自選股字典，建立統一的「純代號 -> 純中文名稱」與「純代號 -> YF後綴代號」映射表
+            raw_dicts = []
+            for fn_name in ("load_full_market", "load_stock_dict"):
+                if fn_name in globals() and callable(globals()[fn_name]):
+                    try:
+                        d_obj = globals()[fn_name]()
+                        if isinstance(d_obj, dict):
+                            raw_dicts.append(d_obj)
+                    except Exception:
+                        pass
+            if "DEFAULT_STOCKS" in globals() and isinstance(globals()["DEFAULT_STOCKS"], dict):
+                raw_dicts.append(globals()["DEFAULT_STOCKS"])
+
+            code_to_name = {}
+            code_to_yf = {}
+            for d in raw_dicts:
+                for k, v in d.items():
+                    k_str = str(k).strip()
+                    v_str = str(v.get("name") or v.get("名稱") or "") if isinstance(v, dict) else str(v).strip()
+                    
+                    m_code = re.match(r'^([0-9]{4,6}[A-Za-z]?)', k_str) or re.search(r'([0-9]{4,6}[A-Za-z]?)', v_str)
+                    if not m_code:
+                        continue
+                    c_code = m_code.group(1)
+                    
+                    if ".TWO" in k_str.upper() or ".TWO" in v_str.upper():
+                        code_to_yf[c_code] = f"{c_code}.TWO"
+                    elif c_code not in code_to_yf:
+                        code_to_yf[c_code] = f"{c_code}.TW"
+                        
+                    for text_cand in (v_str, k_str):
+                        cleaned = re.sub(r'(?i)' + re.escape(c_code) + r'(\.TWO|\.TW)?', '', text_cand)
+                        cleaned = re.sub(r'(?i)\.TWO|\.TW', '', cleaned)
+                        cleaned = cleaned.replace('(', '').replace(')', '').replace('（', '').replace('）', '').strip()
+                        if cleaned and cleaned != c_code and cleaned != "潛力標的":
+                            code_to_name[c_code] = cleaned
+                            break
+
+            # 2. 直接從鎖定的戰情室標題 (active_target_str) 萃取目標股號與名稱，徹底排除 clean_sid 干擾
+            m_target = re.search(r'([0-9]{4,6}[A-Za-z]?)', active_target_str)
+            target_clean = m_target.group(1) if m_target else active_target_str.split('.')[0].split()[0]
+            
+            # 萃取目標股票的純中文名稱
+            target_pure_name = code_to_name.get(target_clean, "")
+            if not target_pure_name:
+                tmp_t = re.sub(r'(?i)' + re.escape(target_clean) + r'(\.TWO|\.TW)?', '', active_target_str)
+                target_pure_name = tmp_t.replace('(', '').replace(')', '').replace('（', '').replace('）', '').strip()
+            
+            target_display_label = f"{target_clean} ({target_pure_name})" if target_pure_name else target_clean
+            target_ticker = code_to_yf.get(target_clean, f"{target_clean}.TW")
+
+            with st.spinner(f"正在從全市場候選池計算與 {target_display_label} 的型態相關係數..."):
+                # 建立候選清單並強制排除目標股票自身
                 all_candidates = [
-                    f"{str(k).zfill(4)}.TW" if not str(k).endswith(('.TW', '.TWO')) else str(k) 
-                    for k in market_dict_obj.keys() 
-                    if str(k).split('.')[0] != target_clean
-                ][:300] 
+                    yf_sym for c_code, yf_sym in code_to_yf.items()
+                    if c_code != target_clean
+                ][:300]
                 
                 lag_val = 10 if "時光機" in match_mode else 0
-                target_ticker = f"{target_clean}.TW"
                 
                 twins_results, target_norm_series, twins_norm_dict, raw_close_df = find_kline_twins_with_data(
                     target_sid=target_ticker,
@@ -2308,48 +2358,29 @@ if df is not None and not df.empty:
                 filtered_twins = [item for item in twins_results if item["symbol"].split('.')[0] != target_clean]
                 
                 if filtered_twins:
-                    st.success(f"✨ 成功找到 {len(filtered_twins)} 檔型態高度神似的潛在標的！")
+                    st.success(f"✨ 成功找到 {len(filtered_twins)} 檔與【{target_display_label}】型態高度神似的潛在標的！")
                     
-                    # 🎯 取得目標標的的完整名稱（例如 "4526 (東台)"）
-                    target_full_name = market_dict_obj.get(target_clean, f"{target_clean} ({display_name})")
-                    if f"({target_clean})" not in str(target_full_name):
-                        target_display_label = f"{target_clean} ({display_name})"
-                    else:
-                        target_display_label = target_full_name
-
-                    # 整理表格資料（潛力標的）
+                    # 3. 整理表格資料（統一為「代號 (純中文名稱)」，絕不重複股號）
                     display_results = []
                     for item in filtered_twins:
                         sym_clean = item["symbol"].split('.')[0]
-                        
-                        # 💡 從市場字典中精準撈出名稱
-                        raw_name_val = market_dict_obj.get(sym_clean, "")
-                        # 如果字典回傳的值已經帶有括號名稱，直接使用；否則手動組合
-                        if raw_name_val and str(raw_name_val) != str(sym_clean):
-                            if f"({sym_clean})" in str(raw_name_val):
-                                display_name = str(raw_name_val)
-                            else:
-                                display_name = f"{sym_clean} ({raw_name_val})"
-                        else:
-                            display_name = f"{sym_clean} (潛力標的)"
+                        pure_name = code_to_name.get(sym_clean, "")
+                        display_str = f"{sym_clean} ({pure_name})" if pure_name else sym_clean
 
                         display_results.append({
-                            "股票代號": display_name,
+                            "股票代號": display_str,
                             "相似度 (%)": item["similarity"],
                             "現價 (元)": item["price"],
                             "5日均量 (張)": item["vol_ma5"],
                             "季線乖離 (%)": item["ma60_buffer"]
                         })
                     
-                    import pandas as pd
                     df_twins = pd.DataFrame(display_results)
                     st.dataframe(df_twins, use_container_width=True, hide_index=True)
 
-                    # 📊 繪製 Z-Score 標準化型態疊圖對比
-                    import plotly.graph_objects as go
+                    # 4. 繪製 Z-Score 標準化型態疊圖對比
                     fig_twins = go.Figure()
 
-                    # 1. 畫目標飆股線條 (使用正確的目標名稱)
                     if target_norm_series is not None:
                         fig_twins.add_trace(go.Scatter(
                             y=target_norm_series,
@@ -2358,18 +2389,14 @@ if df is not None and not df.empty:
                             line=dict(width=3, color='#F59E0B') 
                         ))
 
-                    # 2. 畫前幾名雙胞胎候選股線條 (附帶完整中文名稱與相似度)
                     colors = ['#38BDF8', '#34D399', '#F43F5E', '#A78BFA', '#FB923C']
                     for idx, item in enumerate(filtered_twins):
                         sym = item["symbol"]
                         sym_clean = sym.split('.')[0]
                         c_norm = twins_norm_dict.get(sym)
                         
-                        raw_name_val = market_dict_obj.get(sym_clean, "")
-                        if raw_name_val and str(raw_name_val) != str(sym_clean):
-                            legend_label = str(raw_name_val) if f"({sym_clean})" in str(raw_name_val) else f"{sym_clean} ({raw_name_val})"
-                        else:
-                            legend_label = sym_clean
+                        pure_name = code_to_name.get(sym_clean, "")
+                        legend_label = f"{sym_clean} ({pure_name})" if pure_name else sym_clean
                         
                         if c_norm is not None:
                             fig_twins.add_trace(go.Scatter(
@@ -2381,7 +2408,7 @@ if df is not None and not df.empty:
 
                     fig_twins.update_layout(
                         title=dict(
-                            text="📈 Z-Score 標準化走勢疊圖比對（消除價格差異，純看型態同步率）",
+                            text=f"📈 【{target_display_label}】Z-Score 標準化走勢疊圖比對",
                             font=dict(size=15)
                         ),
                         xaxis_title="比對天數序列 (Day 0 ~ N)",
@@ -2401,7 +2428,7 @@ if df is not None and not df.empty:
                 else:
                     st.warning("⚠️ 過濾自身後，目前未找到其他符合條件的雙胞胎標的。")
             else:
-                st.warning("⚠️ 目前在候選池中未找到相似度達 85% 以上且符合 60MA 多頭結構的股票，可嘗試調整比對天數。")
+                st.warning("⚠️ 目前在候選池中未找到符合相似度門檻且站穩 60MA 多頭結構的股票，請嘗試調整比對天數或切換策略模式。")
     # 🧠 一鍵召喚 Gemini AI 實戰買賣決策官
     if st.button("🧠 召喚黑馬 AI 戰略官：產出今日買賣決策報告 (消耗 1 次額度)", use_container_width=True):
         with st.spinner("🤖 黑馬戰略官正在綜合【技術乖離 + 主力籌碼 + 跨年毛利】進行深度推演..."):
