@@ -2306,7 +2306,7 @@ if df is not None and not df.empty:
                         display_name_str = f"{sym_clean} ({raw_name})"
 
                     display_results.append({
-                        "股票代號": stock_name_str,
+                        "股票代號": display_str,
                         "相似度 (%)": item["similarity"],
                         "現價 (元)": item["price"],
                         "5日均量 (張)": item["vol_ma5"],
