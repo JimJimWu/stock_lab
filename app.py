@@ -2292,6 +2292,8 @@ if df is not None and not df.empty:
                 )
 
             if twins_results:
+                # 再次過濾確保絕對沒有自己
+                filtered_twins = [item for item in twins_results if item["symbol"].split('.')[0] != target_clean]
                 st.success(f"✨ 成功找到 {len(twins_results)} 檔型態高度神似的潛在標的！")
                 
                 # 整理表格資料（修正名稱重複問題，精準對應出「公司名稱」）
@@ -2299,11 +2301,11 @@ if df is not None and not df.empty:
                 for item in twins_results:
                     sym_clean = item["symbol"].split('.')[0]
                     # 優先從 STOCK_DICT 尋找，如果找不到才用代號代替
-                    raw_name = DEFAULT_STOCKS.get(sym_clean, "潛力標的")
-                    if f"({sym_clean})" in str(raw_name) or str(raw_name) == str(sym_clean):
-                        display_name_str = raw_name
-                    else:
-                        display_name_str = f"{sym_clean} ({raw_name})"
+                    company_name = market_dict_obj.get(sym_clean) or DEFAULT_STOCKS.get(sym_clean, "潛力標的") 
+                        if str(company_name) == str(sym_clean) or not company_name:
+                            display_name = sym_clean
+                        else:
+                            display_name = f"{sym_clean} ({company_name})"
 
                     display_results.append({
                         "股票代號": display_name,
