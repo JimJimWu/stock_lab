@@ -295,7 +295,7 @@ def find_kline_twins_with_data(target_sid, candidate_tickers, window=20, lag_day
             
             corr = float(np.corrcoef(target_norm, cand_norm)[0, 1])
             
-            if corr >= 0.80:
+            if corr >= 0.88:
                 similarity_pct = round(corr * 100, 1)
                 results.append({
                     "symbol": sym,
@@ -2294,13 +2294,20 @@ if df is not None and not df.empty:
             if twins_results:
                 st.success(f"✨ 成功找到 {len(twins_results)} 檔型態高度神似的潛在標的！")
                 
-                # 整理表格資料（把名稱對應進去）
+                # 整理表格資料（修正名稱重複問題，精準對應出「公司名稱」）
                 display_results = []
                 for item in twins_results:
                     sym_clean = item["symbol"].split('.')[0]
-                    stock_name_str = market_dict_obj.get(sym_clean, sym_clean)
+                    raw_name = market_dict_obj.get(sym_clean, sym_clean)
+                    
+                    # 避免重複顯示代號（如果 name 裡面已經有代號，就只取名稱部分）
+                    if f"({sym_clean})" in str(raw_name) or str(raw_name) == str(sym_clean):
+                        stock_name_str = market_dict_obj.get(sym_clean, sym_clean)
+                    else:
+                        stock_name_str = f"{sym_clean} ({raw_name})"
+
                     display_results.append({
-                        "股票代號": f"{sym_clean} ({stock_name_str})",
+                        "股票代號": stock_name_str,
                         "相似度 (%)": item["similarity"],
                         "現價 (元)": item["price"],
                         "5日均量 (張)": item["vol_ma5"],
@@ -2311,7 +2318,7 @@ if df is not None and not df.empty:
                 df_twins = pd.DataFrame(display_results)
                 st.dataframe(df_twins, use_container_width=True, hide_index=True)
 
-                # 📊 繪製 Z-Score 標準化型態疊圖對比
+                # 📊 繪製 Z-Score 標準化型態疊圖對比（拉大上方間距避免與文字重疊）
                 import plotly.graph_objects as go
                 fig_twins = go.Figure()
 
@@ -2320,7 +2327,7 @@ if df is not None and not df.empty:
                     y=target_norm_series,
                     mode='lines',
                     name=f"🎯 目標：{display_name}",
-                    line=dict(width=3, color='#F59E0B') # 金色
+                    line=dict(width=3, color='#F59E0B') 
                 ))
 
                 # 2. 畫前幾名雙胞胎候選股線條
@@ -2328,29 +2335,40 @@ if df is not None and not df.empty:
                 for idx, item in enumerate(twins_results):
                     sym = item["symbol"]
                     sym_clean = sym.split('.')[0]
-                    stock_name_str = market_dict_obj.get(sym_clean, sym_clean)
+                    raw_name = market_dict_obj.get(sym_clean, sym_clean)
                     c_norm = twins_norm_dict.get(sym)
+                    
                     if c_norm is not None:
                         fig_twins.add_trace(go.Scatter(
                             y=c_norm,
                             mode='lines',
-                            name=f"🧬 {sym_clean} ({stock_name_str}) [{item['similarity']}%]",
+                            name=f"🧬 {sym_clean} ({raw_name}) [{item['similarity']}%]",
                             line=dict(width=1.5, color=colors[idx % len(colors)])
                         ))
 
+                # 🌟 優化排版：將 legend 移至下方或拉大 margin，徹底解決與上方文字重疊的問題！
                 fig_twins.update_layout(
-                    title=f"📈 Z-Score 標準化走勢疊圖比對（消除價格差異，純看型態同步率）",
+                    title=dict(
+                        text="📈 Z-Score 標準化走勢疊圖比對（消除價格差異，純看型態同步率）",
+                        font=dict(size=15)
+                    ),
                     xaxis_title="比對天數序列 (Day 0 ~ N)",
                     yaxis_title="標準化報酬率 (Z-Score)",
                     template="plotly_dark",
-                    height=420,
-                    margin=dict(l=20, r=20, t=40, b=20),
-                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                    height=450,
+                    margin=dict(l=20, r=20, t=60, b=20), # 👈 加大上方 margin (t=60)，讓圖表標題與上方表格保持開闊距離
+                    legend=dict(
+                        orientation="h", 
+                        yanchor="bottom", 
+                        y=-0.25,  # 👈 將圖例移到圖表下方，避免擠在上方造成視覺擁擠
+                        xanchor="center", 
+                        x=0.5
+                    )
                 )
                 st.plotly_chart(fig_twins, use_container_width=True)
 
             else:
-                st.warning("⚠️ 目前在候選池中未找到相似度達 80% 以上且符合 60MA 多頭結構的股票，可嘗試調整比對天數或切換策略模式。")
+                st.warning("⚠️ 目前在候選池中未找到相似度達 88% 以上且符合 60MA 多頭結構的股票，可嘗試調整比對天數或切換策略模式。")
     # 🧠 一鍵召喚 Gemini AI 實戰買賣決策官
     if st.button("🧠 召喚黑馬 AI 戰略官：產出今日買賣決策報告 (消耗 1 次額度)", use_container_width=True):
         with st.spinner("🤖 黑馬戰略官正在綜合【技術乖離 + 主力籌碼 + 跨年毛利】進行深度推演..."):
