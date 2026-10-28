@@ -2429,7 +2429,27 @@ if df is not None and not df.empty:
                     st.warning("⚠️ 過濾自身後，目前未找到其他符合條件的雙胞胎標的。")
             else:
                 st.warning("⚠️ 目前在候選池中未找到符合相似度門檻且站穩 60MA 多頭結構的股票，請嘗試調整比對天數或切換策略模式。")
-    # 🧠 一鍵召喚 Gemini AI 實戰買賣決策官
+    # ==========================================================================
+    # 🧠 一鍵召喚 Gemini AI 實戰買賣決策官（含持久化儲存與歷史檔案庫）
+    # ==========================================================================
+    import os
+    import json
+    from datetime import datetime, timezone, timedelta
+
+    AI_HISTORY_FILE = "ai_decision_history.json"
+
+    # 1. 初始化讀取本地歷史檔案庫至 session_state
+    if "ai_reports_archive" not in st.session_state:
+        if os.path.exists(AI_HISTORY_FILE):
+            try:
+                with open(AI_HISTORY_FILE, "r", encoding="utf-8") as f:
+                    st.session_state["ai_reports_archive"] = json.load(f)
+            except Exception:
+                st.session_state["ai_reports_archive"] = {}
+        else:
+            st.session_state["ai_reports_archive"] = {}
+
+    # 2. 觸發生成新報告按鈕
     if st.button("🧠 召喚黑馬 AI 戰略官：產出今日買賣決策報告 (消耗 1 次額度)", use_container_width=True):
         with st.spinner("🤖 黑馬戰略官正在綜合【技術乖離 + 主力籌碼 + 跨年毛利】進行深度推演..."):
             try:
@@ -2451,10 +2471,88 @@ if df is not None and not df.empty:
                 3. 【具體操作紀律】：（給出進場參考價、加碼條件與鐵血停損價）
                 """
                 ai_resp = ai_model.generate_content(decision_prompt)
-                st.info(ai_resp.text)
+                
+                # 取得台灣時間戳記 (UTC+8)
+                tw_time = datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M:%S")
+                
+                # 寫入記憶庫與本地 JSON 檔案
+                report_entry = {
+                    "stock": display_name,
+                    "price": current_price,
+                    "timestamp": tw_time,
+                    "content": ai_resp.text
+                }
+                st.session_state["ai_reports_archive"][display_name] = report_entry
+                
+                try:
+                    with open(AI_HISTORY_FILE, "w", encoding="utf-8") as f:
+                        json.dump(st.session_state["ai_reports_archive"], f, ensure_ascii=False, indent=2)
+                except Exception:
+                    pass
             except Exception as ex:
                 st.error(f"AI 決策官連線異常：{ex}")
 
+    # 3. 常駐顯示當前股票已產出的決策報告（不因畫面重整或操作其他按鈕而消失）
+    current_saved_report = st.session_state.get("ai_reports_archive", {}).get(display_name)
+    if current_saved_report:
+        st.info(
+            f"🕒 **報告產出時間**：{current_saved_report['timestamp']} ｜ **當下基準價**：{current_saved_report['price']} 元\n\n"
+            f"{current_saved_report['content']}"
+        )
+        
+        # 提供單一股票報告本機下載按鈕
+        single_txt = (
+            f"【🐎 黑馬雷達 AI 戰略官決策報告】\n"
+            f"標的：{current_saved_report['stock']}\n"
+            f"產出時間：{current_saved_report['timestamp']}\n"
+            f"基準現價：{current_saved_report['price']} 元\n"
+            f"{'='*45}\n"
+            f"{current_saved_report['content']}\n"
+        )
+        st.download_button(
+            label=f"💾 下載【{display_name}】決策報告 (.txt 永久保存)",
+            data=single_txt,
+            file_name=f"AI決策報告_{display_name}_{current_saved_report['timestamp'][:10]}.txt",
+            mime="text/plain",
+            key=f"dl_ai_{display_name}"
+        )
+
+    # 4. 集中調閱面板：查看所有曾經產出過的歷史報告
+    archive_dict = st.session_state.get("ai_reports_archive", {})
+    if archive_dict:
+        with st.expander(f"📚 點擊展開：歷史 AI 決策檔案庫（目前已儲存 {len(archive_dict)} 檔標的報告）"):
+            all_reports_txt = "【🐎 黑馬雷達 AI 戰略官 - 歷史決策總覽】\n\n"
+            
+            # 依時間由新到舊排序顯示
+            sorted_items = sorted(archive_dict.values(), key=lambda x: x.get("timestamp", ""), reverse=True)
+            for item in sorted_items:
+                st.markdown(f"#### 📌 {item['stock']} （基準價：{item['price']} 元｜時間：{item['timestamp']}）")
+                st.write(item["content"])
+                st.divider()
+                all_reports_txt += (
+                    f"📌 標的：{item['stock']} | 基準價：{item['price']} 元 | 時間：{item['timestamp']}\n"
+                    f"{item['content']}\n"
+                    f"{'-'*50}\n\n"
+                )
+            
+            col_arc1, col_arc2 = st.columns(2)
+            with col_arc1:
+                st.download_button(
+                    label="📥 一鍵打包下載全部歷史報告 (.txt)",
+                    data=all_reports_txt,
+                    file_name=f"黑馬AI決策總覽_{datetime.now(timezone(timedelta(hours=8))).strftime('%Y%m%d')}.txt",
+                    mime="text/plain",
+                    use_container_width=True
+                )
+            with col_arc2:
+                if st.button("🗑️ 清空歷史決策檔案庫", use_container_width=True):
+                    st.session_state["ai_reports_archive"] = {}
+                    if os.path.exists(AI_HISTORY_FILE):
+                        try:
+                            os.remove(AI_HISTORY_FILE)
+                        except Exception:
+                            pass
+                    st.rerun()
     # ==============================================================================
     # 🌟 【第 4 層：底部戰情推播控制台】
     # ==============================================================================
