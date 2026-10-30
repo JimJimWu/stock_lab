@@ -1,5 +1,5 @@
 # ==============================================================================
-# 秉諺的黑馬雷達 V44.0 - 網頁儀表板主程式 
+# 秉諺的黑馬雷達 V44.3 - 網頁儀表板主程式 
 # ==============================================================================
 import os
 import re
@@ -19,7 +19,7 @@ from streamlit_autorefresh import st_autorefresh
 import numpy as np
 
 # --- 1. 頂部頁面設定與防禦 ---
-st.set_page_config(layout="wide", page_title="秉諺的黑馬雷達 V44.0")
+st.set_page_config(layout="wide", page_title="秉諺的黑馬雷達 V44.3")
 
 # --- 背景自動刷新設定 ---
 # 每 300,000 毫秒 (即 5 分鐘) 自動觸發一次 st.rerun()
