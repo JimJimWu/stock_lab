@@ -1253,6 +1253,8 @@ def render_backtest_dashboard():
     try:
         df = pd.read_csv(file_path, encoding="utf-8-sig", on_bad_lines='skip')
         df.columns = [c.strip() for c in df.columns]
+        raw_total_count = len(df)
+
         signal_col = "核心訊號" if "核心訊號" in df.columns else ("訊號" if "訊號" in df.columns else None)
         if not signal_col:
             st.error(f"找不到『核心訊號』欄位。目前欄位: {df.columns.tolist()}")
@@ -1262,26 +1264,23 @@ def render_backtest_dashboard():
         # ⚡ 背景靜默清洗引擎：直接刪除舊世代不符條件資料、異常值與連續重複追高雜訊
         # ======================================================================
         df[signal_col] = df[signal_col].apply(force_clean)
-        # 1. 直接刪除早期未分類之「⚖️ 區間溫和」無效雜訊列
         df = df[df[signal_col] != "⚖️ 區間溫和"].copy()
 
         if "日期時間" in df.columns:
             df['日期時間'] = pd.to_datetime(df['日期時間'], errors='coerce')
             df = df.dropna(subset=['日期時間']).sort_values('日期時間', ascending=True)
             
-            # 2. 僅保留近期條件最穩定的近 45 天通報數據，直接刪除早期舊世代資料
+            # 僅保留近期條件最穩定的近 45 天通報數據
             max_dt_all = df['日期時間'].max()
             stable_cutoff = max_dt_all - pd.Timedelta(days=45)
             df = df[df['日期時間'] >= stable_cutoff].copy()
 
-        # 3. 刪除觸發價格 <= 0 的異常列，並正規化純數字股票代號
         if "觸發價格" in df.columns:
             df["觸發價格"] = pd.to_numeric(df["觸發價格"], errors="coerce")
             df = df[df["觸發價格"] > 0].copy()
 
         if "股票代號" in df.columns and "日期時間" in df.columns:
             df["股票代號"] = df["股票代號"].astype(str).str.split(".").str[0].str.strip()
-            # 4. 同股同訊號 5 日冷卻去重：連續上榜時只保留第 1 天起漲買點，刪除後續追高重複紀錄
             kept_indices = []
             last_seen_map = {}
             for idx, row in df.iterrows():
@@ -1296,16 +1295,25 @@ def render_backtest_dashboard():
             st.warning("⚠️ 清理舊資料後，目前尚無符合條件的近期穩定回測數據。")
             return
 
+        min_date = df['日期時間'].dt.date.min()
+        max_date = df['日期時間'].dt.date.max()
+
+        # 📌 單行驗證狀態列：直接顯示 45 天過濾範圍與五大核心訊號各自的實際觸發筆數
+        all_five_signals = ["🚨【強勢突破】", "💎【大戶惜售】", "🔥【低檔底背離】", "🐉【深水區潛龍】", "💀【出貨陷阱】"]
+        sig_counts = df[signal_col].value_counts().to_dict()
+        sig_count_str = " ｜ ".join([f"{s}: `{sig_counts.get(s, 0)}筆`" for s in all_five_signals])
+        st.caption(
+            f"✅ **已自動啟用近 45 日純淨資料庫**（資料區間：`{min_date}` ~ `{max_date}`，由原始 `{raw_total_count}` 筆洗鍊出 **`{len(df)}` 筆**獨立訊號）  \n"
+            f"📊 **五大訊號區間觸發統計**：{sig_count_str} *(註：0 筆代表近期盤勢未觸發該訊號條件)*"
+        )
+
         col1, col2 = st.columns(2)
         with col1:
-            min_date = df['日期時間'].dt.date.min()
-            max_date = df['日期時間'].dt.date.max()
             default_start = max(min_date, max_date - datetime.timedelta(days=30))
             selected_dates = st.date_input("🗓️ 選擇回測區間", value=[default_start, max_date], min_value=min_date, max_value=max_date)
 
         with col2:
             available_signals = df[signal_col].dropna().unique().tolist()
-            # 預設僅勾選作多型態訊號，排除反向警訊「💀【出貨陷阱】」混入拉低視覺曲線
             default_bullish = [s for s in available_signals if s != "💀【出貨陷阱】"] or available_signals
             selected_signals = st.multiselect("🎯 選擇欲分析的訊號型態", options=available_signals, default=default_bullish)
 
@@ -1323,7 +1331,6 @@ def render_backtest_dashboard():
         reward_cols = [c for c in df.columns if "報酬率(%)" in c]
         df_plot = df[[signal_col] + reward_cols].copy()
         
-        # 將未到期或無效的 0.0 轉為 NaN，確保不會被誤算入分母
         for col in reward_cols:
             s_num = pd.to_numeric(df_plot[col].astype(str).str.replace('%', ''), errors='coerce')
             df_plot[col] = s_num.where(s_num != 0.0, np.nan)
@@ -1331,7 +1338,6 @@ def render_backtest_dashboard():
         periods = ["T+1", "T+3", "T+5", "T+10", "T+20"]
         ordered_cols = [f"{p} 報酬率(%)" for p in periods if f"{p} 報酬率(%)" in df_plot.columns]
 
-        # 5. 實戰波段停利保護：若標的在前序週期已大漲達標 (+5.0% 以上)，反映實戰已分批停利，後續週期不因洗盤回吐而誤判為敗場
         if len(ordered_cols) > 1:
             cum_max = pd.DataFrame(index=df_plot.index)
             running_max = pd.Series(-999.0, index=df_plot.index)
@@ -1358,29 +1364,39 @@ def render_backtest_dashboard():
 
         for signal_name, group_df in grouped:
             win_rates = []
+            text_labels = []
             for p in periods:
                 col_name = f"{p} 報酬率(%)"
                 if col_name in group_df.columns:
                     valid_data = group_df[col_name].dropna()
-                    # 若使用者手動勾選「💀【出貨陷阱】」，驗證其下跌準確率 (< 0)；其餘多頭訊號驗證上漲勝率 (> 0)
-                    if signal_name == "💀【出貨陷阱】":
-                        win_rate = (len(valid_data[valid_data < 0]) / len(valid_data)) * 100 if len(valid_data) > 0 else 0
+                    # 🌟 關鍵修正：若該週期尚無任何滿期樣本 (len == 0)，填 None 不畫點，防止 T+20 假性摔到 0.0%
+                    if len(valid_data) > 0:
+                        if signal_name == "💀【出貨陷阱】":
+                            wr = (len(valid_data[valid_data < 0]) / len(valid_data)) * 100
+                        else:
+                            wr = (len(valid_data[valid_data > 0]) / len(valid_data)) * 100
+                        win_rates.append(wr)
+                        text_labels.append(f"{wr:.1f}%")
                     else:
-                        win_rate = (len(valid_data[valid_data > 0]) / len(valid_data)) * 100 if len(valid_data) > 0 else 0
-                    win_rates.append(win_rate)
+                        win_rates.append(None)
+                        text_labels.append("")
                 else:
-                    win_rates.append(0)
+                    win_rates.append(None)
+                    text_labels.append("")
             
-            if max(win_rates) > 0:
-                best_period = periods[win_rates.index(max(win_rates))]
-                dynamic_insights.append(f"**{signal_name}** 在 **{best_period}** 勝率最高（`{max(win_rates):.1f}%`）")
+            valid_wrs = [w for w in win_rates if w is not None]
+            if valid_wrs and max(valid_wrs) > 0:
+                best_val = max(valid_wrs)
+                best_period = periods[win_rates.index(best_val)]
+                dynamic_insights.append(f"**{signal_name}** 在 **{best_period}** 勝率最高（`{best_val:.1f}%`）")
 
             line_color = signal_color_map.get(signal_name, "#38bdf8")
             fig.add_trace(go.Scatter(
                 x=periods, y=win_rates, mode='lines+markers+text',
-                name=signal_name, text=[f"{val:.1f}%" for val in win_rates],
+                name=signal_name, text=text_labels,
                 textposition="top center", line=dict(width=3, color=line_color),
-                marker=dict(size=10)
+                marker=dict(size=10),
+                connectgaps=False
             ))
         
         fig.update_layout(
