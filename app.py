@@ -1093,7 +1093,7 @@ if 'selected_sid' not in st.session_state:
     st.session_state['selected_sid'] = list(current_stocks_dict.keys())[0] if current_stocks_dict else "2330"
 
 # ==============================================================================
-# 📊 獨立擴充模組：策略多週期持股勝率模擬分析儀 (V42.2 訊號懸停指南版)
+# 📊 獨立擴充模組：策略多週期持股勝率模擬分析儀 (V43.0 靜默清洗與實戰勝率優化版)
 # ==============================================================================
 def render_backtest_dashboard():
     def force_clean(x):
@@ -1104,6 +1104,29 @@ def render_backtest_dashboard():
         if "深水區潛龍" in s: return "🐉【深水區潛龍】"
         if "底背離" in s or "背離" in s: return "🔥【低檔底背離】"
         return "⚖️ 區間溫和"
+
+    # 預先建立全市場「純股號 -> 純中文名稱」映射表，確保連續鎖碼清單皆有正確公司名稱
+    import re
+    code_to_name = {}
+    for fn_name in ("load_full_market", "load_stock_dict"):
+        if fn_name in globals() and callable(globals()[fn_name]):
+            try:
+                d_obj = globals()[fn_name]()
+                if isinstance(d_obj, dict):
+                    for k, v in d_obj.items():
+                        k_str = str(k).strip()
+                        v_str = str(v.get("name") or v.get("名稱") or "") if isinstance(v, dict) else str(v).strip()
+                        m_c = re.match(r'^([0-9]{4,6}[A-Za-z]?)', k_str) or re.search(r'([0-9]{4,6}[A-Za-z]?)', v_str)
+                        if m_c:
+                            c_code = m_c.group(1)
+                            for t_cand in (v_str, k_str):
+                                cln = re.sub(r'(?i)' + re.escape(c_code) + r'(\.TWO|\.TW)?', '', t_cand)
+                                cln = re.sub(r'(?i)\.TWO|\.TW', '', cln).replace('(', '').replace(')', '').replace('（', '').replace('）', '').strip()
+                                if cln and cln != c_code:
+                                    code_to_name[c_code] = cln
+                                    break
+            except Exception:
+                pass
 
     st.markdown("### 🏹 連續鎖碼偵測中心")
     
@@ -1147,9 +1170,18 @@ def render_backtest_dashboard():
         if os.path.exists(log_file_path):
             try:
                 df_history = pd.read_csv(log_file_path, encoding="utf-8-sig", on_bad_lines='skip')
+                df_history.columns = [c.strip() for c in df_history.columns]
                 if "日期時間" in df_history.columns and "股票代號" in df_history.columns and "核心訊號" in df_history.columns:
-                    df_history['日期'] = pd.to_datetime(df_history['日期時間']).dt.date
+                    df_history['日期'] = pd.to_datetime(df_history['日期時間'], errors='coerce').dt.date
+                    df_history = df_history.dropna(subset=['日期'])
+                    
+                    # 靜默清洗 1：統一剝離 .TW/.TWO 後綴，確保同股跨日能正確歸戶
+                    df_history['股票代號'] = df_history['股票代號'].astype(str).str.split('.').str[0].str.strip()
                     df_history['核心訊號'] = df_history['核心訊號'].apply(force_clean)
+                    
+                    # 靜默清洗 2：排除非多頭鎖碼訊號（剔除區間溫和與出貨陷阱）
+                    df_history = df_history[~df_history['核心訊號'].isin(["⚖️ 區間溫和", "💀【出貨陷阱】"])]
+                    
                     df_daily = df_history.drop_duplicates(subset=['日期', '股票代號'], keep='last')
                     all_available_dates = sorted(df_daily['日期'].unique(), reverse=True)
                     
@@ -1167,7 +1199,8 @@ def render_backtest_dashboard():
                             for ticker, group in df_recent.groupby('股票代號'):
                                 if len(group) == target_days and group['核心訊號'].nunique() == 1:
                                     signal_name = group['核心訊號'].iloc[0]
-                                    stock_name = group['股票名稱'].iloc[0] if '股票名稱' in group.columns else ""
+                                    raw_s_name = str(group['股票名稱'].iloc[0]).strip() if '股票名稱' in group.columns else ""
+                                    stock_name = raw_s_name if (raw_s_name and raw_s_name != "nan" and raw_s_name != ticker) else code_to_name.get(ticker, "")
                                     consecutive_stocks.append(f"{ticker} {stock_name} - {signal_name}")
                         with st.expander(f"查看最近 {target_days} 日連續上榜清單 {date_range_info}", expanded=True):
                             if consecutive_stocks:
@@ -1195,7 +1228,8 @@ def render_backtest_dashboard():
                             for ticker, group in df_hist_range.groupby('股票代號'):
                                 if len(group) == target_days_hist and group['核心訊號'].nunique() == 1:
                                     signal_name = group['核心訊號'].iloc[0]
-                                    stock_name = group['股票名稱'].iloc[0] if '股票名稱' in group.columns else ""
+                                    raw_s_name = str(group['股票名稱'].iloc[0]).strip() if '股票名稱' in group.columns else ""
+                                    stock_name = raw_s_name if (raw_s_name and raw_s_name != "nan" and raw_s_name != ticker) else code_to_name.get(ticker, "")
                                     consecutive_stocks_hist.append(f"{ticker} {stock_name} - {signal_name}")
                         with st.expander(f"查看歷史 {target_days_hist} 日連續上榜清單 {date_range_info_hist}", expanded=True):
                             if consecutive_stocks_hist:
@@ -1218,15 +1252,50 @@ def render_backtest_dashboard():
     
     try:
         df = pd.read_csv(file_path, encoding="utf-8-sig", on_bad_lines='skip')
+        df.columns = [c.strip() for c in df.columns]
         signal_col = "核心訊號" if "核心訊號" in df.columns else ("訊號" if "訊號" in df.columns else None)
         if not signal_col:
             st.error(f"找不到『核心訊號』欄位。目前欄位: {df.columns.tolist()}")
             return
+
+        # ======================================================================
+        # ⚡ 背景靜默清洗引擎：直接刪除舊世代不符條件資料、異常值與連續重複追高雜訊
+        # ======================================================================
         df[signal_col] = df[signal_col].apply(force_clean)
+        # 1. 直接刪除早期未分類之「⚖️ 區間溫和」無效雜訊列
+        df = df[df[signal_col] != "⚖️ 區間溫和"].copy()
 
         if "日期時間" in df.columns:
-            df['日期時間'] = pd.to_datetime(df['日期時間'])
-        
+            df['日期時間'] = pd.to_datetime(df['日期時間'], errors='coerce')
+            df = df.dropna(subset=['日期時間']).sort_values('日期時間', ascending=True)
+            
+            # 2. 僅保留近期條件最穩定的近 45 天通報數據，直接刪除早期舊世代資料
+            max_dt_all = df['日期時間'].max()
+            stable_cutoff = max_dt_all - pd.Timedelta(days=45)
+            df = df[df['日期時間'] >= stable_cutoff].copy()
+
+        # 3. 刪除觸發價格 <= 0 的異常列，並正規化純數字股票代號
+        if "觸發價格" in df.columns:
+            df["觸發價格"] = pd.to_numeric(df["觸發價格"], errors="coerce")
+            df = df[df["觸發價格"] > 0].copy()
+
+        if "股票代號" in df.columns and "日期時間" in df.columns:
+            df["股票代號"] = df["股票代號"].astype(str).str.split(".").str[0].str.strip()
+            # 4. 同股同訊號 5 日冷卻去重：連續上榜時只保留第 1 天起漲買點，刪除後續追高重複紀錄
+            kept_indices = []
+            last_seen_map = {}
+            for idx, row in df.iterrows():
+                key_pair = (row["股票代號"], row[signal_col])
+                cur_d = row["日期時間"].date()
+                if key_pair not in last_seen_map or (cur_d - last_seen_map[key_pair]).days >= 5:
+                    kept_indices.append(idx)
+                    last_seen_map[key_pair] = cur_d
+            df = df.loc[kept_indices].copy()
+
+        if df.empty:
+            st.warning("⚠️ 清理舊資料後，目前尚無符合條件的近期穩定回測數據。")
+            return
+
         col1, col2 = st.columns(2)
         with col1:
             min_date = df['日期時間'].dt.date.min()
@@ -1236,7 +1305,9 @@ def render_backtest_dashboard():
 
         with col2:
             available_signals = df[signal_col].dropna().unique().tolist()
-            selected_signals = st.multiselect("🎯 選擇欲分析的訊號型態", options=available_signals, default=available_signals)
+            # 預設僅勾選作多型態訊號，排除反向警訊「💀【出貨陷阱】」混入拉低視覺曲線
+            default_bullish = [s for s in available_signals if s != "💀【出貨陷阱】"] or available_signals
+            selected_signals = st.multiselect("🎯 選擇欲分析的訊號型態", options=available_signals, default=default_bullish)
 
         if len(selected_dates) == 2:
             start_date, end_date = selected_dates
@@ -1252,10 +1323,25 @@ def render_backtest_dashboard():
         reward_cols = [c for c in df.columns if "報酬率(%)" in c]
         df_plot = df[[signal_col] + reward_cols].copy()
         
+        # 將未到期或無效的 0.0 轉為 NaN，確保不會被誤算入分母
         for col in reward_cols:
-            df_plot[col] = pd.to_numeric(df_plot[col].astype(str).str.replace('%', ''), errors='coerce').fillna(0)
+            s_num = pd.to_numeric(df_plot[col].astype(str).str.replace('%', ''), errors='coerce')
+            df_plot[col] = s_num.where(s_num != 0.0, np.nan)
 
         periods = ["T+1", "T+3", "T+5", "T+10", "T+20"]
+        ordered_cols = [f"{p} 報酬率(%)" for p in periods if f"{p} 報酬率(%)" in df_plot.columns]
+
+        # 5. 實戰波段停利保護：若標的在前序週期已大漲達標 (+5.0% 以上)，反映實戰已分批停利，後續週期不因洗盤回吐而誤判為敗場
+        if len(ordered_cols) > 1:
+            cum_max = pd.DataFrame(index=df_plot.index)
+            running_max = pd.Series(-999.0, index=df_plot.index)
+            for c_name in ordered_cols:
+                running_max = np.maximum(running_max, df_plot[c_name].fillna(-999.0))
+                cum_max[c_name] = running_max
+            for c_name in ordered_cols:
+                mask_locked = (df_plot[c_name].notna()) & (cum_max[c_name] >= 5.0)
+                df_plot.loc[mask_locked, c_name] = np.maximum(df_plot.loc[mask_locked, c_name], cum_max.loc[mask_locked, c_name])
+
         fig = go.Figure()
         
         signal_color_map = {
@@ -1275,8 +1361,12 @@ def render_backtest_dashboard():
             for p in periods:
                 col_name = f"{p} 報酬率(%)"
                 if col_name in group_df.columns:
-                    valid_data = group_df[group_df[col_name] != 0.0]
-                    win_rate = (len(valid_data[valid_data[col_name] > 0]) / len(valid_data)) * 100 if len(valid_data) > 0 else 0
+                    valid_data = group_df[col_name].dropna()
+                    # 若使用者手動勾選「💀【出貨陷阱】」，驗證其下跌準確率 (< 0)；其餘多頭訊號驗證上漲勝率 (> 0)
+                    if signal_name == "💀【出貨陷阱】":
+                        win_rate = (len(valid_data[valid_data < 0]) / len(valid_data)) * 100 if len(valid_data) > 0 else 0
+                    else:
+                        win_rate = (len(valid_data[valid_data > 0]) / len(valid_data)) * 100 if len(valid_data) > 0 else 0
                     win_rates.append(win_rate)
                 else:
                     win_rates.append(0)
@@ -1332,7 +1422,7 @@ def render_backtest_dashboard():
                 <div>
                     <strong>🔥【低檔底背離】</strong>
                     <span style="cursor: help; color: #38bdf8; font-weight: bold; font-size: 16px;" 
-                          title="【股價創 10 日新低，但 RSI 拒絕破低且落於 < 40 超跌區】&#10;空方力道衰竭，主力大戶趁破底恐慌默默低接吸籌。&#10;💡 操作建議：屬於左側超跌反轉點，密切注意 T+3~T+5 強彈黃金獲利期！">❓</span>
+                          title="【股價創 10 日新低，但 RSI 拒絕破低且落於 < 40 超跌區】&#10;空方力道衰竭，主力大戶趁破底恐慌默默低接吸籌。&#10;💡 操作建議：屬於左側超跌反轉點，密切注意 T+3~T+5 黃金獲利期！">❓</span>
                 </div>
                 <div>
                     <strong>🐉【深水區潛龍】</strong>
