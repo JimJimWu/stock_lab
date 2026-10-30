@@ -1,5 +1,5 @@
 # ==============================================================================
-# 秉諺的黑馬雷達 - 背景自動無人值守掃描器 (auto_scan.py V36.3 - 金融特許與純淨修復版)
+# 秉諺的黑馬雷達 - 背景自動無人值守掃描器 (auto_scan.py V37.0 - 大盤自適應雙軌分流版)
 # ==============================================================================
 import os
 import json
@@ -60,6 +60,67 @@ def load_stock_dict():
     else:
         print(f"DEBUG: 錯誤！在 {DICT_FILE} 找不到檔案")
     return {}
+
+# ==============================================================================
+# 🧭 【新增】大盤位階自適應導航引擎 (^TWII 三態判定)
+# ==============================================================================
+def get_market_regime():
+    default_regime = {
+        "mode": "BULL",
+        "label": "🟢 多頭順風期 (順勢進攻 + 季線潛龍雙軌模式)",
+        "allow_breakout": True,
+        "allow_bottom_fish": True,
+        "taiex_close": 0.0,
+        "taiex_pct": 0.0
+    }
+    try:
+        twii = yf.download("^TWII", period="6mo", progress=False)
+        if twii is None or twii.empty or len(twii) < 60:
+            return default_regime
+
+        if isinstance(twii.columns, pd.MultiIndex):
+            twii.columns = twii.columns.get_level_values(0)
+
+        closes = twii["Close"].dropna()
+        cur_close = float(closes.iloc[-1])
+        prev_close = float(closes.iloc[-2])
+        diff_pct = round(((cur_close - prev_close) / prev_close) * 100, 2)
+        ma20 = float(closes.iloc[-20:].mean())
+        ma60 = float(closes.iloc[-60:].mean())
+
+        # 1. 極端警戒期：跌破季線，或跌破月線且單日重挫 <= -1.8%
+        if cur_close < ma60 or (cur_close < ma20 and diff_pct <= -1.8) or diff_pct <= -2.0:
+            return {
+                "mode": "CRASH",
+                "label": f"🔴 極端警戒/重挫撈底期 (大盤 {cur_close:,.0f} 點, {diff_pct}% | 暫停突破追價，全力掃描深水潛龍與底背離)",
+                "allow_breakout": False,
+                "allow_bottom_fish": True,
+                "taiex_close": cur_close,
+                "taiex_pct": diff_pct
+            }
+        # 2. 震盪洗盤期：跌破月線但守住季線，或單日跌幅介於 -1.2% ~ -2.0%
+        elif cur_close < ma20 or diff_pct <= -1.2:
+            return {
+                "mode": "PULLBACK",
+                "label": f"🟡 震盪洗盤期 (大盤 {cur_close:,.0f} 點, {diff_pct}% | 收緊突破標準，主動開啟季線撈底通道)",
+                "allow_breakout": True,
+                "allow_bottom_fish": True,
+                "taiex_close": cur_close,
+                "taiex_pct": diff_pct
+            }
+        # 3. 多頭順風期：站穩月線與季線之上
+        else:
+            return {
+                "mode": "BULL",
+                "label": f"🟢 多頭順風期 (大盤 {cur_close:,.0f} 點, {diff_pct}% | 順勢突破與低檔鎖碼雙軌全開)",
+                "allow_breakout": True,
+                "allow_bottom_fish": True,
+                "taiex_close": cur_close,
+                "taiex_pct": diff_pct
+            }
+    except Exception as e:
+        print(f"⚠️ 大盤指數偵測異常，採用預設雙軌模式: {e}")
+        return default_regime
 
 def get_stock_df(sid):
     try:
@@ -168,6 +229,7 @@ def get_analysis_data(sid):
     except Exception:
         pass
     return None
+
 def calculate_structural_support(df):
     try:
         if df is None or df.empty or len(df) < 20:
@@ -202,16 +264,13 @@ def calculate_structural_support(df):
     except Exception:
         fallback = float(df['Close'].iloc[-1]) * 0.95 if df is not None and not df.empty else 0.0
         return round(fallback, 2), "系統預設支撐"
-# ==============================================================================
-# 📈 【V36.3 升級：跨年度毛利與金融特許解析引擎 (徹底根除 404)】
-# ==============================================================================
+
 def get_financial_margin_trend(sid):
     if sid in _FIN_TREND_CACHE:
         return _FIN_TREND_CACHE[sid]
 
     raw_sid = str(sid).split('(')[0].split(' ')[0].strip()
     
-    # 💥 【修復 1】：如果代號已明確包含市場後綴，鎖定該代號，嚴禁去嘗試不存在的市場
     if ".TW" in raw_sid.upper() or ".TWO" in raw_sid.upper():
         candidate_tickers = [raw_sid]
     else:
@@ -235,7 +294,6 @@ def get_financial_margin_trend(sid):
         "diagnosis_text": "【資料不足，無法確認】"
     }
 
-    # 💥 【修復 2】：金融金控特許行業直接給予穩健保護傘，不再強求毛利率
     if is_finance_sector:
         result["has_data"] = True
         result["latest_gm"] = "不適用(金融業)"
@@ -343,33 +401,25 @@ def send_discord_webhook(webhook_url, embed_data):
         print(f"發送 Discord 失敗: {e}")
         return False
 
-# ==============================================================================
-# 💥 【V36.3 升級：全方位火力評分引擎 (兼容量能爆發與量縮惜售)】
-# ==============================================================================
 def calculate_composite_score(net_5d, volume_ratio, is_long_term_growth=False, is_q_dip=False, signal_type=""):
     if net_5d is None: net_5d = 0
     if volume_ratio is None: volume_ratio = 1.0
 
-    # 1. 籌碼得分 (0 ~ 100)
     chip_score = min(max((net_5d / 3000.0) * 100, 0), 100)
 
-    # 2. 量能得分：區分「爆量突破」與「量縮惜售/潛龍」
     if "惜售" in signal_type or "潛龍" in signal_type or "背離" in signal_type or volume_ratio < 0.7:
-        # 量縮惜售：量越縮、籌碼沉澱越徹底，得分越高
         vol_score = min(max((0.7 - volume_ratio) / 0.7 * 100, 0), 100)
     else:
-        # 爆量突破：量比大於 1.15 倍開始計分
         vol_score = min(max((volume_ratio - 1.15) / (3.0 - 1.15) * 100, 0), 100)
     
-    # 3. 基本面加成
     base_score = (chip_score * 0.50) + (vol_score * 0.35)
     fin_bonus = 15.0 if is_long_term_growth else (10.0 if is_q_dip else 0.0)
     return round(min(base_score + fin_bonus, 100.0), 2)
 
 # ==============================================================================
-# 💥 【V36.3 監控引擎】
+# 💥 【V37.0 升級：大盤自適應雙軌分流監控引擎】
 # ==============================================================================
-def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
+def scan_and_notify(sid, sname, webhook_url, is_full_market=False, market_regime=None):
     df_scan = get_stock_df(sid)
     if df_scan.empty or len(df_scan) < 20:
         return False
@@ -378,7 +428,10 @@ def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
     a_data = get_analysis_data(sid)
     fin_trend = None
     
-    # === 🛡️ 前置濾網 (含 Q1 單季逆風容錯機制) ===
+    if market_regime is None:
+        market_regime = {"mode": "BULL", "allow_breakout": True, "allow_bottom_fish": True}
+
+    # === 🛡️ 大盤自適應雙軌分流前置濾網 ===
     if is_full_market:
         try:
             vol_ma20 = df_scan['Volume'].rolling(20).mean().iloc[-1]
@@ -389,18 +442,35 @@ def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
             ma240 = last.get('MA240', 0)
             current_price_fast = float(last['Close'])
             macd_hist = last.get('MACD_Hist', 0)
+            rsi_val = last.get('RSI', 50)
             
-            if pd.notna(ma20) and pd.notna(ma60) and pd.notna(ma240) and ma240 > 0:
-                if not (current_price_fast > ma20 > ma60 > ma240):
-                    return False
-            if pd.notna(macd_hist) and macd_hist < 0:
+            # 軌道 A：右側順勢進攻軌
+            is_right_track = (
+                market_regime["allow_breakout"]
+                and pd.notna(ma20) and pd.notna(ma60) and pd.notna(ma240) and ma240 > 0
+                and (current_price_fast > ma20 > ma60 > ma240)
+                and (macd_hist >= 0)
+            )
+            if market_regime["mode"] == "PULLBACK":
+                pass
+
+            # 軌道 B：左側深水撈底軌 (專抓潛龍與底背離)
+            is_left_track = (
+                market_regime["allow_bottom_fish"]
+                and pd.notna(ma60) and pd.notna(ma240) and ma240 > 0
+                and (ma60 >= ma240)
+                and (current_price_fast >= ma240 * 0.97)
+                and (rsi_val <= 40)
+            )
+
+            if not (is_right_track or is_left_track):
                 return False
-            
+
             inst_val = a_data['法人持股'] if (a_data and '法人持股' in a_data) else 0
             eps_val = a_data['EPS'] if (a_data and 'EPS' in a_data) else "N/A"
             rev_growth = a_data['營收成長率'] if (a_data and '營收成長率' in a_data) else "N/A"
             
-            if inst_val < 5.0:
+            if inst_val < 3.0:  # 稍微放寬撈底時的法人門檻
                 return False
             if eps_val == "N/A" or float(eps_val) <= 0:
                 return False
@@ -437,10 +507,7 @@ def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
     net_5d = round(df_temp['Net_Force_Vol'].tail(5).sum(), 1)
     chip_flow_status = get_institutional_chips(df_scan)
 
-    # ✅ 呼叫全域的新版防線引擎，並賦值給 weighted_support
     weighted_support, _ = calculate_structural_support(df_scan)
-
-    # ✅ 更新推播文字，確保沒有錯字
     support_text = f"🟢 關鍵支撐守住 ({weighted_support} 元)" if current_price >= weighted_support else f"🔴 關鍵支撐失守 ({weighted_support} 元)"
     ma_status = "🔥 強勢多頭 (5 > 10 > 20MA)" if last['MA5'] > last['MA10'] > last['MA20'] else "💤 區間整理"
 
@@ -449,7 +516,7 @@ def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
     signals_triggered = False
     color_hex = 15158332 if price_change >= 0 else 3066993
 
-    if vol_ratio >= 1.15:
+    if vol_ratio >= 1.15 and market_regime["allow_breakout"]:
         if "倒貨" in chip_flow_status:
             status_msg = "💀【出貨陷阱】爆量但主力高檔倒貨！"
             color_hex = 7368816
@@ -468,10 +535,10 @@ def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
         ma60, ma240 = last.get('MA60', 0), last.get('MA240', 0)
         vol_ma20 = df_scan['Volume'].rolling(20).mean().iloc[-1]
         if pd.notna(ma60) and pd.notna(ma240) and pd.notna(vol_ma20):
-            is_near_ma60 = abs(current_price - ma60) / ma60 <= 0.05
-            is_near_ma240 = abs(current_price - ma240) / ma240 <= 0.05
-            if (is_near_ma60 or is_near_ma240) and (today_volume < vol_ma20 * 0.4) and (last['RSI'] <= 35) and ("倒貨" not in chip_flow_status):
-                if vol_ma20 > 300 and last['MACD_Hist'] >= prev['MACD_Hist'] and inst_val > 1.0:
+            is_near_ma60 = abs(current_price - ma60) / ma60 <= 0.06
+            is_near_ma240 = abs(current_price - ma240) / ma240 <= 0.06
+            if (is_near_ma60 or is_near_ma240) and (today_volume < vol_ma20 * 0.5) and (last['RSI'] <= 35) and ("倒貨" not in chip_flow_status):
+                if vol_ma20 > 250 and inst_val > 1.0:
                     support_type = "年線(240MA)" if is_near_ma240 else "季線(60MA)"
                     status_msg = f"🐉【深水區潛龍】測 {support_type} (籌碼安全)！"
                     color_hex = 16766720
@@ -479,13 +546,12 @@ def scan_and_notify(sid, sname, webhook_url, is_full_market=False):
     except Exception:
         pass
         
-    # 4. 🔥【新增】：低檔底背離策略 (股價破前低但 RSI 拒絕破低)
     if not signals_triggered and len(df_scan) >= 10:
         past_min_close = df_scan.iloc[-10:-1]['Close'].min()
         past_min_rsi = df_scan.iloc[-10:-1]['RSI'].min()
-        if (current_price <= past_min_close) and (last['RSI'] > past_min_rsi) and (last['RSI'] < 40):
+        if (current_price <= past_min_close) and (last['RSI'] > past_min_rsi) and (last['RSI'] < 40) and ("倒貨" not in chip_flow_status):
             status_msg = "🔥【低檔底背離】下跌力道竭盡，醞釀強彈！"
-            color_hex = 16744192  # 亮橘色警報
+            color_hex = 16744192
             signals_triggered = True
 
     # === 組合結果並回傳 ===
@@ -553,12 +619,17 @@ def run_all_scan():
         stock_dict = dict(items)
 
     is_full_market = len(stock_dict) > 500
+    
+    # 🧭 自動偵測大盤位階與導航狀態
+    market_regime = get_market_regime()
+    print(f"🧭 [大盤自適應導航] 目前判定狀態：{market_regime['label']}")
+
     daily_candidates = []
     elite_dict = {}
 
     for sid, sname in stock_dict.items():
         try:
-            result = scan_and_notify(sid, sname, DEFAULT_DISCORD_WEBHOOK, is_full_market)
+            result = scan_and_notify(sid, sname, DEFAULT_DISCORD_WEBHOOK, is_full_market, market_regime)
             if isinstance(result, dict):
                 daily_candidates.append(result)
                 elite_dict[sid] = sname
