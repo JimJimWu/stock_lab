@@ -31,6 +31,7 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action Bot"
           git add signal_history_backtest.csv
+          git add signal_history.csv signal_history_backtest.csv
           # 如果資料有更新就 commit，沒有變動就略過，不會報錯
           git commit -m "📊 自動更新量化回測報表 [skip ci]" || echo "No changes to commit"
           git push
