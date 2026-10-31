@@ -48,18 +48,18 @@ def log_signal_to_csv(sid, sname, price, embed):
         print(f"寫入 CSV 失敗: {e}")
 
 def load_stock_dict():
-    print(f"DEBUG: 嘗試讀取檔案路徑: {DICT_FILE}")
-    if os.path.exists(DICT_FILE):
-        try:
-            with open(DICT_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            print(f"DEBUG: 檔案載入成功，共 {len(data)} 檔")
-            return data
-        except Exception as e:
-            print(f"DEBUG: JSON 解析錯誤: {e}")
-    else:
-        print(f"DEBUG: 錯誤！在 {DICT_FILE} 找不到檔案")
-    return {}
+  for fname in ["full_market_dict.json", "stock_dict.json", "watchlist.json"]:
+    fpath = os.path.join(BASE_DIR, fname)
+    if os.path.exists(fpath):
+      try:
+        with open(fpath, "r", encoding="utf-8") as f:
+          data = json.load(f)
+        print(f"DEBUG: 檔案 {fname} 載入成功，共 {len(data)} 檔")
+        return data
+      except Exception as e:
+        print(f"DEBUG: 讀取 {fname} 解析錯誤: {e}")
+  print("DEBUG: 錯誤！找不到任何股票字典檔案")
+  return {}
 
 # ==============================================================================
 # 🧭 【新增】大盤位階自適應導航引擎 (^TWII 三態判定)
@@ -516,20 +516,20 @@ def scan_and_notify(sid, sname, webhook_url, is_full_market=False, market_regime
     signals_triggered = False
     color_hex = 15158332 if price_change >= 0 else 3066993
 
-    if vol_ratio >= 1.15 and market_regime["allow_breakout"]:
-        if "倒貨" in chip_flow_status:
-            status_msg = "💀【出貨陷阱】爆量但主力高檔倒貨！"
-            color_hex = 7368816
-            signals_triggered = True
-        else:
-            status_msg = "🚨【強勢突破】量能爆發且籌碼健康！"
-            color_hex = 16711680
-            signals_triggered = True
+    if vol_ratio >= 1.15:
+      if "倒貨" in chip_flow_status:
+        status_msg = "💀【出貨陷阱】爆量但主力高檔倒貨！"
+        color_hex = 7368816
+        signals_triggered = True
+      elif market_regime["allow_breakout"]:
+        status_msg = "🚨【強勢突破】量能爆發且籌碼健康！"
+        color_hex = 16711680
+        signals_triggered = True
     elif vol_ratio < 0.7:
-        if current_price >= last['MA5'] and (last['RSI'] >= 50 or inst_val > 15):
-            status_msg = "💎【大戶惜售】量縮鎖碼，籌碼穩定"
-            color_hex = 3447003
-            signals_triggered = True
+      if current_price >= last["MA5"] and (last["RSI"] >= 50 or inst_val > 15):
+        status_msg = "💎【大戶惜售】量縮鎖碼，籌碼穩定"
+        color_hex = 3447003
+        signals_triggered = True
 
     try:
         ma60, ma240 = last.get('MA60', 0), last.get('MA240', 0)
