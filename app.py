@@ -525,8 +525,9 @@ def save_stock_dict(data):
 # 💥 【V34.2 升級：富文本量化回測記錄器】
 def log_signal_to_csv(sid, sname, price, embed):
     log_file = "signal_history.csv"
-    tz_tw = datetime.timezone(datetime.timedelta(hours=8))
-    now_time = datetime.datetime.now(tz_tw).strftime('%Y-%m-%d %H:%M:%S')
+    from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+    tz_tw = _tz(_td(hours=8))
+    now_time = _dt.now(tz_tw).strftime("%Y-%m-%d %H:%M:%S")
     file_exists = os.path.isfile(log_file)
     
     try:
@@ -1116,8 +1117,9 @@ def run_single_scan_signal(sid, sname, webhook_url):
         f"**表面型態**：**`{status_msg}`**"
     )
 
-    tz_tw = datetime.timezone(datetime.timedelta(hours=8))
-    now_time = datetime.datetime.now(tz_tw).strftime("%m/%d %H:%M")
+    from datetime import datetime as _dt, timezone as _tz, timedelta as _td  
+    tz_tw = _tz(_td(hours=8))
+    now_time = _dt.now(tz_tw).strftime("%m/%d %H:%M")
 
     embed = {
         "title": f"🚨 黑馬雷達警戒：{sname} ({sid})",
@@ -2631,7 +2633,7 @@ if df is not None and not df.empty:
     # ==========================================================================
     import os
     import json
-    from datetime import datetime, timezone, timedelta
+    import datetime
 
     AI_HISTORY_FILE = "ai_decision_history.json"
 
@@ -2670,7 +2672,7 @@ if df is not None and not df.empty:
                 ai_resp = ai_model.generate_content(decision_prompt)
                 
                 # 取得台灣時間戳記 (UTC+8)
-                tw_time = datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M:%S")
+                tw_time = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).strftime("%Y-%m-%d %H:%M:%S")
                 
                 # 寫入記憶庫與本地 JSON 檔案
                 report_entry = {
@@ -2737,7 +2739,7 @@ if df is not None and not df.empty:
                 st.download_button(
                     label="📥 一鍵打包下載全部歷史報告 (.txt)",
                     data=all_reports_txt,
-                    file_name=f"黑馬AI決策總覽_{datetime.now(timezone(timedelta(hours=8))).strftime('%Y%m%d')}.txt",
+                    file_name=f"黑馬AI決策總覽_{datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).strftime('%Y%m%d')}.txt",
                     mime="text/plain",
                     use_container_width=True
                 )
@@ -2761,21 +2763,26 @@ if df is not None and not df.empty:
     col_test_btn, col_scan_btn = st.columns(2)
 
     with col_test_btn:
-        if st.button("🔗 發送 Discord 測試訊息", use_container_width=True, help="手動測試網頁與您的 Discord 頻道是否成功對接。"):
-            tz_tw = datetime.timezone(datetime.timedelta(hours=8))
-            test_time = datetime.datetime.now(tz_tw).strftime('%Y-%m-%d %H:%M:%S')
-            test_embed = {
-                "title": "✅ 秉諺的黑馬雷達連線測試",
-                "description": "網頁主端控制台發送成功！手動推播管道運作良好。",
-                "color": 3447003,
-                "footer": {"text": f"測試時間: {test_time}"}
-            }
-            success, msg = send_discord_webhook(DEFAULT_DISCORD_WEBHOOK, test_embed)
-            if success:
-                st.success("✅ " + msg)
-            else:
-                st.error("❌ " + msg)
+      if st.button(
+          "🔗 發送 Discord 測試訊息",
+          use_container_width=True,
+          help="手動測試網頁與您的 Discord 頻道是否成功對接。",
+      ):
+        from datetime import datetime as _dt, timezone as _tz, timedelta as _td
 
+        tz_tw = _tz(_td(hours=8))
+        test_time = _dt.now(tz_tw).strftime("%Y-%m-%d %H:%M:%S")
+        test_embed = {
+            "title": "✅ 秉諺的黑馬雷達連線測試",
+            "description": "網頁主端控制台發送成功！手動推播管道運作良好。",
+            "color": 3447003,
+            "footer": {"text": f"測試時間: {test_time}"},
+        }
+        success, msg = send_discord_webhook(DEFAULT_DISCORD_WEBHOOK, test_embed)
+        if success:
+          st.success("✅ " + msg)
+        else:
+          st.error("❌ " + msg)
     with col_scan_btn:
         if st.button("🔍 執行全體雷達大掃描", use_container_width=True, help="立即對您自選清單裡的所有股票進行技術、籌碼與跨年毛利訊號的全面掃描。"):
             with st.spinner("🚀 雷達深度掃描與毛利趨勢運算中..."):
