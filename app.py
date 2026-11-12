@@ -1465,7 +1465,7 @@ def render_backtest_dashboard():
         max_date = df['日期時間'].dt.date.max()
 
         # 📌 單行驗證狀態列：直接顯示 45 天過濾範圍與五大核心訊號各自的實際觸發筆數
-        all_five_signals = ["🚨【強勢突破】", "💎【大戶惜售】", "🔥【低檔底背離】", "🐉【深水區潛龍】", "💀【出貨陷阱】"]
+        all_five_signals = ["⭐【多指標共振】","🚨【強勢突破】", "💎【大戶惜售】", "🔥【低檔底背離】", "🐉【深水區潛龍】", "💀【出貨陷阱】"]
         sig_counts = df[signal_col].value_counts().to_dict()
         sig_count_str = " ｜ ".join([f"{s}: `{sig_counts.get(s, 0)}筆`" for s in all_five_signals])
         st.caption(
@@ -1517,6 +1517,7 @@ def render_backtest_dashboard():
         fig = go.Figure()
         
         signal_color_map = {
+            "⭐【多指標共振】": "#fde047",
             "🚨【強勢突破】": "#c084fc",
             "💎【大戶惜售】": "#34d399",
             "💀【出貨陷阱】": "#f87171",
