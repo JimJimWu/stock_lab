@@ -401,295 +401,503 @@ def send_discord_webhook(webhook_url, embed_data):
         print(f"發送 Discord 失敗: {e}")
         return False
 
-def calculate_composite_score(net_5d, volume_ratio, is_long_term_growth=False, is_q_dip=False, signal_type=""):
-    if net_5d is None: net_5d = 0
-    if volume_ratio is None: volume_ratio = 1.0
+def calculate_composite_score(
+    net_5d,
+    volume_ratio,
+    is_long_term_growth=False,
+    is_q_dip=False,
+    signal_type="",
+):
+  if net_5d is None:
+    net_5d = 0
+  if volume_ratio is None:
+    volume_ratio = 1.0
 
-    chip_score = min(max((net_5d / 3000.0) * 100, 0), 100)
+  chip_score = min(max((net_5d / 3000.0) * 100, 0), 100)
 
-    if "惜售" in signal_type or "潛龍" in signal_type or "背離" in signal_type or volume_ratio < 0.7:
-        vol_score = min(max((0.7 - volume_ratio) / 0.7 * 100, 0), 100)
-    else:
-        vol_score = min(max((volume_ratio - 1.15) / (3.0 - 1.15) * 100, 0), 100)
-    
-    base_score = (chip_score * 0.50) + (vol_score * 0.35)
-    fin_bonus = 15.0 if is_long_term_growth else (10.0 if is_q_dip else 0.0)
-    return round(min(base_score + fin_bonus, 100.0), 2)
+  if (
+      "惜售" in signal_type
+      or "潛龍" in signal_type
+      or "背離" in signal_type
+      or volume_ratio < 0.7
+  ):
+    vol_score = min(max((0.7 - volume_ratio) / 0.7 * 100, 0), 100)
+  else:
+    vol_score = min(max((volume_ratio - 1.15) / (3.0 - 1.15) * 100, 0), 100)
+
+  base_score = (chip_score * 0.50) + (vol_score * 0.35)
+  resonance_bonus = 30.0 if "共振" in signal_type else 0.0
+  fin_bonus = 15.0 if is_long_term_growth else (10.0 if is_q_dip else 0.0)
+  return round(min(base_score + resonance_bonus + fin_bonus, 100.0), 2)
+
+
+def check_bull_resonance_signal(df_scan):
+  """同步 K 線圖上的 ⭐ 多指標黃金共振邏輯 (支援當日觸發與前一日收盤確認)"""
+  if df_scan is None or len(df_scan) < 5:
+    return False, ""
+  macd_gold_cond = (df_scan["DIF"] > df_scan["DEA"]) & (
+      df_scan["DIF"].shift(1) <= df_scan["DEA"].shift(1)
+  )
+  kd_gold_cond = (df_scan["K"] > df_scan["D"]) & (
+      df_scan["K"].shift(1) <= df_scan["D"].shift(1)
+  )
+  vol_burst_cond = (df_scan["Close"] > df_scan["Open"]) & (
+      df_scan["Volume"] >= df_scan["Vol_MA5"] * 1.15
+  )
+
+  macd_gold_near = (
+      macd_gold_cond
+      | macd_gold_cond.shift(1, fill_value=False)
+      | macd_gold_cond.shift(-1, fill_value=False)
+  )
+  kd_gold_near = (
+      kd_gold_cond
+      | kd_gold_cond.shift(1, fill_value=False)
+      | kd_gold_cond.shift(-1, fill_value=False)
+  )
+  bull_res = (
+      kd_gold_cond
+      & (
+          macd_gold_near
+          | (
+              vol_burst_cond
+              & (df_scan["MACD_Hist"] > df_scan["MACD_Hist"].shift(1))
+          )
+      )
+  ) | (macd_gold_cond & kd_gold_near)
+
+  if bool(bull_res.iloc[-1]):
+    return True, "⭐【多指標共振】今日 KD+MACD 同步轉強買點！"
+  elif (
+      len(bull_res) >= 2
+      and bool(bull_res.iloc[-2])
+      and float(df_scan["Close"].iloc[-1]) >= float(df_scan["Low"].iloc[-2])
+  ):
+    return True, "⭐【多指標共振】昨日金星確認＋今日守穩續攻！"
+  return False, ""
+
 
 # ==============================================================================
-# 💥 【V37.0 升級：大盤自適應雙軌分流監控引擎】
+# 💥 【V38.0 升級：大盤自適應雙軌分流 + ⭐金星共振與自選股 VIP 保送引擎】
 # ==============================================================================
-def scan_and_notify(sid, sname, webhook_url, is_full_market=False, market_regime=None):
-    df_scan = get_stock_df(sid)
-    if df_scan.empty or len(df_scan) < 20:
-        return False
-    
-    last, prev = df_scan.iloc[-1], df_scan.iloc[-2]
-    a_data = get_analysis_data(sid)
-    fin_trend = None
-    
-    if market_regime is None:
-        market_regime = {"mode": "BULL", "allow_breakout": True, "allow_bottom_fish": True}
-
-    # === 🛡️ 大盤自適應雙軌分流前置濾網 ===
-    if is_full_market:
-        try:
-            vol_ma20 = df_scan['Volume'].rolling(20).mean().iloc[-1]
-            if pd.isna(vol_ma20) or vol_ma20 < 800:
-                return False
-            ma20 = last.get('MA20', 0)
-            ma60 = last.get('MA60', 0)
-            ma240 = last.get('MA240', 0)
-            current_price_fast = float(last['Close'])
-            macd_hist = last.get('MACD_Hist', 0)
-            rsi_val = last.get('RSI', 50)
-            
-            # 軌道 A：右側順勢進攻軌
-            is_right_track = (
-                market_regime["allow_breakout"]
-                and pd.notna(ma20) and pd.notna(ma60) and pd.notna(ma240) and ma240 > 0
-                and (current_price_fast > ma20 > ma60 > ma240)
-                and (macd_hist >= 0)
-            )
-            if market_regime["mode"] == "PULLBACK":
-                pass
-
-            # 軌道 B：左側深水撈底軌 (專抓潛龍與底背離)
-            is_left_track = (
-                market_regime["allow_bottom_fish"]
-                and pd.notna(ma60) and pd.notna(ma240) and ma240 > 0
-                and (ma60 >= ma240)
-                and (current_price_fast >= ma240 * 0.97)
-                and (rsi_val <= 40)
-            )
-
-            if not (is_right_track or is_left_track):
-                return False
-
-            inst_val = a_data['法人持股'] if (a_data and '法人持股' in a_data) else 0
-            eps_val = a_data['EPS'] if (a_data and 'EPS' in a_data) else "N/A"
-            rev_growth = a_data['營收成長率'] if (a_data and '營收成長率' in a_data) else "N/A"
-            
-            if inst_val < 3.0:  # 稍微放寬撈底時的法人門檻
-                return False
-            if eps_val == "N/A" or float(eps_val) <= 0:
-                return False
-            
-            is_rev_ok = (rev_growth != "N/A" and float(rev_growth) > 0)
-            if not is_rev_ok:
-                fin_trend = get_financial_margin_trend(sid)
-                if not fin_trend["is_long_term_growth"]:
-                    return False
-        except Exception:
-            pass
-
-    # === 數據計算 ===
-    clean_prices = get_yahoo_web_quote_from_df(sid, df_scan)
-    current_price = clean_prices["current"]
-    prev_price = clean_prices["prev_close"]
-    
-    price_change = round(current_price - prev_price, 2)
-    change_pct = round((price_change / prev_price) * 100, 2) if prev_price > 0 else 0.0
-    change_sign = "▲" if price_change > 0 else ("▼" if price_change < 0 else " ")
-    
-    today_volume = last['Volume']
-    vol_ma5 = last['Vol_MA5']
-    vol_ratio = today_volume / vol_ma5 if vol_ma5 > 0 else 1
-    
-    inst_val = a_data['法人持股'] if (a_data and '法人持股' in a_data) else 0
-    chip_info = f"法人持股 {round(inst_val, 1)}% " + ("(大戶鎖碼)" if inst_val > 25 else "(散戶主導)")
-
-    df_temp = df_scan.copy()
-    df_temp['Price_Diff'] = df_temp['Close'].diff()
-    df_temp['Net_Force_Vol'] = df_temp.apply(
-        lambda r: r['Volume'] if r['Price_Diff'] > 0 else (-r['Volume'] if r['Price_Diff'] < 0 else 0.0), axis=1
-    )
-    net_5d = round(df_temp['Net_Force_Vol'].tail(5).sum(), 1)
-    chip_flow_status = get_institutional_chips(df_scan)
-
-    weighted_support, _ = calculate_structural_support(df_scan)
-    support_text = f"🟢 關鍵支撐守住 ({weighted_support} 元)" if current_price >= weighted_support else f"🔴 關鍵支撐失守 ({weighted_support} 元)"
-    ma_status = "🔥 強勢多頭 (5 > 10 > 20MA)" if last['MA5'] > last['MA10'] > last['MA20'] else "💤 區間整理"
-
-    # === 訊號判定 ===
-    status_msg = "⚖️ 區間溫和"
-    signals_triggered = False
-    color_hex = 15158332 if price_change >= 0 else 3066993
-
-    if vol_ratio >= 1.15:
-      if "倒貨" in chip_flow_status:
-        status_msg = "💀【出貨陷阱】爆量但主力高檔倒貨！"
-        color_hex = 7368816
-        signals_triggered = True
-      elif market_regime["allow_breakout"]:
-        status_msg = "🚨【強勢突破】量能爆發且籌碼健康！"
-        color_hex = 16711680
-        signals_triggered = True
-    elif vol_ratio < 0.7:
-      if current_price >= last["MA5"] and (last["RSI"] >= 50 or inst_val > 15):
-        status_msg = "💎【大戶惜售】量縮鎖碼，籌碼穩定"
-        color_hex = 3447003
-        signals_triggered = True
-
-    try:
-        ma60, ma240 = last.get('MA60', 0), last.get('MA240', 0)
-        vol_ma20 = df_scan['Volume'].rolling(20).mean().iloc[-1]
-        if pd.notna(ma60) and pd.notna(ma240) and pd.notna(vol_ma20):
-            is_near_ma60 = abs(current_price - ma60) / ma60 <= 0.06
-            is_near_ma240 = abs(current_price - ma240) / ma240 <= 0.06
-            if (is_near_ma60 or is_near_ma240) and (today_volume < vol_ma20 * 0.5) and (last['RSI'] <= 35) and ("倒貨" not in chip_flow_status):
-                if vol_ma20 > 250 and inst_val > 1.0:
-                    support_type = "年線(240MA)" if is_near_ma240 else "季線(60MA)"
-                    status_msg = f"🐉【深水區潛龍】測 {support_type} (籌碼安全)！"
-                    color_hex = 16766720
-                    signals_triggered = True
-    except Exception:
-        pass
-        
-    if not signals_triggered and len(df_scan) >= 10:
-        past_min_close = df_scan.iloc[-10:-1]['Close'].min()
-        past_min_rsi = df_scan.iloc[-10:-1]['RSI'].min()
-        if (current_price <= past_min_close) and (last['RSI'] > past_min_rsi) and (last['RSI'] < 40) and ("倒貨" not in chip_flow_status):
-            status_msg = "🔥【低檔底背離】下跌力道竭盡，醞釀強彈！"
-            color_hex = 16744192
-            signals_triggered = True
-
-    # === 組合結果並回傳 ===
-    if signals_triggered:
-        if fin_trend is None:
-            fin_trend = get_financial_margin_trend(sid)
-
-        score = calculate_composite_score(
-            net_5d,
-            vol_ratio,
-            is_long_term_growth=fin_trend["is_long_term_growth"],
-            is_q_dip=fin_trend["is_q_dip_opportunity"],
-            signal_type=status_msg
-        )
-
-        ann_gm_str = " ➔ ".join([f"{k[-2:]}年:{v}%" for k, v in fin_trend["annual_gm_dict"].items()]) if fin_trend["annual_gm_dict"] else f"最新: {fin_trend['latest_gm']}"
-        q_gm_str = " ➔ ".join([f"{k[-2:]}:{v}%" for k, v in fin_trend["quarterly_gm_dict"].items()]) if fin_trend["quarterly_gm_dict"] else "暫無季序列"
-
-        alert_description = f"🔥 **綜合火力評分：{score} 分**\n\n"
-        alert_description += f"🔗 [點擊前往 Yahoo 股市查看 {sname}](https://tw.stock.yahoo.com/quote/{sid})\n\n"
-        alert_description += f"**表面型態**：**`{status_msg}`**"
-
-        tz_tw = datetime.timezone(datetime.timedelta(hours=8))
-        now_time = datetime.datetime.now(tz_tw).strftime('%m/%d %H:%M')
-        
-        embed = {
-            "title": f"🚨 黑馬雷達警戒：{sname} ({sid})",
-            "description": alert_description,
-            "color": color_hex,
-            "fields": [
-                {"name": "💰 實時報價", "value": f"現價：**`{round(current_price, 2)}`** 元\n漲跌：**`{change_sign} {abs(price_change)}`** ({change_pct}%)", "inline": True},
-                {"name": "📊 技術與成交量能", "value": f"RSI 指標：`{round(last['RSI'], 2)}`\n成交量比：`{round(vol_ratio, 2)}x` (`{round(today_volume, 1)}`張/`{round(vol_ma5, 1)}`張)", "inline": True},
-                {"name": "🛡️ 莊家大戶防守成本線", "value": f"`{support_text}`", "inline": False},
-                {"name": "📈 趨勢與內部籌碼真相", "value": f"技術趨勢：`{ma_status}`\n資金流向：{chip_flow_status}", "inline": False},
-                {"name": "👥 法人籌碼動態", "value": f"`{chip_info}`", "inline": False},
-                {"name": "📈 歷年毛利軌跡", "value": f"判定：**`{fin_trend['status_tag']}`**\n年度：`{ann_gm_str}`\n近季：`{q_gm_str}`\n解析：{fin_trend['diagnosis_text']}", "inline": False}
-            ],
-            "footer": {"text": f"秉諺的黑馬自動監控引擎 • 偵測時間: {now_time}"}
-        }
-        
-        return {
-            "sid": sid,
-            "sname": sname,
-            "score": score,
-            "current_price": current_price,
-            "status_msg": status_msg,
-            "embed": embed
-        }
-    
+def scan_and_notify(
+    sid,
+    sname,
+    webhook_url,
+    is_full_market=False,
+    market_regime=None,
+    is_vip_watchlist=False,
+):
+  df_scan = get_stock_df(sid)
+  if df_scan.empty or len(df_scan) < 20:
     return False
 
+  last, prev = df_scan.iloc[-1], df_scan.iloc[-2]
+  a_data = get_analysis_data(sid)
+  fin_trend = None
+
+  if market_regime is None:
+    market_regime = {
+        "mode": "BULL",
+        "allow_breakout": True,
+        "allow_bottom_fish": True,
+    }
+
+  # === 🛡️ 大盤自適應雙軌分流前置濾網 (🌟 自選股 is_vip_watchlist 享有免濾網特權！) ===
+  if is_full_market and not is_vip_watchlist:
+    try:
+      vol_ma20 = df_scan["Volume"].rolling(20).mean().iloc[-1]
+      if pd.isna(vol_ma20) or vol_ma20 < 800:
+        return False
+      ma20 = last.get("MA20", 0)
+      ma60 = last.get("MA60", 0)
+      ma240 = last.get("MA240", 0)
+      current_price_fast = float(last["Close"])
+      macd_hist = last.get("MACD_Hist", 0)
+      rsi_val = last.get("RSI", 50)
+
+      # 軌道 A：右側順勢進攻軌
+      is_right_track = (
+          market_regime["allow_breakout"]
+          and pd.notna(ma20)
+          and pd.notna(ma60)
+          and pd.notna(ma240)
+          and ma240 > 0
+          and (current_price_fast > ma20 > ma60 > ma240)
+          and (macd_hist >= 0)
+      )
+
+      # 軌道 B：左側深水撈底軌 (專抓潛龍與底背離)
+      is_left_track = (
+          market_regime["allow_bottom_fish"]
+          and pd.notna(ma60)
+          and pd.notna(ma240)
+          and ma240 > 0
+          and (ma60 >= ma240)
+          and (current_price_fast >= ma240 * 0.97)
+          and (rsi_val <= 40)
+      )
+
+      if not (is_right_track or is_left_track):
+        return False
+
+      inst_val = a_data["法人持股"] if (a_data and "法人持股" in a_data) else 0
+      eps_val = a_data["EPS"] if (a_data and "EPS" in a_data) else "N/A"
+      rev_growth = (
+          a_data["營收成長率"] if (a_data and "營收成長率" in a_data) else "N/A"
+      )
+
+      if inst_val < 3.0:
+        return False
+      if eps_val == "N/A" or float(eps_val) <= 0:
+        return False
+
+      is_rev_ok = rev_growth != "N/A" and float(rev_growth) > 0
+      if not is_rev_ok:
+        fin_trend = get_financial_margin_trend(sid)
+        if not fin_trend["is_long_term_growth"]:
+          return False
+    except Exception:
+      pass
+
+  # === 數據計算 ===
+  clean_prices = get_yahoo_web_quote_from_df(sid, df_scan)
+  current_price = clean_prices["current"]
+  prev_price = clean_prices["prev_close"]
+
+  price_change = round(current_price - prev_price, 2)
+  change_pct = (
+      round((price_change / prev_price) * 100, 2) if prev_price > 0 else 0.0
+  )
+  change_sign = "▲" if price_change > 0 else ("▼" if price_change < 0 else " ")
+
+  today_volume = last["Volume"]
+  vol_ma5 = last["Vol_MA5"]
+  vol_ratio = today_volume / vol_ma5 if vol_ma5 > 0 else 1
+
+  inst_val = a_data["法人持股"] if (a_data and "法人持股" in a_data) else 0
+  chip_info = f"法人持股 {round(inst_val, 1)}% " + (
+      "(大戶鎖碼)" if inst_val > 25 else "(散戶主導)"
+  )
+
+  df_temp = df_scan.copy()
+  df_temp["Price_Diff"] = df_temp["Close"].diff()
+  df_temp["Net_Force_Vol"] = df_temp.apply(
+      lambda r: r["Volume"]
+      if r["Price_Diff"] > 0
+      else (-r["Volume"] if r["Price_Diff"] < 0 else 0.0),
+      axis=1,
+  )
+  net_5d = round(df_temp["Net_Force_Vol"].tail(5).sum(), 1)
+  chip_flow_status = get_institutional_chips(df_scan)
+
+  weighted_support, _ = calculate_structural_support(df_scan)
+  support_text = (
+      f"🟢 關鍵支撐守住 ({weighted_support} 元)"
+      if current_price >= weighted_support
+      else f"🔴 關鍵支撐失守 ({weighted_support} 元)"
+  )
+  ma_status = (
+      "🔥 強勢多頭 (5 > 10 > 20MA)"
+      if last["MA5"] > last["MA10"] > last["MA20"]
+      else "💤 區間整理"
+  )
+
+  # === 訊號判定 ===
+  status_msg = "⚖️ 區間溫和"
+  signals_triggered = False
+  color_hex = 15158332 if price_change >= 0 else 3066993
+
+  # 🌟 檢查是否觸發 K 線圖上的【⭐ 多指標共振金星】
+  has_star, star_msg = check_bull_resonance_signal(df_scan)
+
+  if vol_ratio >= 1.15:
+    if "倒貨" in chip_flow_status and not has_star:
+      status_msg = "💀【出貨陷阱】爆量但主力高檔倒貨！"
+      color_hex = 7368816
+      signals_triggered = True
+    elif market_regime["allow_breakout"]:
+      status_msg = "🚨【強勢突破】量能爆發且籌碼健康！"
+      color_hex = 16711680
+      signals_triggered = True
+  elif vol_ratio < 0.7:
+    if current_price >= last["MA5"] and (last["RSI"] >= 50 or inst_val > 15):
+      status_msg = "💎【大戶惜售】量縮鎖碼，籌碼穩定"
+      color_hex = 3447003
+      signals_triggered = True
+
+  try:
+    ma60, ma240 = last.get("MA60", 0), last.get("MA240", 0)
+    vol_ma20 = df_scan["Volume"].rolling(20).mean().iloc[-1]
+    if pd.notna(ma60) and pd.notna(ma240) and pd.notna(vol_ma20):
+      is_near_ma60 = abs(current_price - ma60) / ma60 <= 0.06
+      is_near_ma240 = abs(current_price - ma240) / ma240 <= 0.06
+      if (
+          (is_near_ma60 or is_near_ma240)
+          and (today_volume < vol_ma20 * 0.5)
+          and (last["RSI"] <= 35)
+          and ("倒貨" not in chip_flow_status)
+      ):
+        if vol_ma20 > 250 and inst_val > 1.0:
+          support_type = "年線(240MA)" if is_near_ma240 else "季線(60MA)"
+          status_msg = f"🐉【深水區潛龍】測 {support_type} (籌碼安全)！"
+          color_hex = 16766720
+          signals_triggered = True
+  except Exception:
+    pass
+
+  if not signals_triggered and len(df_scan) >= 10:
+    past_min_close = df_scan.iloc[-10:-1]["Close"].min()
+    past_min_rsi = df_scan.iloc[-10:-1]["RSI"].min()
+    if (
+        (current_price <= past_min_close)
+        and (last["RSI"] > past_min_rsi)
+        and (last["RSI"] < 40)
+        and ("倒貨" not in chip_flow_status)
+    ):
+      status_msg = "🔥【低檔底背離】下跌力道竭盡，醞釀強彈！"
+      color_hex = 16744192
+      signals_triggered = True
+
+  # 🌟 若觸發【⭐ 多指標共振金星】，無條件點亮警報！
+  if has_star:
+    if not signals_triggered or "出貨陷阱" in status_msg:
+      status_msg = star_msg
+    else:
+      status_msg = f"{star_msg} ＋ {status_msg}"
+    color_hex = 16766720
+    signals_triggered = True
+
+  # === 組合結果並回傳 ===
+  if signals_triggered:
+    if fin_trend is None:
+      fin_trend = get_financial_margin_trend(sid)
+
+    score = calculate_composite_score(
+        net_5d,
+        vol_ratio,
+        is_long_term_growth=fin_trend["is_long_term_growth"],
+        is_q_dip=fin_trend["is_q_dip_opportunity"],
+        signal_type=status_msg,
+    )
+
+    ann_gm_str = (
+        " ➔ ".join(
+            [f"{k[-2:]}年:{v}%" for k, v in fin_trend["annual_gm_dict"].items()]
+        )
+        if fin_trend["annual_gm_dict"]
+        else f"最新: {fin_trend['latest_gm']}"
+    )
+    q_gm_str = (
+        " ➔ ".join(
+            [f"{k[-2:]}:{v}%" for k, v in fin_trend["quarterly_gm_dict"].items()]
+        )
+        if fin_trend["quarterly_gm_dict"]
+        else "暫無季序列"
+    )
+
+    alert_description = f"🔥 **綜合火力評分：{score} 分**\n\n"
+    alert_description += (
+        f"🔗 [點擊前往 Yahoo 股市查看"
+        f" {sname}](https://tw.stock.yahoo.com/quote/{sid})\n\n"
+    )
+    alert_description += f"**表面型態**：**`{status_msg}`**"
+
+    tz_tw = datetime.timezone(datetime.timedelta(hours=8))
+    now_time = datetime.datetime.now(tz_tw).strftime("%m/%d %H:%M")
+
+    vip_prefix = "🌟【自選股金星共振】" if (is_vip_watchlist and has_star) else (
+        "⭐【多指標金星共振】" if has_star else "🚨 黑馬雷達警戒"
+    )
+    embed = {
+        "title": f"{vip_prefix}：{sname} ({sid})",
+        "description": alert_description,
+        "color": color_hex,
+        "fields": [
+            {
+                "name": "💰 實時報價",
+                "value": (
+                    f"現價：**`{round(current_price, 2)}`**"
+                    f" 元\n漲跌：**`{change_sign} {abs(price_change)}`**"
+                    f" ({change_pct}%)"
+                ),
+                "inline": True,
+            },
+            {
+                "name": "📊 技術與成交量能",
+                "value": (
+                    f"RSI 指標：`{round(last['RSI'], 2)}`\n成交量比：`{round(vol_ratio, 2)}x`"
+                    f" (`{round(today_volume, 1)}`張/`{round(vol_ma5, 1)}`張)"
+                ),
+                "inline": True,
+            },
+            {
+                "name": "🛡️ 關鍵結構支撐位",
+                "value": f"`{support_text}`",
+                "inline": False,
+            },
+            {
+                "name": "📈 趨勢與內部籌碼真相",
+                "value": (
+                    f"技術趨勢：`{ma_status}`\n資金流向：{chip_flow_status}"
+                ),
+                "inline": False,
+            },
+            {
+                "name": "👥 法人籌碼動態",
+                "value": f"`{chip_info}`",
+                "inline": False,
+            },
+            {
+                "name": "📈 歷年毛利軌跡",
+                "value": (
+                    f"判定：**`{fin_trend['status_tag']}`**\n年度：`{ann_gm_str}`\n近季：`{q_gm_str}`\n解析：{fin_trend['diagnosis_text']}"
+                ),
+                "inline": False,
+            },
+        ],
+        "footer": {"text": f"秉諺的黑馬自動監控引擎 • 偵測時間: {now_time}"},
+    }
+
+    return {
+        "sid": sid,
+        "sname": sname,
+        "score": score,
+        "current_price": current_price,
+        "status_msg": status_msg,
+        "has_star": has_star,
+        "is_vip": is_vip_watchlist,
+        "embed": embed,
+    }
+
+  return False
+
+
 def run_all_scan():
-    print(f"[{datetime.datetime.now()}] 開始執行背景自動掃描...")
-    
-    TEST_MODE = False
-    stock_dict = load_stock_dict()
-    
-    if not stock_dict:
-        print("名單為空，停止掃描。")
-        return
+  print(f"[{datetime.datetime.now()}] 開始執行背景自動掃描...")
 
-    if TEST_MODE:
-        print("⚠️ [測試模式開啟]：只掃描前 5 檔，不執行全體掃描。")
-        items = list(stock_dict.items())[:5]
-        stock_dict = dict(items)
+  TEST_MODE = False
+  stock_dict = load_stock_dict()
 
-    is_full_market = len(stock_dict) > 500
-    
-    # 🧭 自動偵測大盤位階與導航狀態
-    market_regime = get_market_regime()
-    print(f"🧭 [大盤自適應導航] 目前判定狀態：{market_regime['label']}")
+  if not stock_dict:
+    print("名單為空，停止掃描。")
+    return
 
-    daily_candidates = []
-    elite_dict = {}
+  # 🌟 載入使用者的核心自選股 (watchlist.json)，給予 VIP 保送推播特權！
+  vip_watchlist_set = set()
+  wl_path = os.path.join(BASE_DIR, "watchlist.json")
+  if os.path.exists(wl_path):
+    try:
+      with open(wl_path, "r", encoding="utf-8") as f:
+        wl_data = json.load(f)
+        vip_watchlist_set = {str(k).split(".")[0].strip() for k in wl_data.keys()}
+      print(f"🌟 已載入 VIP 核心自選股共 {len(vip_watchlist_set)} 檔，開啟金星保送推播通道！")
+    except Exception:
+      pass
 
-    for sid, sname in stock_dict.items():
-        try:
-            result = scan_and_notify(sid, sname, DEFAULT_DISCORD_WEBHOOK, is_full_market, market_regime)
-            if isinstance(result, dict):
-                daily_candidates.append(result)
-                elite_dict[sid] = sname
-                print(f"✅ {sname} 過關！分數：{result['score']}")
-            time.sleep(0.2)
-        except Exception as e:
-            print(f"掃描 {sid} 發生錯誤: {e}")
+  if TEST_MODE:
+    print("⚠️ [測試模式開啟]：只掃描前 5 檔，不執行全體掃描。")
+    items = list(stock_dict.items())[:5]
+    stock_dict = dict(items)
 
-    if is_full_market and elite_dict:
-        try:
-            with open("radar_elite.json", "w", encoding="utf-8") as f:
-                json.dump(elite_dict, f, ensure_ascii=False, indent=4)
-        except Exception as e:
-            print(f"寫入 radar_elite.json 失敗: {e}")
+  is_full_market = len(stock_dict) > 500
 
-    if daily_candidates:
-        daily_candidates.sort(key=lambda x: x['score'], reverse=True)
-        
-        last_day_path = "tracker_state.json"
-        tracker_data = {}
-        if os.path.exists(last_day_path):
-            try:
-                with open(last_day_path, 'r', encoding='utf-8') as f:
-                    tracker_data = json.load(f)
-            except Exception:
-                pass
-        
-        last_scan_date = tracker_data.get("date", "")
-        last_day_signals = tracker_data.get("signals", {})
-        
-        tz_tw = datetime.timezone(datetime.timedelta(hours=8))
-        today_date_str = datetime.datetime.now(tz_tw).strftime('%Y-%m-%d')
-        new_signals = {}
-        
-        for stock in daily_candidates:
-            ticker = stock['sid']
-            signal_type = stock['status_msg']
-            
-            # 1. 完整記錄歷史 CSV
-            log_signal_to_csv(stock['sid'], stock['sname'], stock['current_price'], stock['embed'])
-            
-            # 2. 跨日連續通報
-            if last_scan_date != today_date_str:
-                if ticker in last_day_signals and last_day_signals[ticker] == signal_type:
-                    send_discord_webhook(DEFAULT_DISCORD_WEBHOOK, f"🔥 **【連續鎖碼通知】** {stock['sname']} 連續多日維持 {signal_type}！")
-            
-            new_signals[ticker] = signal_type
+  market_regime = get_market_regime()
+  print(f"🧭 [大盤自適應導航] 目前判定狀態：{market_regime['label']}")
 
-            # 3. 雙管齊下：嚴選 Top 5 且總分 >= 25 分才推播
-            if stock in daily_candidates[:5] and stock['score'] >= 25.0:
-                is_duplicate_today = (last_scan_date == today_date_str) and (last_day_signals.get(ticker) == signal_type)
-                if not is_duplicate_today:
-                    send_discord_webhook(DEFAULT_DISCORD_WEBHOOK, stock['embed'])
-                else:
-                    print(f"🛑 攔截重複推播：{stock['sname']} 今日已發送過相同狀態。")
-                time.sleep(1)
-        
-        with open(last_day_path, 'w', encoding='utf-8') as f:
-            json.dump({"date": today_date_str, "signals": new_signals}, f, ensure_ascii=False)
-        print("✅ 今日全體記錄與精華推播完成！")
+  daily_candidates = []
+  elite_dict = {}
+
+  for sid, sname in stock_dict.items():
+    try:
+      clean_code = str(sid).split(".")[0].strip()
+      is_vip = clean_code in vip_watchlist_set
+      result = scan_and_notify(
+          sid,
+          sname,
+          DEFAULT_DISCORD_WEBHOOK,
+          is_full_market,
+          market_regime,
+          is_vip_watchlist=is_vip,
+      )
+      if isinstance(result, dict):
+        daily_candidates.append(result)
+        elite_dict[sid] = sname
+        print(f"✅ {sname} 過關！分數：{result['score']} | 訊號：{result['status_msg']}")
+      time.sleep(0.2)
+    except Exception as e:
+      print(f"掃描 {sid} 發生錯誤: {e}")
+
+  if is_full_market and elite_dict:
+    try:
+      with open("radar_elite.json", "w", encoding="utf-8") as f:
+        json.dump(elite_dict, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+      print(f"寫入 radar_elite.json 失敗: {e}")
+
+  if daily_candidates:
+    daily_candidates.sort(key=lambda x: x["score"], reverse=True)
+
+    last_day_path = "tracker_state.json"
+    tracker_data = {}
+    if os.path.exists(last_day_path):
+      try:
+        with open(last_day_path, "r", encoding="utf-8") as f:
+          tracker_data = json.load(f)
+      except Exception:
+        pass
+
+    last_scan_date = tracker_data.get("date", "")
+    last_day_signals = tracker_data.get("signals", {})
+
+    tz_tw = datetime.timezone(datetime.timedelta(hours=8))
+    today_date_str = datetime.datetime.now(tz_tw).strftime("%Y-%m-%d")
+    new_signals = {}
+
+    for stock in daily_candidates:
+      ticker = stock["sid"]
+      signal_type = stock["status_msg"]
+
+      # 1. 完整記錄歷史 CSV
+      log_signal_to_csv(
+          stock["sid"], stock["sname"], stock["current_price"], stock["embed"]
+      )
+
+      # 2. 跨日連續通報
+      if last_scan_date != today_date_str:
+        if ticker in last_day_signals and last_day_signals[ticker] == signal_type:
+          send_discord_webhook(
+              DEFAULT_DISCORD_WEBHOOK,
+              f"🔥 **【連續鎖碼通知】** {stock['sname']} 連續多日維持 {signal_type}！",
+          )
+
+      new_signals[ticker] = signal_type
+
+      # 3. 推播條件：(全市場 Top 5 且 >= 25分) OR (🌟 VIP 自選股觸發 ⭐金星共振 / 🐉潛龍 / 🔥底背離 保送推播！)
+      is_top5_qualified = (stock in daily_candidates[:5]) and (stock["score"] >= 25.0)
+      is_vip_star_or_bottom = stock.get("is_vip", False) and (
+          stock.get("has_star", False)
+          or "潛龍" in signal_type
+          or "底背離" in signal_type
+      )
+
+      if is_top5_qualified or is_vip_star_or_bottom:
+        is_duplicate_today = (last_scan_date == today_date_str) and (
+            last_day_signals.get(ticker) == signal_type
+        )
+        if not is_duplicate_today:
+          send_discord_webhook(DEFAULT_DISCORD_WEBHOOK, stock["embed"])
+        else:
+          print(f"🛑 攔截重複推播：{stock['sname']} 今日已發送過相同狀態。")
+        time.sleep(1)
+
+    with open(last_day_path, "w", encoding="utf-8") as f:
+      json.dump(
+          {"date": today_date_str, "signals": new_signals},
+          f,
+          ensure_ascii=False,
+      )
+    print("✅ 今日全體記錄與精華推播完成！")
 
 if __name__ == "__main__":
     print("DEBUG: 程式已啟動，準備進入 run_all_scan...")
