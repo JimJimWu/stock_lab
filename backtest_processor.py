@@ -50,7 +50,7 @@ def run_radar_backtest():
 
     # 3. 剔除早期舊名稱「量能爆發突破」（保留新制五大訊號），並將乾淨資料存回 signal_history.csv！
     if "核心訊號" in df_raw.columns:
-        valid_sig_mask = df_raw["核心訊號"].astype(str).str.contains("強勢突破|大戶惜售|出貨陷阱|深水區潛龍|底背離|背離", regex=True)
+        valid_sig_mask = df_raw["核心訊號"].astype(str).str.contains("強勢突破|大戶惜售|出貨陷阱|深水區潛龍|底背離|背離|多指標共振", regex=True)
         df_raw = df_raw[valid_sig_mask].copy()
 
     # 🌟 同步瘦身覆寫 signal_history.csv（保留每日連續鎖碼偵測紀錄，但徹底清除 5~8 月肥大舊資料）
