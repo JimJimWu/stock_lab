@@ -1,5 +1,5 @@
 # ==============================================================================
-# 秉諺的黑馬雷達 V44.3 - 網頁儀表板主程式 
+# 秉諺的黑馬雷達 V45 - 網頁儀表板主程式 
 # ==============================================================================
 import os
 import re
@@ -19,7 +19,7 @@ from streamlit_autorefresh import st_autorefresh
 import numpy as np
 
 # --- 1. 頂部頁面設定與防禦 ---
-st.set_page_config(layout="wide", page_title="秉諺的黑馬雷達 V44.3")
+st.set_page_config(layout="wide", page_title="秉諺的黑馬雷達 V45")
 
 # --- 背景自動刷新設定 ---
 # 每 300,000 毫秒 (即 5 分鐘) 自動觸發一次 st.rerun()
@@ -942,7 +942,7 @@ def send_discord_webhook(webhook_url, embed_data):
         return False, f"發送異常: {str(e)}"
 
 # ==============================================================================
-# 💥 全方位評分引擎 (兼容量能爆發、量縮惜售、深水潛龍與低檔底背離)
+# 💥 全方位評分引擎 (兼容量能爆發、量縮惜售、深水潛龍、底背離與 ⭐多指標共振)
 # ==============================================================================
 def calculate_composite_score(
     net_5d,
@@ -968,11 +968,59 @@ def calculate_composite_score(
     vol_score = min(max((volume_ratio - 1.15) / (3.0 - 1.15) * 100, 0), 100)
 
   base_score = (chip_score * 0.50) + (vol_score * 0.35)
+  # 🌟 若觸發【多指標共振】金星，直接賦予 +30 分保底動能加成，避免底部剛轉強時因前5日籌碼為負而低分漏接！
+  resonance_bonus = 30.0 if "共振" in signal_type else 0.0
   fin_bonus = 15.0 if is_long_term_growth else (10.0 if is_q_dip else 0.0)
-  return round(min(base_score + fin_bonus, 100.0), 2)
+  return round(min(base_score + resonance_bonus + fin_bonus, 100.0), 2)
 
 
-# --- 雷達單次掃描 (已同步 V37.0 結構支撐與低檔底背離引擎) ---
+def check_bull_resonance_signal(df_scan):
+  """精準複製 K 線圖上的 ⭐ 金色星星判定邏輯，檢查最新一日或前一日是否剛亮起金星"""
+  if df_scan is None or len(df_scan) < 5:
+    return False, ""
+  macd_gold_cond = (df_scan["DIF"] > df_scan["DEA"]) & (
+      df_scan["DIF"].shift(1) <= df_scan["DEA"].shift(1)
+  )
+  kd_gold_cond = (df_scan["K"] > df_scan["D"]) & (
+      df_scan["K"].shift(1) <= df_scan["D"].shift(1)
+  )
+  vol_burst_cond = (df_scan["Close"] > df_scan["Open"]) & (
+      df_scan["Volume"] >= df_scan["Vol_MA5"] * 1.15
+  )
+
+  macd_gold_near = (
+      macd_gold_cond
+      | macd_gold_cond.shift(1, fill_value=False)
+      | macd_gold_cond.shift(-1, fill_value=False)
+  )
+  kd_gold_near = (
+      kd_gold_cond
+      | kd_gold_cond.shift(1, fill_value=False)
+      | kd_gold_cond.shift(-1, fill_value=False)
+  )
+  bull_res = (
+      kd_gold_cond
+      & (
+          macd_gold_near
+          | (
+              vol_burst_cond
+              & (df_scan["MACD_Hist"] > df_scan["MACD_Hist"].shift(1))
+          )
+      )
+  ) | (macd_gold_cond & kd_gold_near)
+
+  if bool(bull_res.iloc[-1]):
+    return True, "⭐【多指標共振】今日 KD+MACD 同步轉強買點！"
+  elif (
+      len(bull_res) >= 2
+      and bool(bull_res.iloc[-2])
+      and float(df_scan["Close"].iloc[-1]) >= float(df_scan["Low"].iloc[-2])
+  ):
+    return True, "⭐【多指標共振】昨日金星確認＋今日守穩續攻！"
+  return False, ""
+
+
+# --- 雷達單次掃描 (已內建 ⭐ 多指標共振金星自動捕捉) ---
 def run_single_scan_signal(sid, sname, webhook_url):
   df_scan = get_stock_df(sid)
   if df_scan.empty or len(df_scan) < 20:
@@ -1019,7 +1067,6 @@ def run_single_scan_signal(sid, sname, webhook_url):
   elif net_5d < -500:
     chip_flow_status = f"⚠️ __**主力高檔調節倒貨 ({net_5d}張)**__"
 
-  # 1. 採用反當沖純價格結構與 ATR 支撐引擎
   weighted_support, _ = calculate_structural_support(df_scan)
   support_text = (
       f"🟢 關鍵支撐守住 ({weighted_support} 元)"
@@ -1032,12 +1079,14 @@ def run_single_scan_signal(sid, sname, webhook_url):
       else "💤 區間整理"
   )
 
-  # 2. 五大核心訊號判定 (與 auto_scan.py V37.0 完全對齊)
   status_msg = "⚖️ 區間溫和"
   signals_triggered = False
 
+  # 🌟 優先檢查是否觸發 K 線圖上的【⭐ 多指標共振金星】
+  has_star, star_msg = check_bull_resonance_signal(df_scan)
+
   if vol_ratio >= 1.15:
-    if "倒貨" in chip_flow_status:
+    if "倒貨" in chip_flow_status and not has_star:
       status_msg = "💀【出貨陷阱】爆量但主力高檔倒貨！"
       color_hex = 7368816
       signals_triggered = True
@@ -1054,7 +1103,6 @@ def run_single_scan_signal(sid, sname, webhook_url):
   try:
     ma60, ma240 = last.get("MA60", 0), last.get("MA240", 0)
     vol_ma20 = df_scan["Volume"].rolling(20).mean().iloc[-1]
-
     if pd.notna(ma60) and pd.notna(ma240) and pd.notna(vol_ma20):
       is_near_ma60 = abs(current_price - ma60) / ma60 <= 0.06
       is_near_ma240 = abs(current_price - ma240) / ma240 <= 0.06
@@ -1084,6 +1132,15 @@ def run_single_scan_signal(sid, sname, webhook_url):
       status_msg = "🔥【低檔底背離】下跌力道竭盡，醞釀強彈！"
       color_hex = 16744192
       signals_triggered = True
+
+  # 🌟 若觸發【⭐ 多指標共振金星】，無條件點亮警報（或與既有訊號雙重疊加）！
+  if has_star:
+    if not signals_triggered or "出貨陷阱" in status_msg:
+      status_msg = star_msg
+    else:
+      status_msg = f"{star_msg} ＋ {status_msg}"
+    color_hex = 16766720  # 耀眼金黃色邊框
+    signals_triggered = True
 
   if signals_triggered:
     fin_trend = get_financial_margin_trend(sid)
@@ -1117,12 +1174,16 @@ def run_single_scan_signal(sid, sname, webhook_url):
         f"**表面型態**：**`{status_msg}`**"
     )
 
-    from datetime import datetime as _dt, timezone as _tz, timedelta as _td  
+    from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+
     tz_tw = _tz(_td(hours=8))
     now_time = _dt.now(tz_tw).strftime("%m/%d %H:%M")
 
     embed = {
-        "title": f"🚨 黑馬雷達警戒：{sname} ({sid})",
+        "title": (
+            f"{'⭐ 金星共振警報' if has_star else '🚨 黑馬雷達警戒'}：{sname}"
+            f" ({sid})"
+        ),
         "description": alert_description,
         "color": color_hex,
         "fields": [
@@ -1176,6 +1237,7 @@ def run_single_scan_signal(sid, sname, webhook_url):
         "score": score,
         "current_price": current_price,
         "status_msg": status_msg,
+        "has_star": has_star,
         "embed": embed,
     }
   return None
@@ -1670,7 +1732,42 @@ with st.sidebar:
                 st.toast(f"🗑️ 已成功將 {clean_target_sid} 移出戰情室！", icon="✅")
                 time.sleep(0.5)
                 st.rerun()
+    # 🌟 【新增：自選股「⭐ 多指標共振金星」一鍵快篩與點擊跳轉】
+    if st.button(
+        "⭐ 掃描自選股：誰剛亮金星？",
+        use_container_width=True,
+        help=(
+            "免逐檔點開 K 線！一鍵找出自選清單中『今日或昨日』剛跳出 ⭐"
+            " 多指標共振金星的標的"
+        ),
+    ):
+      star_hits = []
+      with st.spinner("⭐ 正在巡檢自選股 K 線金星共振訊號..."):
+        for k_sid, k_name in current_stocks.items():
+          df_k = get_stock_df(k_sid)
+          is_star, star_tag = check_bull_resonance_signal(df_k)
+          if is_star:
+            last_close = round(float(df_k["Close"].iloc[-1]), 2)
+            day_tag = "今日金星" if "今日" in star_tag else "昨日金星"
+            star_hits.append(
+                {"sid": k_sid, "name": k_name, "price": last_close, "tag": day_tag}
+            )
+      st.session_state["recent_star_hits"] = star_hits
 
+    if "recent_star_hits" in st.session_state:
+      hits = st.session_state["recent_star_hits"]
+      if hits:
+        st.success(f"🌟 發現 **{len(hits)} 檔**自選股剛亮起共振金星：")
+        for h in hits:
+          if st.button(
+              f"⭐ {h['name']}｜{h['price']}元 ({h['tag']})",
+              key=f"jump_star_{h['sid']}",
+              use_container_width=True,
+          ):
+            st.session_state["selected_sid"] = h["sid"]
+            st.rerun()
+      else:
+        st.caption("💤 近 2 日自選股暫無新觸發之金星共振。")
     st.divider()
     
     # 2. 🔍 探索新標的 (全市場擴建)
