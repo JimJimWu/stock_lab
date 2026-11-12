@@ -776,7 +776,7 @@ def scan_and_notify(
 def run_all_scan():
   print(f"[{datetime.datetime.now()}] 開始執行背景自動掃描...")
 
-  TEST_MODE = True
+  TEST_MODE = False
   stock_dict = load_stock_dict()
 
   if not stock_dict:
