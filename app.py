@@ -496,15 +496,24 @@ def load_stock_dict():
         pass
     
     if os.path.exists("radar_elite.json"):
-        try:
-            with open("radar_elite.json", "r", encoding="utf-8") as f:
-                radar_stocks = json.load(f)
-            for sid, sname in radar_stocks.items():
-                if sid not in current_data:
-                    pure_name = sname.replace(str(sid), "").replace("台股代號", "").replace("(", "").replace(")", "").strip()
-                    current_data[sid] = f"{sid} ({pure_name}) (⚡雷達)"
-        except Exception:
-            pass
+      try:
+        with open("radar_elite.json", "r", encoding="utf-8") as f:
+          radar_stocks = json.load(f)
+          for sid, sname in radar_stocks.items():
+            clean_r_sid = str(sid).split(".")[0].strip()
+            if clean_r_sid not in current_data:
+              pure_name = (
+                  str(sname)
+                  .replace(str(sid), "")
+                  .replace(clean_r_sid, "")
+                  .replace("台股代號", "")
+                  .replace("(", "")
+                  .replace(")", "")
+                  .strip()
+              )
+              current_data[clean_r_sid] = f"{clean_r_sid} ({pure_name}) (⚡雷達)"
+      except Exception:
+        pass
     
     return current_data
 
@@ -610,7 +619,8 @@ cache_ttl = 300 if is_trading_hours else 3600
 
 @st.cache_data(ttl=cache_ttl)
 def get_stock_df(sid):
-    sid = str(sid).split('(')[0].split(' ')[0].strip()
+    # 🌟 加上 .split('.')[0]，確保傳入 3481.TW 或 6187.TWO 時自動還原為純數字 3481 與 6187
+    sid = str(sid).split("(")[0].split(" ")[0].split(".")[0].strip()
     default_df = pd.DataFrame()
     suffixes = [".TWO", ".TW"] if sid in ["3595", "7853", "3081"] or len(sid) == 6 else [".TW", ".TWO"]
         
@@ -1253,6 +1263,7 @@ if 'selected_sid' not in st.session_state:
 def render_backtest_dashboard():
     def force_clean(x):
         s = str(x)
+        if "多指標共振" in s or "金星" in s: return "⭐【多指標共振】"
         if "強勢突破" in s: return "🚨【強勢突破】"
         if "大戶惜售" in s: return "💎【大戶惜售】"
         if "出貨陷阱" in s: return "💀【出貨陷阱】"
