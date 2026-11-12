@@ -1,20 +1,101 @@
 # ==============================================================================
-# 🐎 黑馬雷達專用：量化回測未來績效自動回補引擎 (V7.2 雙檔同步瘦身與新制保護版)
+# 🐎 黑馬雷達專用：量化回測未來績效自動回補引擎 (V8.1 零寫死動態讀取 + 金星時光機版)
 # ==============================================================================
-import pandas as pd
-import numpy as np
-import yfinance as yf
+import json
 import os
 import time
+import numpy as np
+import pandas as pd
+import yfinance as yf
 
-# 1. 新制穩定起算日：直接刪除 2026-09-01 以前舊版「量能爆發突破」格式的歷史舊資料
+# 取得當前腳本所在目錄，確保無論在本地或 GitHub Actions 都能精準讀檔
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# 1. 新制穩定起算日：保留 2026-09-01 以後的新制數據
 STABLE_EPOCH_DATE = "2026-09-01"
 
-# 2. 最大保留天數上限 (90天)：確保檔案永遠輕量，不觸發 GitHub 1MB 過大警告，同時保有充足 T+20 樣本
+# 2. 最大保留天數上限 (90天)：確保檔案永遠輕量，同時保有充足 T+20 樣本
 MAX_RETENTION_DAYS = 90
 
-# 3. 同股冷卻去重天數：同一檔股票在 5 天內重複通報時，回測報表僅保留第 1 筆起漲買點
+# 3. 同股冷卻去重天數：同一檔股票同一訊號在 5 天內重複通報時，僅保留第 1 筆起漲買點
 COOLDOWN_DAYS = 5
+
+
+def load_dynamic_watchlist(df_raw=None):
+  """📂 零寫死動態自選股讀取器：優先同步雲端試算表 -> 次讀 watchlist.json -> 保底讀取歷史日誌"""
+  wl = {}
+
+  # 第一層：若環境變數有設定 Google Sheets 憑證，直接讀取雲端最新增刪之自選股
+  try:
+    gspread_json = os.environ.get("GSPREAD_JSON")
+    sheet_url = os.environ.get("SHEET_URL")
+    if gspread_json and sheet_url:
+      import gspread
+      from oauth2client.service_account import ServiceAccountCredentials
+
+      creds = ServiceAccountCredentials.from_json_keyfile_dict(
+          json.loads(gspread_json),
+          [
+              "https://spreadsheets.google.com/feeds",
+              "https://www.googleapis.com/auth/drive",
+          ],
+      )
+      sheet = gspread.authorize(creds).open_by_url(sheet_url).sheet1
+      for row in sheet.get_all_records():
+        if str(row.get("sid", "")).strip() == "__WATCHLIST_DATA__":
+          cloud_wl = json.loads(row.get("data", "{}"))
+          if isinstance(cloud_wl, dict) and cloud_wl:
+            for k, v in cloud_wl.items():
+              clean_k = str(k).split(".")[0].strip()
+              pure_v = (
+                  str(v)
+                  .replace(clean_k, "")
+                  .replace("台股代號", "")
+                  .replace("(⚡雷達)", "")
+                  .replace("(", "")
+                  .replace(")", "")
+                  .strip()
+              )
+              wl[clean_k] = pure_v
+            print(f"☁️ 成功從雲端試算表動態載入 {len(wl)} 檔最新自選股！")
+          break
+  except Exception:
+    pass
+
+  # 第二層：直接讀取專案目錄下的 watchlist.json
+  if not wl:
+    wl_path = os.path.join(BASE_DIR, "watchlist.json")
+    if os.path.exists(wl_path):
+      try:
+        with open(wl_path, "r", encoding="utf-8") as f:
+          loaded_wl = json.load(f)
+          if isinstance(loaded_wl, dict) and loaded_wl:
+            for k, v in loaded_wl.items():
+              clean_k = str(k).split(".")[0].strip()
+              pure_v = (
+                  str(v)
+                  .replace(clean_k, "")
+                  .replace("台股代號", "")
+                  .replace("(⚡雷達)", "")
+                  .replace("(", "")
+                  .replace(")", "")
+                  .strip()
+              )
+              wl[clean_k] = pure_v
+            print(f"📂 成功從 watchlist.json 動態載入 {len(wl)} 檔自選股！")
+      except Exception as e:
+        print(f"⚠️ 讀取 watchlist.json 失敗: {e}")
+
+  # 第三層：終極保底防呆，若檔案皆無則從既有 CSV 日誌提取
+  if not wl and df_raw is not None and not df_raw.empty:
+    for _, r in df_raw.drop_duplicates(subset=["股票代號"]).iterrows():
+      c_sid = str(r["股票代號"]).split(".")[0].strip()
+      c_name = str(r.get("股票名稱", c_sid)).strip()
+      wl[c_sid] = c_name
+    print(f"ℹ️ 已從歷史日誌自動提取 {len(wl)} 檔標的作為掃描清單。")
+
+  return wl
+
 
 def compute_indicators(df):
   """計算 KD、MACD、RSI 與 5日均量，供歷史金星回推使用"""
@@ -44,25 +125,21 @@ def compute_indicators(df):
 
 
 def backfill_historical_stars(df_raw, history_cache):
-  """🌟 時光機引擎：自動掃描自選股過去 60 天內的『⭐ 多指標共振金星』並補入歷史資料庫"""
-  wl = DEFAULT_WATCHLIST.copy()
-  if os.path.exists("watchlist.json"):
-    try:
-      with open("watchlist.json", "r", encoding="utf-8") as f:
-        loaded_wl = json.load(f)
-        if isinstance(loaded_wl, dict) and loaded_wl:
-          for k, v in loaded_wl.items():
-            clean_k = str(k).split(".")[0].strip()
-            pure_v = (
-                str(v)
-                .replace(clean_k, "")
-                .replace("(", "")
-                .replace(")", "")
-                .strip()
-            )
-            wl[clean_k] = pure_v
-    except Exception:
-      pass
+  """🌟 時光機引擎：動態讀取自選股過去 60 天內的『⭐ 多指標共振金星』並補入歷史資料庫"""
+  wl = load_dynamic_watchlist(df_raw)
+  if not wl:
+    print("⚠️ 無法取得自選股名單，略過歷史金星回推。")
+    return df_raw
+
+  # 同步清除已經不在最新自選股名單內的舊金星回推紀錄（確保您刪除自選股後，回測也自動同步移除）
+  if not df_raw.empty and "核心訊號" in df_raw.columns:
+    is_star_mask = (
+        df_raw["核心訊號"]
+        .astype(str)
+        .str.contains("多指標共振|金星", regex=True)
+    )
+    in_wl_mask = df_raw["股票代號"].astype(str).str.strip().isin(set(wl.keys()))
+    df_raw = df_raw[~is_star_mask | in_wl_mask].copy()
 
   existing_stars = set()
   if not df_raw.empty and "核心訊號" in df_raw.columns:
@@ -75,7 +152,7 @@ def backfill_historical_stars(df_raw, history_cache):
       existing_stars.add((str(r["股票代號"]).strip(), r["_dt"].date()))
 
   print(
-      f"🌟 [金星時光機啟動] 正在回推 {len(wl)} 檔核心自選股自"
+      f"🌟 [金星時光機啟動] 正在回推 {len(wl)} 檔自選股自"
       f" {STABLE_EPOCH_DATE} 以來的歷史金星買點..."
   )
   epoch_dt = pd.to_datetime(STABLE_EPOCH_DATE).date()
@@ -185,9 +262,10 @@ def backfill_historical_stars(df_raw, history_cache):
     print("ℹ️ [金星回推完成] 資料庫已包含最新金星紀錄，無須重複新增。")
     return df_raw
 
+
 def run_radar_backtest():
-  log_file = "signal_history.csv"
-  output_file = "signal_history_backtest.csv"
+  log_file = os.path.join(BASE_DIR, "signal_history.csv")
+  output_file = os.path.join(BASE_DIR, "signal_history_backtest.csv")
 
   if not os.path.exists(log_file):
     print(f"❌ 錯誤：找不到來源檔案【{log_file}】！")
@@ -237,7 +315,7 @@ def run_radar_backtest():
     )
     df_raw = df_raw[valid_sig_mask].copy()
 
-  # 🌟 3.5 啟動時光機：自動回推 50 檔核心自選股的歷史金星買點，並共用 history_cache 加速後續回補！
+  # 🌟 3.5 啟動時光機：動態讀取自選股回推歷史金星買點，並共用 history_cache 加速後續回補！
   history_cache = {}
   df_raw = backfill_historical_stars(df_raw, history_cache)
 
